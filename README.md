@@ -6,34 +6,16 @@
 
 ---
 
-## 项目变迁
-
-本项目最初是一个**基础 RAG 对话系统**，我们做了一次重要转型，从基础的 RAG，转型为解决实际问题的 RAG Notebook：
-
-|                  | 阶段一（base-rag 分支）                            | 阶段二（master 分支）                                   |
-| ---------------- | -------------------------------------------------- | :------------------------------------------------------ |
-| **定位**   | 纯 RAG 对话服务，开箱即用                          | 智能笔记助手，以 RAG 为核心的 NoteBook 工具             |
-| **能力**   | 文档上传 → 向量检索 → AI 问答                    | 笔记管理 + RAG + 间隔重复 + AI 写作                     |
-| **适合谁** | 想快速集成 RAG 能力的开发者或希望学习RAG技术的个人 | 需要AI管理笔记和知识库的个人以及简历需要RAG项目的求职者 |
-
-**RAG 始终是整个系统的核心引擎。** 基础 RAG 代码已永久保留在 `base-rag` 分支供学习使用，如果只需要纯 RAG 服务，切换到`base-rag`即可开箱使用。
-
 ## 📋 目录
 
 - [项目简介](#项目简介)
-- [项目变迁](#项目变迁)
 - [核心特性](#核心特性)
-- [项目架构](#项目架构)
-- [项目演示](#项目演示)
 - [快速开始](#快速开始)
+- [配置说明](#配置说明)
 - [技术栈](#技术栈)
 - [项目结构](#项目结构)
 - [API 文档](#api文档)
-- [配置说明](#配置说明)
-- [部署指南](#部署指南)
-- [开发指南](#开发指南)
 - [故障排除](#故障排除)
-- [联系方式](#联系方式)
 
 ## 项目简介
 
@@ -50,6 +32,7 @@
 ## 核心特性
 
 **知识管理**
+
 - 📝 **笔记管理**：Markdown 编辑器（Tiptap）、标签/分类筛选、置顶、批量操作、笔记模板、Markdown/HTML 导出与打印
 - 🔗 **双链**：`[[标题]]` 语法自动建链 + 反向链接面板
 - 🏷️ **智能标签**：保存笔记后 LLM 异步生成标签和分类，无需手动归类
@@ -58,33 +41,28 @@
 - ✍️ **AI 写作辅助**：联机补全（Tab 采纳）、续写/扩写/摘要，SSE 流式输出
 
 **数据可视化**
+
 - 📊 **知识仪表盘**：GitHub 风格 365 天写作热力图、30 天字数趋势、分类环形图、年度统计（全部自绘 SVG，零图表库依赖）
 - 🕸 **知识图谱**：d3-force 力导向图，双链 + 语义相似边，Top 50 节点
 
 **分享与社交**
+
 - 📤 **公开分享**：笔记一键公开 → 免登录分享页 + 浏览计数 + Canvas 知识卡片图（三模板 PNG）
 - 👥 **好友与动态**：好友申请/关注、动态流（图文/引用笔记/点赞评论）、站内通知红点
 - 🏛 **知识广场**：公开笔记流 + 排行榜（写作/回顾/连续写作）
 - 🏆 **个人主页**：成就墙（7 枚徽章）、粉丝/关注、公开笔记
 
 **效率与养成**
+
 - 🍅 **番茄钟**：25+5 循环 + 环形进度 + 页宠联动
 - ⌘K **命令面板**：搜索笔记/跳转页面/快捷操作；全局快捷键（Ctrl+N 新建笔记）
 - 🐾 **页宠「小卷」**：9 种情绪、拖拽、好感度等级（50/150）、自定义形象/颜色/昵称、成就与互动记录，**养成数据云端同步（换设备不丢）**
 
 **工程能力**
+
 - 🔐 用户级数据隔离（JWT）；内容双层审核（敏感词即时拦截 + LLM 异步复核）
 - 💾 会话持久化（MySQL）；Redis 缓存（不可用自动降级）；限流 + 后台任务信号量保护模型服务
 - 🌐 前端 i18n 中英双语；明暗主题；侧边栏分组折叠动画
-
-## 项目演示
-
-| 功能模块 | 界面展示                                  |
-| -------- | :---------------------------------------- |
-| 笔记编辑 | ![笔记编辑](./images/editor_note.png)     |
-| 笔记列表 | ![笔记列表](./images/note.png)            |
-| AI 聊天  | ![AI 聊天](./images/aichat.png)           |
-| 知识库   | ![知识库](./images/knowledge_manager.png) |
 
 ## 快速开始
 
@@ -99,8 +77,8 @@
 ### 克隆项目
 
 ```bash
-git clone https://github.com/RMA-MUN/LangChain-RAG-FastAPI-Service.git
-cd LangChain-RAG-FastAPI-Service
+git clone https://github.com/Oyh2005/yunshujuan.git
+cd yunshujuan
 ```
 
 ### 安装依赖
@@ -189,17 +167,35 @@ separators: ["\n\n", "\n", "。", "！", "？", "!", "?", " ", ""]
 
 ### 启动服务
 
-| 服务     | 命令                                        | 端口 |
-| -------- | ------------------------------------------- | ---- |
+| 服务         | 命令                                                                                | 端口 |
+| ------------ | ----------------------------------------------------------------------------------- | ---- |
 | 后端（开发） | `cd backend && .venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000` | 8000 |
-| 后端（生产） | `cd backend && .\start_prod.ps1`（4 workers） | 8000 |
-| 前端服务 | `cd front && npm run dev`                 | 3000 |
+| 后端（生产） | `cd backend && .\start_prod.ps1`（4 workers）                                     | 8000 |
+| 前端服务     | `cd front && npm run dev`                                                         | 3000 |
 
 | MySQL | `net start mysql` | 3306 |
 | Redis | `Start-Service rediszt3`（本机服务名）或 `redis-server` | 6379 |
 | Ollama | `ollama serve`（可选，本地嵌入/对话） | 11434 |
 
 > ⚠️ 测试账号：`admin / admin1234`（另有 `admin2` 可体验好友/关注）
+
+## 配置说明
+
+### LLM 模型配置（统一 OpenAI 兼容协议）
+
+系统通过 **OpenAI 兼容协议**接入任意大模型服务，不绑定特定厂商。对话、视觉、嵌入三个能力各自独立配置，支持跨平台混搭：
+
+| 能力         | 配置项                                                                                | 说明                                                                       |
+| ------------ | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| 对话（必填） | `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL_NAME`                      | 任意兼容服务（百炼 / DeepSeek / OpenAI / 智谱 / Moonshot / vLLM / Ollama） |
+| 视觉（可选） | `VISION_ENABLED` / `VISION_BASE_URL` / `VISION_API_KEY` / `VISION_MODEL_NAME` | 默认关闭；`VISION_*` 全空时整体回落 `OPENAI_*`                         |
+| 嵌入（可选） | `EMBED_BASE_URL` / `EMBED_API_KEY` / `EMBED_MODEL_NAME`                         | 留空时整体回落`OPENAI_*`                                                 |
+
+**回落规则是"原子"的**：仅当某能力的 base_url 与 api_key **两者都未设置**时才整体回落 `OPENAI_*`，绝不把不同平台的 url 与 key 混搭，避免部分配置时静默使用错误供应商的凭据。
+
+### 重排序模型
+
+下载 BAAI/bge-reranker-v2-m3 模型并配置 `RERANKER_MODEL_PATH` 路径，参考 [模型配置指南](./docs/modelscope_model.md)。
 
 ## 技术栈
 
@@ -221,22 +217,22 @@ separators: ["\n\n", "\n", "。", "！", "？", "!", "?", " ", ""]
 
 ### 前端技术
 
-| 技术                              | 说明                            |
-| --------------------------------- | ------------------------------- |
-| React 19                          | 现代化前端框架                  |
-| TypeScript                        | 类型安全                        |
-| Vite 8                            | 极速构建工具                    |
+| 技术                              | 说明                              |
+| --------------------------------- | --------------------------------- |
+| React 19                          | 现代化前端框架                    |
+| TypeScript                        | 类型安全                          |
+| Vite 8                            | 极速构建工具                      |
 | Tailwind CSS 4                    | 原子化 CSS 框架（CSS-first 配置） |
-| Radix UI                          | 无头 UI 组件库                  |
-| Tiptap                            | 富文本 Markdown 编辑器          |
-| React Router 7                    | 路由管理（懒加载 + JWT 校验）   |
-| Zustand                           | 轻量状态管理                    |
-| framer-motion                     | 动画（页面入场/侧边栏折叠）     |
-| d3-force                          | 知识图谱力导向布局              |
-| i18next                           | 国际化（中/英）                 |
-| Axios                             | HTTP 客户端                     |
-| react-markdown + rehype-highlight | Markdown 渲染与代码高亮         |
-| dompurify                         | HTML 安全过滤                   |
+| Radix UI                          | 无头 UI 组件库                    |
+| Tiptap                            | 富文本 Markdown 编辑器            |
+| React Router 7                    | 路由管理（懒加载 + JWT 校验）     |
+| Zustand                           | 轻量状态管理                      |
+| framer-motion                     | 动画（页面入场/侧边栏折叠）       |
+| d3-force                          | 知识图谱力导向布局                |
+| i18next                           | 国际化（中/英）                   |
+| Axios                             | HTTP 客户端                       |
+| react-markdown + rehype-highlight | Markdown 渲染与代码高亮           |
+| dompurify                         | HTML 安全过滤                     |
 
 ## 项目结构
 
@@ -348,24 +344,6 @@ separators: ["\n\n", "\n", "。", "！", "？", "!", "?", " ", ""]
 完整的 OpenAPI 规范文件：[backend/openapi.json](./backend/openapi.json)
 		启动服务后访问交互式文档：[http://localhost:8000/docs](http://localhost:8000/docs)
 
-## 配置说明
-
-### LLM 模型配置（统一 OpenAI 兼容协议）
-
-系统通过 **OpenAI 兼容协议**接入任意大模型服务，不绑定特定厂商。对话、视觉、嵌入三个能力各自独立配置，支持跨平台混搭：
-
-| 能力 | 配置项 | 说明 |
-| --- | --- | --- |
-| 对话（必填） | `OPENAI_BASE_URL` / `OPENAI_API_KEY` / `OPENAI_MODEL_NAME` | 任意兼容服务（百炼 / DeepSeek / OpenAI / 智谱 / Moonshot / vLLM / Ollama） |
-| 视觉（可选） | `VISION_ENABLED` / `VISION_BASE_URL` / `VISION_API_KEY` / `VISION_MODEL_NAME` | 默认关闭；`VISION_*` 全空时整体回落 `OPENAI_*` |
-| 嵌入（可选） | `EMBED_BASE_URL` / `EMBED_API_KEY` / `EMBED_MODEL_NAME` | 留空时整体回落 `OPENAI_*` |
-
-**回落规则是"原子"的**：仅当某能力的 base_url 与 api_key **两者都未设置**时才整体回落 `OPENAI_*`，绝不把不同平台的 url 与 key 混搭，避免部分配置时静默使用错误供应商的凭据。
-
-### 重排序模型
-
-下载 BAAI/bge-reranker-v2-m3 模型并配置 `RERANKER_MODEL_PATH` 路径，参考 [模型配置指南](./docs/modelscope_model.md)。
-
 ## 故障排除
 
 详细的故障排除指南请参考：[故障排除](./docs/troubleshooting.md)
@@ -377,22 +355,3 @@ separators: ["\n\n", "\n", "。", "！", "？", "!", "?", " ", ""]
 - **ChromaDB 异常**：检查 `chroma.yaml` 中的路径配置
 - **重排序模型加载失败**：确认 `RERANKER_MODEL_PATH` 指向正确的模型路径
 - **Ollama 连接失败**：确认 `ollama serve` 已运行且模型已拉取
-
-## 联系方式
-
-如有任何问题或建议，欢迎提交 GitHub Issues 或联系作者：
-
-- Email: n3032747608@163.com
-- QQ: 3032747608
-
-## Star History
-
-<picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=RMA-MUN/RAGNotebook&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=RMA-MUN/RAGNotebook&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=RMA-MUN/RAGNotebook&type=date&legend=top-left" />
- </picture>
-
-## License
-
-本项目基于MIT开源协议， [点击跳转LICENSE](LICENSE)
