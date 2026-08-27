@@ -1,0 +1,438 @@
+/* ==== 页宠「小卷」样式与动画 ==== */
+
+/* 页宠角色默认配色（全局：右下角页宠、养成页大图、形象预览均生效；
+   自定义主色通过容器 inline style 注入 --pet-body 覆盖） */
+:root {
+  --pet-body: #ffffff;
+  --pet-line: #dbcef5;
+  --pet-shine: #ffffff;
+  --pet-blush: #ffb3c1;
+  --pet-eye: #463855;
+}
+
+.dark {
+  --pet-body: #3d3d3f;
+  --pet-line: #555557;
+  --pet-shine: #48484a;
+  --pet-blush: #a8566a;
+  --pet-eye: #e8e8e8;
+}
+
+.pet-root {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 40;
+  width: 88px;
+  height: 88px;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  /* 移动端隐藏（设置中可强制开启见 pet-force-visible） */
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .pet-root { display: block; }
+}
+
+.pet-root.dragging {
+  cursor: grabbing;
+}
+
+.pet-cloud {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 4px 10px var(--color-shadow));
+}
+
+/* 角色 + 装饰叠加容器 */
+.pet-visual {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pet-visual > .pet-cloud {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── 情绪动画：作用于整个角色 SVG（身体+眼睛+腮红+嘴一起动，
+      避免出现"身体在跳、脸留在原地"的分离感；眨眼动画在 .pet-eyes 上独立叠加） ── */
+
+/* 待机：整体呼吸 */
+.pet-cloud.pet-idle {
+  animation: pet-breathe 3.2s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+/* 眨眼（所有状态通用；特殊表情下暂停） */
+.pet-eyes {
+  animation: pet-blink 3.6s ease-in-out infinite;
+  transform-origin: 60px 54px;
+}
+
+.pet-eyes-static {
+  animation: none !important;
+}
+
+/* ── 玩耍：跳跃旋转 ── */
+.pet-cloud.pet-play {
+  animation: pet-play-jump 0.8s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+/* ── 开心：摇摆蹦跳 ── */
+.pet-cloud.pet-happy {
+  animation: pet-happy-sway 0.9s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+/* ── 惊讶：抖动 ── */
+.pet-cloud.pet-surprised {
+  animation: pet-shake 0.4s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+
+/* ── 爱心：心跳缩放 ── */
+.pet-cloud.pet-love {
+  animation: pet-heartbeat 0.9s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+/* 说话：嘴巴张开 + 轻微弹跳 */
+.pet-cloud.pet-talk {
+  animation: pet-bounce 0.5s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+.pet-cloud.pet-talk .pet-mouth {
+  opacity: 0;
+}
+
+.pet-cloud.pet-talk .pet-mouth-open {
+  opacity: 1;
+  animation: pet-mouth-open 0.35s ease-in-out infinite alternate;
+  transform-origin: 60px 62px;
+}
+
+@keyframes pet-mouth-open {
+  from { transform: scaleY(1); }
+  to   { transform: scaleY(1.25); }
+}
+
+/* 庆祝：弹跳 + 彩虹显现 */
+.pet-cloud.pet-celebrate {
+  animation: pet-jump 0.55s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+/* ── 装饰层（LevelDecor）：叠加在角色上方 ── */
+.pet-decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pet-decor-rainbow {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 92%;
+  opacity: 0;
+}
+
+.pet-decor.pet-celebrate .pet-decor-rainbow {
+  animation: pet-rainbow-in 0.4s ease-out both;
+  transform-origin: 50% 100%;
+}
+
+.pet-decor-star {
+  position: absolute;
+  top: 0;
+  right: 6px;
+  width: 26px;
+  animation: pet-star-twinkle 2.2s ease-in-out infinite;
+}
+
+.pet-decor-crown {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 54px;
+  animation: pet-crown-bob 3s ease-in-out infinite;
+}
+
+.pet-decor-zzz {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  width: 34px;
+  opacity: 0;
+}
+
+.pet-decor.pet-sleep .pet-decor-zzz {
+  animation: pet-zzz-float 2.4s ease-in-out infinite;
+}
+
+/* 爱心漂浮（love 情绪） */
+.pet-decor-hearts {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.pet-heart-1 {
+  animation: pet-heart-float-1 1.6s ease-in-out infinite;
+  transform-origin: 18px 30px;
+}
+
+.pet-heart-2 {
+  animation: pet-heart-float-2 1.9s ease-in-out infinite;
+  transform-origin: 42px 20px;
+}
+
+@keyframes pet-heart-float-1 {
+  0%, 100% { opacity: 0.9; transform: translateY(0) scale(1); }
+  50% { opacity: 1; transform: translateY(-7px) scale(1.15); }
+}
+
+@keyframes pet-heart-float-2 {
+  0%, 100% { opacity: 0.85; transform: translateY(0) scale(1); }
+  50% { opacity: 1; transform: translateY(-9px) scale(1.1); }
+}
+
+@keyframes pet-star-twinkle {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.18); }
+}
+
+@keyframes pet-crown-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-2.5px); }
+}
+
+/* ── 笔记猫：摇尾巴 ── */
+.pet-cat-tail {
+  animation: pet-tail-wag 2.6s ease-in-out infinite;
+  transform-origin: 96px 66px;
+}
+
+@keyframes pet-tail-wag {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-9deg); }
+}
+
+/* ── 自定义形象（贴纸模式）：容器级动画，对任意图片生效 ── */
+
+.pet-custom-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px var(--color-shadow));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.pet-custom-image.pet-idle {
+  animation: pet-breathe 3.2s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+.pet-custom-image.pet-talk {
+  animation: pet-bounce 0.5s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+.pet-custom-image.pet-celebrate {
+  animation: pet-jump 0.55s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+.pet-custom-image.pet-think {
+  animation: pet-sway 1.6s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+.pet-custom-image.pet-sleep {
+  animation: pet-squash 2.8s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+.pet-custom-image.pet-play {
+  animation: pet-play-jump 0.8s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+.pet-custom-image.pet-happy {
+  animation: pet-happy-sway 0.9s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+.pet-custom-image.pet-surprised {
+  animation: pet-shake 0.4s ease-in-out infinite;
+  transform-origin: 50% 80%;
+}
+
+.pet-custom-image.pet-love {
+  animation: pet-heartbeat 0.9s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+
+/* ── 思考：左右轻摇 ── */
+.pet-cloud.pet-think {
+  animation: pet-sway 1.6s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+/* ── 睡觉：压扁 + zzz 浮动 ── */
+.pet-cloud.pet-sleep {
+  animation: pet-squash 2.8s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+.pet-cloud.pet-sleep .pet-eyes {
+  /* 睡觉时眼睛已切换为闭眼弧线（见角色组件），停止眨眼动画即可 */
+  animation: none;
+}
+
+/* ── keyframes ── */
+
+@keyframes pet-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035, 1.02); }
+}
+
+@keyframes pet-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.08); }
+  97% { transform: scaleY(1); }
+}
+
+@keyframes pet-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.02); }
+}
+
+@keyframes pet-jump {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  30% { transform: translateY(-14px) scale(0.98, 1.06); }
+  55% { transform: translateY(0) scale(1.06, 0.94); }
+  75% { transform: translateY(-5px) scale(1, 1); }
+}
+
+@keyframes pet-rainbow-in {
+  from { opacity: 0; transform: scale(0.6) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes pet-sway {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+@keyframes pet-squash {
+  0%, 100% { transform: scale(1, 1); }
+  50% { transform: scale(1.04, 0.94); }
+}
+
+/* ── 新情绪 keyframes ── */
+
+@keyframes pet-play-jump {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-12px) rotate(-8deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(-12px) rotate(8deg); }
+}
+
+@keyframes pet-happy-sway {
+  0%, 100% { transform: rotate(-4deg) translateY(0); }
+  50% { transform: rotate(4deg) translateY(-5px); }
+}
+
+@keyframes pet-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+@keyframes pet-heartbeat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.12, 1.06); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.08, 1.03); }
+  60% { transform: scale(1); }
+}
+
+@keyframes pet-zzz-float {
+  0% { opacity: 0; transform: translateY(6px); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+/* ── 气泡 ── */
+
+.pet-bubble {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 220px;
+  min-width: 90px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 6px 20px var(--color-shadow);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--color-text);
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
+  animation: pet-bubble-in 0.25s ease-out both;
+}
+
+.pet-bubble-name {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent);
+  margin-bottom: 2px;
+}
+
+.pet-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--color-card);
+}
+
+@keyframes pet-bubble-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.92); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+/* 减少动态效果偏好：页宠静态展示 */
+@media (prefers-reduced-motion: reduce) {
+  .pet-cloud *,
+  .pet-decor *,
+  .pet-cat-tail {
+    animation: none !important;
+  }
+  .pet-decor-rainbow { opacity: 0; }
+  .pet-decor.pet-celebrate .pet-decor-rainbow { opacity: 1; }
+  .pet-bubble { animation: none; }
+}

@@ -1,0 +1,56 @@
+# 云舒卷 · Nginx 生产配置示例
+# 用途：托管前端静态资源（front/dist，需先 npm run build）+ 反向代理后端 API
+# 用法：
+#   1. 前端构建：cd front && npm run build   （输出到 front/dist）
+#   2. 将本文件按需修改后放入 nginx conf.d/（如 /etc/nginx/conf.d/ragnotebook.conf）
+#   3. nginx -t 校验后 nginx -s reload
+#
+# 说明：后端 8000 为 uvicorn 多 worker（见 backend/start_prod.ps1）
+
+server {
+    listen 80;
+    server_name your-domain.com;   # 改成你的域名或服务器 IP
+
+    # 前端静态资源（gzip + 缓存）
+    root D:/项目/RAGNotebook-master/front/dist;
+    index index.html;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1k;
+
+    # 静态资源长缓存（带 hash 文件名）
+    location /assets/ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # SPA 路由回退（/notes /stats /social 等前端路由都回 index.html）
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 后端 API 反向代理
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000/;      # 去掉 /api 前缀转发给后端
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;                # SSE 流式对话需要较长超时
+        proxy_buffering off;                    # SSE 必须关闭缓冲
+    }
+
+    # 公开分享页数据 API（/public/note/{id}）
+    location /public/ {
+        proxy_pass http://127.0.0.1:8000/public/;
+        proxy_set_header Host $host;
+    }
+
+    # 后端媒体文件（头像/动态图片）
+    location /media/ {
+        proxy_pass http://127.0.0.1:8000/media/;
+        proxy_set_header Host $host;
+        expires 7d;
+    }
+}
