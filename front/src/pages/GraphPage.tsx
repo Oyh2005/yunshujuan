@@ -41,7 +41,7 @@ export default function GraphPage() {
   const { t } = useTranslation()
   const [data, setData] = useState<GraphData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<boolean | 'rate'>(false)
   const [semanticLoading, setSemanticLoading] = useState(false)
   const [semanticError, setSemanticError] = useState(false)
   const semanticController = useRef<AbortController | null>(null)
@@ -71,8 +71,8 @@ export default function GraphPage() {
         setData(res.data ?? null)
         setError(false)
       })
-      .catch(() => {
-        if (!cancelled) setError(true)
+      .catch((err: unknown) => {
+        if (!cancelled) setError((err as { response?: { status?: number } })?.response?.status === 429 ? 'rate' : true)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -193,7 +193,7 @@ export default function GraphPage() {
     {!semanticError && data?.semantic_status === 'complete' && <p role="status" className="knowledge-footnote !pb-4">{t('graph.semanticComplete')}</p>}
     {data && <div className="knowledge-legend"><span><i />{t('graph.linkEdge')}</span><span><i className="dashed" />{t('graph.similarEdge')}</span><span>{data.nodes.length} {t('graph.nodes')} · {layout?.edges.length ?? 0} {t('graph.edges')}</span></div>}
     {loading && <LoadingSkeleton />}
-    {error && !data && <div className="knowledge-alert" role="alert"><p>{t('common.error')}</p><button className="secondary-button" onClick={() => window.location.reload()}>{t('common.retry')}</button></div>}
+    {error && !data && <div className="knowledge-alert" role="alert"><p>{error === 'rate' ? t('common.rateLimited') : t('common.error')}</p><button className="secondary-button" onClick={() => window.location.reload()}>{t('common.retry')}</button></div>}
     {data && !loading && (!layout ? <div className="knowledge-panel knowledge-empty"><img src="/illustrations/study-cloud.png" alt="" /><p>{t('graph.empty')}</p><Link to="/notes/new" className="primary-button">{t('note.newNote')}</Link></div> : <div className="knowledge-graph-layout">
       <div className="knowledge-graph-canvas">
         <label className="knowledge-graph-picker"><span>{t('knowledgeUI.chooseNote')}</span><select value={selected?.id ?? ''} onChange={(event) => { setSelectedId(event.target.value); setPan({ x: 0, y: 0 }) }}>{layout.nodes.map((node) => <option key={node.id} value={node.id}>{node.title}</option>)}</select></label>

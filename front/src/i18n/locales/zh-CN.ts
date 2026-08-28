@@ -459,6 +459,7 @@ const zhCN = {
   common: {
     loading: '加载中...',
     error: '出错了',
+    rateLimited: '请求过于频繁，请稍后再试',
     retry: '重试',
     confirm: '确定',
     cancel: '取消',

@@ -1,4 +1,6 @@
 import axios from 'axios'
+import { toast } from 'sonner'
+import i18n from '../i18n'
 
 const JWT_KEY = 'jwt_token'
 
@@ -22,6 +24,9 @@ client.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem(JWT_KEY)
       window.location.href = '/login'
+    } else if (error.response?.status === 429) {
+      // 限流：直接告知用户原因，避免误以为是网络/加载故障
+      toast.error(i18n.t('common.rateLimited'))
     }
     return Promise.reject(error)
   }

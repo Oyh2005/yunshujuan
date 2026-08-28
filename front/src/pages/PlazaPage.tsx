@@ -29,10 +29,10 @@ export default function PlazaPage() {
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<boolean | 'rate'>(false)
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null)
   const [rankLoading, setRankLoading] = useState(true)
-  const [rankError, setRankError] = useState(false)
+  const [rankError, setRankError] = useState<boolean | 'rate'>(false)
   const mounted = useRef(false)
   const noteRequest = useRef(0)
   const rankRequest = useRef(0)
@@ -51,8 +51,10 @@ export default function PlazaPage() {
       setNotes((prev) => nextPage === 1 ? res.data.notes : [...prev, ...res.data.notes.filter((note) => !prev.some((item) => item.id === note.id))])
       setPage(nextPage)
       setHasMore(res.data.has_more)
-    } catch {
-      if (mounted.current && request === noteRequest.current) setError(true)
+    } catch (err) {
+      if (mounted.current && request === noteRequest.current) {
+        setError((err as { response?: { status?: number } })?.response?.status === 429 ? 'rate' : true)
+      }
     } finally {
       if (mounted.current && request === noteRequest.current) { setLoading(false); setLoadingMore(false); notesBusy.current = false }
     }
@@ -65,8 +67,10 @@ export default function PlazaPage() {
     try {
       const res = await statsApi.leaderboard()
       if (mounted.current && request === rankRequest.current) setLeaderboard(res.data)
-    } catch {
-      if (mounted.current && request === rankRequest.current) setRankError(true)
+    } catch (err) {
+      if (mounted.current && request === rankRequest.current) {
+        setRankError((err as { response?: { status?: number } })?.response?.status === 429 ? 'rate' : true)
+      }
     } finally {
       if (mounted.current && request === rankRequest.current) setRankLoading(false)
     }
@@ -80,7 +84,7 @@ export default function PlazaPage() {
   }, [loadNotes, loadRanks])
 
   const formatTime = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }) : ''
-  const rankStatus = rankError ? <div className="knowledge-alert" role="alert"><span>{t('knowledgeUI.rankError')}</span><button className="knowledge-text-link" onClick={() => void loadRanks()}>{t('common.retry')}</button></div> : rankLoading ? <p className="knowledge-footnote" role="status">{t('common.loading')}</p> : null
+  const rankStatus = rankError ? <div className="knowledge-alert" role="alert"><span>{rankError === 'rate' ? t('common.rateLimited') : t('knowledgeUI.rankError')}</span><button className="knowledge-text-link" onClick={() => void loadRanks()}>{t('common.retry')}</button></div> : rankLoading ? <p className="knowledge-footnote" role="status">{t('common.loading')}</p> : null
   return <KnowledgeLayout>
     <KnowledgeHeader title={t('plaza.title')} subtitle={t('knowledgeUI.plazaSubtitle')} hero actions={<Link to="/notes/new" className="primary-button"><Plus size={17} />{t('note.newNote')}</Link>} />
     <div className="knowledge-toolbar"><div className="knowledge-filters" role="group" aria-label={t('plaza.title')}>
@@ -88,7 +92,7 @@ export default function PlazaPage() {
     </div><span className="knowledge-footnote !pt-0">{t('knowledgeUI.publicOnly')}</span></div>
     {tab === 'notes' ? <div className="knowledge-plaza-layout">
       <div>
-        {error && <div className="knowledge-alert" role="alert"><span>{t('knowledgeUI.loadError')}</span><button className="secondary-button" onClick={() => void loadNotes(notes.length ? page + 1 : 1)}>{t('common.retry')}</button></div>}
+        {error && <div className="knowledge-alert" role="alert"><span>{error === 'rate' ? t('common.rateLimited') : t('knowledgeUI.loadError')}</span><button className="secondary-button" onClick={() => void loadNotes(notes.length ? page + 1 : 1)}>{t('common.retry')}</button></div>}
         {loading ? <div role="status" aria-label={t('common.loading')} className="knowledge-plaza-grid">{[1, 2, 3, 4].map((i) => <div className="h-64 rounded-2xl animate-pulse bg-[var(--color-bg-secondary)]" key={i} />)}</div>
           : notes.length === 0 && !error ? <div className="knowledge-panel knowledge-empty"><img src="/illustrations/study-cloud.png" alt="" /><p>{t('plaza.empty')}</p><Link to="/notes" className="knowledge-text-link">{t('knowledgeUI.myNotes')}<ArrowRight size={16} /></Link></div>
           : <div className="knowledge-plaza-grid">{notes.map((note) => <article className="knowledge-public-note" key={note.id}>

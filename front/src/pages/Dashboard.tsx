@@ -32,7 +32,7 @@ export default function Dashboard() {
   const [graph, setGraph] = useState<GraphData | null>(null)
   const [review, setReview] = useState<ReviewListData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [failed, setFailed] = useState(false)
+  const [failed, setFailed] = useState<boolean | 'rate'>(false)
   const [reload, setReload] = useState(0)
   const [tab, setTab] = useState<'all' | 'note' | 'document'>('all')
 
@@ -47,7 +47,11 @@ export default function Dashboard() {
       setDocuments(docResult.status === 'fulfilled' ? docResult.value.data : null)
       setGraph(graphResult.status === 'fulfilled' ? graphResult.value.data : null)
       setReview(reviewResult.status === 'fulfilled' ? reviewResult.value : null)
-      setFailed([noteResult, docResult, graphResult, reviewResult].some((result) => result.status === 'rejected'))
+      const results = [noteResult, docResult, graphResult, reviewResult]
+      const anyRejected = results.some((result) => result.status === 'rejected')
+      const rateLimited = results.some((result) =>
+        result.status === 'rejected' && (result.reason as { response?: { status?: number } })?.response?.status === 429)
+      setFailed(rateLimited ? 'rate' : anyRejected)
       setLoading(false)
     })
     return () => { cancelled = true }
@@ -90,7 +94,7 @@ export default function Dashboard() {
         <div className="dashboard-top-actions"><Link to="/notifications" className="dashboard-icon-button" aria-label={text('通知', 'Notifications')}><Bell size={21} /></Link><Link to="/profile" className="dashboard-profile" aria-label={text('个人信息', 'Profile')}>{user?.username?.slice(0, 1) || <CloudAvatar />}</Link></div>
       </header>
 
-      {failed && <div className="dashboard-error" role="alert">{text('部分数据暂时未能加载，其他功能可以正常使用。', 'Some data could not be loaded. Your other tools are still available.')}<button disabled={loading} onClick={() => { setLoading(true); setReload((value) => value + 1) }}><RefreshCw size={14} />{text('重试', 'Retry')}</button></div>}
+      {failed && <div className="dashboard-error" role="alert">{failed === 'rate' ? text('请求过于频繁，请稍后再试。', 'Too many requests, please try again later.') : text('部分数据暂时未能加载，其他功能可以正常使用。', 'Some data could not be loaded. Your other tools are still available.')}<button disabled={loading} onClick={() => { setLoading(true); setReload((value) => value + 1) }}><RefreshCw size={14} />{text('重试', 'Retry')}</button></div>}
 
       <div className="dashboard-grid">
         <div className="dashboard-main">

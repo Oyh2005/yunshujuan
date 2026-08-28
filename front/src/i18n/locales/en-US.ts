@@ -388,6 +388,7 @@ const enUS = {
   common: {
     loading: 'Loading...',
     error: 'Something went wrong',
+    rateLimited: 'Too many requests, please try again later',
     retry: 'Retry',
     confirm: 'Confirm',
     cancel: 'Cancel',

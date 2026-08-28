@@ -47,7 +47,7 @@ export default function NoteList() {
   const [view, setView] = useState<NoteView>(initialView)
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(false)
-  const [loadError, setLoadError] = useState(false)
+  const [loadError, setLoadError] = useState<boolean | 'rate'>(false)
   const pageRef = useRef(0)
   const requestRef = useRef(0)
   const inFlight = useRef(false)
@@ -107,8 +107,10 @@ export default function NoteList() {
       setHasMore(!query && pageNum * PAGE_SIZE < count)
       pageRef.current = pageNum
       return true
-    } catch {
-      if (request === requestRef.current) setLoadError(true)
+    } catch (err) {
+      if (request === requestRef.current) {
+        setLoadError((err as { response?: { status?: number } })?.response?.status === 429 ? 'rate' : true)
+      }
       return false
     } finally {
       if (request === requestRef.current) {
@@ -250,7 +252,7 @@ export default function NoteList() {
           <p className="notes-subtitle" aria-live="polite">
             {selectMode ? t('note.batch.selected', { count: selectedIds.size })
               : loading && notes.length === 0 ? t('note.ui.loading')
-              : loadError && notes.length === 0 ? t('note.ui.loadError')
+              : loadError && notes.length === 0 ? (loadError === 'rate' ? t('common.rateLimited') : t('note.ui.loadError'))
               : t(query ? 'note.ui.searchCount' : 'note.ui.total', { count: total })}
           </p>
         </div>
@@ -299,7 +301,7 @@ export default function NoteList() {
       {selectMode && selectedIds.size > 0 && <BatchActionBar selectedCount={selectedIds.size} disabled={busy} onDelete={() => setDeleteConfirmOpen(true)} onDownload={handleBatchDownload} onCategory={() => setCategoryModalOpen(true)} onPin={handleBatchPin} onCancel={exitSelectMode} />}
 
       <div aria-busy={loading}>
-        {loadError && <div className="notes-error" role="alert"><AlertCircle size={21} /><p>{t('note.ui.loadError')}</p><button className="secondary-button" onClick={() => void loadNotes(pageRef.current + 1, pageRef.current === 0)}>{t('note.ui.retry')}</button></div>}
+        {loadError && <div className="notes-error" role="alert"><AlertCircle size={21} /><p>{loadError === 'rate' ? t('common.rateLimited') : t('note.ui.loadError')}</p><button className="secondary-button" onClick={() => void loadNotes(pageRef.current + 1, pageRef.current === 0)}>{t('note.ui.retry')}</button></div>}
         {loading && notes.length === 0 ? (
           <div className={collectionClass} role="status" aria-label={t('note.ui.loading')}>
             {Array.from({ length: 6 }, (_, index) => <div className="note-skeleton" key={index} aria-hidden="true"><div /><div /><div /><div /><div /></div>)}

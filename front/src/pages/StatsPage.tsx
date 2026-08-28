@@ -37,7 +37,7 @@ export default function StatsPage() {
   const { t, i18n } = useTranslation()
   const [data, setData] = useState<StatsDashboard | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
+  const [error, setError] = useState<boolean | 'rate'>(false)
 
   const affection = usePetStore((s) => s.affection)
   const noteStreak = useHabitStore((s) => s.noteStreak)
@@ -48,8 +48,8 @@ export default function StatsPage() {
       const res = await statsApi.dashboard()
       setData(res.data ?? null)
       setError(false)
-    } catch {
-      setError(true)
+    } catch (err) {
+      setError((err as { response?: { status?: number } })?.response?.status === 429 ? 'rate' : true)
     } finally {
       setLoading(false)
     }
@@ -65,8 +65,8 @@ export default function StatsPage() {
         setData(res.data ?? null)
         setError(false)
       })
-      .catch(() => {
-        if (!cancelled) setError(true)
+      .catch((err: unknown) => {
+        if (!cancelled) setError((err as { response?: { status?: number } })?.response?.status === 429 ? 'rate' : true)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -104,7 +104,7 @@ export default function StatsPage() {
 
         {error && (
           <div className="knowledge-alert" role="alert">
-            <p className="mb-3">{t('common.error')}</p>
+            <p className="mb-3">{error === 'rate' ? t('common.rateLimited') : t('common.error')}</p>
             <button
               onClick={handleRefresh}
               className="primary-button"

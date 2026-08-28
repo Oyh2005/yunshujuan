@@ -20,7 +20,7 @@ export default function KnowledgeBase() {
   const { start: startSSE, abort, loading: uploading } = useSSE()
   const [docs, setDocs] = useState<DocumentSummary[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState(false)
+  const [loadError, setLoadError] = useState<boolean | 'rate'>(false)
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([])
   const [dragOver, setDragOver] = useState(false)
   const [showClean, setShowClean] = useState(false)
@@ -43,8 +43,10 @@ export default function KnowledgeBase() {
     try {
       const res = await knowledgeApi.list()
       if (mounted.current && request === listRequest.current) setDocs(res.data?.documents ?? [])
-    } catch {
-      if (mounted.current && request === listRequest.current) setLoadError(true)
+    } catch (err) {
+      if (mounted.current && request === listRequest.current) {
+        setLoadError((err as { response?: { status?: number } })?.response?.status === 429 ? 'rate' : true)
+      }
     } finally {
       if (mounted.current && request === listRequest.current) setLoading(false)
     }
@@ -164,7 +166,7 @@ export default function KnowledgeBase() {
       </div>
       <label className="knowledge-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label={t('knowledgeUI.searchFiles')} placeholder={t('knowledgeUI.searchFiles')} /></label>
     </div>
-    {loadError && <div role="alert" className="knowledge-alert"><span>{t('knowledgeUI.loadError')}</span><button className="secondary-button" onClick={() => void loadDocs()}>{t('common.retry')}</button></div>}
+    {loadError && <div role="alert" className="knowledge-alert"><span>{loadError === 'rate' ? t('common.rateLimited') : t('knowledgeUI.loadError')}</span><button className="secondary-button" onClick={() => void loadDocs()}>{t('common.retry')}</button></div>}
     {loading && docs.length === 0 ? <div role="status" aria-label={t('common.loading')} className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-16 rounded-xl bg-[var(--color-bg-secondary)] animate-pulse" />)}</div>
       : !loadError && filtered.length === 0 ? <div className="knowledge-panel knowledge-empty"><img src="/illustrations/study-cloud.png" alt="" /><p>{t(docs.length ? 'note.ui.noResults' : 'knowledge.empty')}</p>{docs.length > 0 && <button className="secondary-button" onClick={() => { setType('all'); setSearch('') }}>{t('note.ui.clearFilters')}</button>}</div>
       : docs.length > 0 && <div className="knowledge-table-wrap"><table className="knowledge-table"><thead><tr>{['filename', 'type', 'chunkCount', 'status', 'added', 'actions'].map((key) => <th scope="col" key={key}>{t('knowledgeUI.' + key)}</th>)}</tr></thead><tbody>{filtered.map((doc) => <tr key={doc.id}>
