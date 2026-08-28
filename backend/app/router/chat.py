@@ -20,7 +20,7 @@ chat_router = APIRouter(prefix="/chat", tags=["chat"])
 async def query_stream(
         request: QueryRequest,
         user_id: str = Depends(get_current_user_id),
-        _: None = Depends(rate_limit(limit=60, window=60))
+        _: None = Depends(rate_limit(limit=120, window=60))
 ):
     """查询Agent流式响应"""
     session_id = request.session_id or str(uuid.uuid4())
@@ -141,7 +141,7 @@ async def query_rag(
         request: RAGRequest,
         user_id: str = Depends(get_current_user_id),
         router_service: ChatService = Depends(get_router_service),
-        _: None = Depends(rate_limit(limit=15, window=60))
+        _: None = Depends(rate_limit(limit=30, window=60))
 ):
     """RAG检索"""
     response = await router_service.handle_rag_query(request.query, user_id)
@@ -187,7 +187,7 @@ async def get_user_sessions(
 async def reorder_documents(
         request: ReorderRequest,
         router_service: ChatService = Depends(get_router_service),
-        _: None = Depends(rate_limit(limit=20, window=60))
+        _: None = Depends(rate_limit(limit=30, window=60))
 ):
     """使用Ollama本地的嵌入模型对文档进行中文重排序"""
     sorted_docs = await router_service.handle_reorder(request.query, request.documents)

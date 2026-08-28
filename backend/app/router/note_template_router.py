@@ -36,7 +36,7 @@ async def create_template(
     payload: NoteTemplateCreate,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=20, window=60)),
+    _: None = Depends(rate_limit(limit=30, window=60)),
 ):
     """创建自定义模板。"""
     svc = get_note_template_service()
@@ -64,7 +64,7 @@ async def update_template(
     payload: NoteTemplateUpdate,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=20, window=60)),
+    _: None = Depends(rate_limit(limit=30, window=60)),
 ):
     """更新自定义模板。"""
     svc = get_note_template_service()
@@ -79,7 +79,7 @@ async def delete_template(
     template_id: str,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=20, window=60)),
+    _: None = Depends(rate_limit(limit=30, window=60)),
 ):
     """删除自定义模板。"""
     svc = get_note_template_service()

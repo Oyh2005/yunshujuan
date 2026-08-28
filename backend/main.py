@@ -31,7 +31,7 @@ app = FastAPI()
 
 # 全局限流中间件：每 60 秒允许 100 个请求（Redis 不可用时自动降级放行）
 # 所有限流（包括路由上的 Depends(rate_limit(...))）通过 RATE_LIMIT_ENABLED=false 一键关闭
-app.add_middleware(RateLimitMiddleware, limit=100, window=60)
+app.add_middleware(RateLimitMiddleware, limit=300, window=60)
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
