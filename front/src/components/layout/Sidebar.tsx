@@ -75,10 +75,6 @@ const navGroups: { labelKey: string; items: { path: string; icon: React.Componen
       { path: '/notifications', icon: Bell, labelKey: 'nav.notifications' },
     ],
   },
-  {
-    labelKey: 'nav.groupPet',
-    items: [{ path: '/pet', icon: Cloud, labelKey: 'nav.pet' }],
-  },
 ]
 
 const bottomItems = [
