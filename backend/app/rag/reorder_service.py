@@ -1,3 +1,4 @@
+import hashlib
 import os
 from typing import Any
 
@@ -22,6 +23,23 @@ def find_model_path(base_path: str) -> str:
     return base_path
 
 
+def _model_files_complete(base_path: str) -> bool:
+    """模型目录是否完整：存在 config.json 且包含 model_type 字段。"""
+    if not os.path.isdir(base_path):
+        return False
+    for root, _dirs, files in os.walk(base_path):
+        if 'config.json' in files:
+            try:
+                import json as _json
+                with open(os.path.join(root, 'config.json'), 'r', encoding='utf-8') as f:
+                    cfg = _json.load(f)
+                if isinstance(cfg, dict) and cfg.get('model_type'):
+                    return True
+            except Exception:
+                continue
+    return False
+
+
 def check_and_download_reranker_model() -> None:
     """检查并重排序模型，在FastAPI启动时执行"""
     from modelscope import snapshot_download
@@ -31,11 +49,15 @@ def check_and_download_reranker_model() -> None:
     MODELSCOPE_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
 
     try:
-        if os.path.exists(LOCAL_MODEL_PATH) and os.path.isdir(LOCAL_MODEL_PATH):
+        if _model_files_complete(LOCAL_MODEL_PATH):
             logger.info(f"✅ 检测到本地重排序模型：{LOCAL_MODEL_PATH}")
         else:
-            logger.warning(f"⚠️  本地模型未找到：{LOCAL_MODEL_PATH}")
-            logger.info(f"🔄 开始从魔搭社区下载模型：{MODELSCOPE_MODEL_NAME}")
+            if os.path.isdir(LOCAL_MODEL_PATH):
+                logger.warning(f"⚠️  本地模型目录存在但文件不完整（缺少 config.json 或 model_type）：{LOCAL_MODEL_PATH}")
+                logger.warning("🔄 将重新从魔搭社区下载完整模型（建议先手动删除该目录）")
+            else:
+                logger.warning(f"⚠️  本地模型未找到：{LOCAL_MODEL_PATH}")
+                logger.info(f"🔄 开始从魔搭社区下载模型：{MODELSCOPE_MODEL_NAME}")
 
             os.makedirs(LOCAL_MODEL_PATH, exist_ok=True)
 
@@ -105,6 +127,16 @@ class ReorderService:
                     "error": ""
                 }
 
+            # 重排序结果缓存：相同 query + 文档集直接命中（CPU 推理是热点，TTL 10 分钟）
+            from app.db.redis_config import get_redis_cache_json, set_redis_cache
+            cache_key = "rerank:" + hashlib.md5(
+                (query + "\x00" + "\x01".join(documents)).encode("utf-8")
+            ).hexdigest()
+            cached = await get_redis_cache_json(cache_key)
+            if cached is not None and cached.get("success"):
+                logger.debug(f"【重排序服务】缓存命中：{len(cached['documents'])} 个文档")
+                return cached
+
             if thinking_callback:
                 await thinking_callback({
                     "type": "thinking",
@@ -152,11 +184,14 @@ class ReorderService:
             sorted_docs = sorted(scored_documents, key=lambda x: x["similarity"], reverse=True)
             logger.info(f"【重排序服务】文档重排序成功，返回 {len(sorted_docs)} 个文档")
 
-            return {
+            result = {
                 "success": True,
                 "documents": sorted_docs,
                 "error": ""
             }
+            # Redis 不可用时 set_redis_cache 自动降级，不影响主流程
+            await set_redis_cache(cache_key, result, expire=600)
+            return result
         except Exception as e:
             error_msg = str(e)
             logger.error(f"【重排序服务】重排序失败: {error_msg}")

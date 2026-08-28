@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -134,7 +134,7 @@ export default function UserProfilePage() {
             <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-6 mb-5">
               <div className="flex items-start gap-4">
                 {profile.user.avatar ? (
-                  <img src={profile.user.avatar} alt="" className="w-16 h-16 rounded-full object-cover" />
+                  <img src={profile.user.avatar} alt="" loading="lazy" className="w-16 h-16 rounded-full object-cover" />
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-[var(--color-accent-bg)] text-[var(--color-accent)] text-2xl font-bold flex items-center justify-center">
                     {profile.user.username.slice(0, 1).toUpperCase()}
@@ -205,7 +205,7 @@ export default function UserProfilePage() {
                           className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border-light)] hover:border-[var(--color-accent)] transition-colors text-left"
                         >
                           {u.avatar ? (
-                            <img src={u.avatar} alt="" className="w-7 h-7 rounded-full object-cover" />
+                            <img src={u.avatar} alt="" loading="lazy" className="w-7 h-7 rounded-full object-cover" />
                           ) : (
                             <div className="w-7 h-7 rounded-full bg-[var(--color-accent-bg)] text-[var(--color-accent)] text-xs font-medium flex items-center justify-center">
                               {u.username.slice(0, 1).toUpperCase()}

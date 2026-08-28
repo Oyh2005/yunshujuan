@@ -16,7 +16,7 @@ function RankList({ items, unit }: { items: LeaderboardItem[]; unit: string }) {
   const { t } = useTranslation()
   if (!items.length) return <p className="knowledge-footnote">{t('plaza.noRank')}</p>
   return <ol className="knowledge-rank-list">{items.map((item, index) => <li key={item.user_id}>
-    <span>{index + 1}</span><Link to={'/user/' + item.user_id}><span className="knowledge-avatar">{item.avatar ? <img src={item.avatar} alt="" /> : item.username.slice(0, 1)}</span><span>{item.username}</span></Link><small><b>{item.value.toLocaleString()}</b> {unit}</small>
+    <span>{index + 1}</span><Link to={'/user/' + item.user_id}><span className="knowledge-avatar">{item.avatar ? <img src={item.avatar} alt="" loading="lazy" /> : item.username.slice(0, 1)}</span><span>{item.username}</span></Link><small><b>{item.value.toLocaleString()}</b> {unit}</small>
   </li>)}</ol>
 }
 
@@ -92,7 +92,7 @@ export default function PlazaPage() {
         {loading ? <div role="status" aria-label={t('common.loading')} className="knowledge-plaza-grid">{[1, 2, 3, 4].map((i) => <div className="h-64 rounded-2xl animate-pulse bg-[var(--color-bg-secondary)]" key={i} />)}</div>
           : notes.length === 0 && !error ? <div className="knowledge-panel knowledge-empty"><img src="/illustrations/study-cloud.png" alt="" /><p>{t('plaza.empty')}</p><Link to="/notes" className="knowledge-text-link">{t('knowledgeUI.myNotes')}<ArrowRight size={16} /></Link></div>
           : <div className="knowledge-plaza-grid">{notes.map((note) => <article className="knowledge-public-note" key={note.id}>
-            <Link className="knowledge-public-author" to={'/user/' + note.author.user_id}><span className="knowledge-avatar">{note.author.avatar ? <img src={note.author.avatar} alt="" /> : note.author.username.slice(0, 1)}</span><span>{note.author.username}</span></Link>
+            <Link className="knowledge-public-author" to={'/user/' + note.author.user_id}><span className="knowledge-avatar">{note.author.avatar ? <img src={note.author.avatar} alt="" loading="lazy" /> : note.author.username.slice(0, 1)}</span><span>{note.author.username}</span></Link>
             <Link className="knowledge-public-body" to={'/share/' + note.id}><h2>{note.title || t('note.ui.untitled')}</h2><p>{notePreview(note.content_preview || '')}</p></Link>
             <div className="flex flex-wrap gap-2">{note.category && <span className="knowledge-badge">{t('note.ui.categories.' + note.category, { defaultValue: note.category })}</span>}{(note.tags ?? []).slice(0, 2).map((tag, index) => <span className="knowledge-badge ready" key={tag + index}>{tag}</span>)}</div>
             <div className="knowledge-public-footer"><time>{formatTime(note.updated_at)}</time><span><Eye size={13} />{t('knowledgeUI.views', { count: note.view_count })}</span></div>

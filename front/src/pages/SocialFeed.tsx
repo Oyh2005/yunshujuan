@@ -39,6 +39,7 @@ function Avatar({ username, avatar, size = 36 }: { username: string; avatar: str
     <img
       src={avatar}
       alt={username}
+      loading="lazy"
       className="rounded-full object-cover shrink-0"
       style={{ width: size, height: size }}
     />
@@ -310,7 +311,7 @@ export default function SocialFeed() {
             <div className="flex flex-wrap gap-2 mb-3">
               {images.map((url, i) => (
                 <div key={`${url}-${i}`} className="relative">
-                  <img src={url} alt="" className="w-20 h-20 object-cover rounded-lg border border-[var(--color-border)]" />
+                  <img src={url} alt="" loading="lazy" className="w-20 h-20 object-cover rounded-lg border border-[var(--color-border)]" />
                   <button
                     onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
                     className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-[var(--color-danger)] text-white shadow"
