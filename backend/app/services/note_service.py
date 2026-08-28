@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger_handler import logger
-from app.cache.redis_decorator import cache_with_redis
+from app.cache.redis_decorator import RedisCache, cache_with_redis
 from app.models.note import Note
 from app.models.note_link import NoteLink
 from app.models.review_record import ReviewRecord
@@ -171,6 +171,7 @@ class NoteService:
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
 
+        await self._invalidate_note_caches(user_id)
         return self._doc_to_response(note)
 
     async def update_note(self, db: AsyncSession, note_id: str, user_id: str, payload: NoteUpdate) -> NoteResponse | None:
@@ -225,6 +226,7 @@ class NoteService:
             except Exception as e:
                 logger.error(f"更新笔记向量失败 note_id={note_id}: {e}")
 
+        await self._invalidate_note_caches(user_id, note_id)
         return self._doc_to_response(note)
 
     async def delete_note(self, db: AsyncSession, note_id: str, user_id: str) -> bool:
@@ -251,6 +253,7 @@ class NoteService:
         except Exception as e:
             logger.error(f"删除笔记向量失败 note_id={note_id}: {e}")
 
+        await self._invalidate_note_caches(user_id, note_id)
         return True
 
     async def get_note(self, db: AsyncSession, note_id: str, user_id: str) -> NoteResponse | None:
@@ -264,6 +267,12 @@ class NoteService:
             return None
         return self._doc_to_response(note)
 
+    async def _invalidate_note_caches(self, user_id: str, note_id: str | None = None):
+        """写操作后失效笔记列表/详情缓存（Redis 不可用时自动跳过）。"""
+        await RedisCache.delete_pattern("note_list:*")
+        if note_id:
+            await RedisCache.delete(f"note_detail:{user_id}:{note_id}")
+
     async def list_notes(
         self,
         db: AsyncSession,
@@ -275,8 +284,14 @@ class NoteService:
         sort_by: str = "updated_at",
     ) -> tuple[list[NoteResponse], int]:
         """
-        分页查询笔记列表，支持按分类筛选和排序。tag 筛选为内存过滤。
+        分页查询笔记列表，支持按分类筛选和排序（30s 缓存，写操作自动失效）。
         """
+        cache_key = f"note_list:{user_id}:{page}:{page_size}:{category or '-'}:{tag or '-'}:{sort_by}"
+        from app.db.redis_config import get_redis_cache_json, set_redis_cache
+        cached = await get_redis_cache_json(cache_key)
+        if cached is not None:
+            return [NoteResponse(**item) for item in cached["notes"]], cached["total"]
+
         conditions = [Note.user_id == user_id]
         if category:
             conditions.append(Note.category == category)
@@ -313,6 +328,12 @@ class NoteService:
         notes = result.scalars().all()
 
         note_list = [self._doc_to_response(n) for n in notes]
+
+        await set_redis_cache(
+            cache_key,
+            {"notes": [n.model_dump() for n in note_list], "total": total},
+            expire=30,
+        )
 
         return note_list, total
 
@@ -725,6 +746,7 @@ class NoteService:
         )
         result = await db.execute(stmt)
         await db.commit()
+        await self._invalidate_note_caches(user_id)
         return result.rowcount
 
     async def batch_export_zip(self, db: AsyncSession, user_id: str, note_ids: list[str]) -> bytes:
@@ -765,6 +787,7 @@ class NoteService:
         )
         result = await db.execute(stmt)
         await db.commit()
+        await self._invalidate_note_caches(user_id)
         return result.rowcount
 
 

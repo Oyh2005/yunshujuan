@@ -365,9 +365,17 @@ async def get_note(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    获取笔记详情。
+    获取笔记详情（5 分钟缓存，写操作自动失效；Redis 不可用时直查数据库）。
     """
-    note = await init_manager.note_service.get_note(db, note_id, user_id)
+    from app.cache.redis_decorator import RedisCache
+    note = await RedisCache.get_or_set(
+        f"note_detail:{user_id}:{note_id}",
+        init_manager.note_service.get_note,
+        db,
+        note_id,
+        user_id,
+        expire=300,
+    )
     if not note:
         return success_response(message="笔记不存在")
     return success_response(data=note)

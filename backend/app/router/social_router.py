@@ -130,6 +130,20 @@ async def _get_user_brief(db: AsyncSession, user_id: str) -> dict | None:
     return {"user_id": u.uuid, "username": u.username, "avatar": u.avatar, "bio": u.bio}
 
 
+async def _get_user_briefs(db: AsyncSession, user_ids: list[str]) -> list[dict]:
+    """批量获取用户简要信息（单次 IN 查询，避免 N+1）。"""
+    if not user_ids:
+        return []
+    result = await db.execute(select(User).where(User.uuid.in_(user_ids)))
+    by_id = {u.uuid: u for u in result.scalars().all()}
+    briefs = []
+    for uid in user_ids:
+        u = by_id.get(uid)
+        if u:
+            briefs.append({"user_id": u.uuid, "username": u.username, "avatar": u.avatar, "bio": u.bio})
+    return briefs
+
+
 async def _friend_ids(db: AsyncSession, user_id: str) -> set[str]:
     """已接受好友的用户 id 集合（双向 accepted 记录）。"""
     r1 = await db.execute(
@@ -344,12 +358,7 @@ async def friend_list(
 ):
     """好友列表（已接受）。"""
     ids = await _friend_ids(db, user_id)
-    friends = []
-    for fid in ids:
-        brief = await _get_user_brief(db, fid)
-        if brief:
-            friends.append(brief)
-    return success_response(data=friends)
+    return success_response(data=await _get_user_briefs(db, list(ids)))
 
 
 @social_router.get("/friends/requests")
@@ -901,12 +910,8 @@ async def user_followers(
             .limit(50)
         )
     ).all()
-    result = []
-    for (fid,) in rows:
-        brief = await _get_user_brief(db, fid)
-        if brief:
-            result.append(brief)
-    return success_response(data=result)
+    fids = [row[0] for row in rows]
+    return success_response(data=await _get_user_briefs(db, fids))
 
 
 @social_router.get("/users/{target_id}/following")
@@ -924,12 +929,8 @@ async def user_following(
             .limit(50)
         )
     ).all()
-    result = []
-    for (fid,) in rows:
-        brief = await _get_user_brief(db, fid)
-        if brief:
-            result.append(brief)
-    return success_response(data=result)
+    fids = [row[0] for row in rows]
+    return success_response(data=await _get_user_briefs(db, fids))
 
 
 @social_router.get("/users/{target_id}/public-notes")

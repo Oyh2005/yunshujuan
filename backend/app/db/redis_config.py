@@ -5,8 +5,14 @@ from typing import Any
 
 import redis.asyncio as redis
 from redis.asyncio import ConnectionPool
+from dotenv import load_dotenv
 
 from app.core.logger_handler import logger
+
+# 确保 .env 已加载：模块级常量依赖环境变量，
+# 若调用方 import 顺序不同（如 background_init 先于 db_config），
+# 未加载 .env 会导致 REDIS_DB/REDIS_HOST 静默使用默认值（配置漂移）。
+load_dotenv()
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
@@ -35,6 +41,10 @@ async def _get_pool() -> ConnectionPool:
             port=REDIS_PORT,
             db=REDIS_DB,
             decode_responses=True,
+            # Redis 故障时快速失败：连接/操作超时短，让各调用方及时降级，
+            # 避免默认超时（~4s+）拖慢每个请求（限流/缓存/用户信息都会访问 Redis）
+            socket_connect_timeout=0.5,
+            socket_timeout=2,
         )
         _pool_loop_id = current_loop_id
 

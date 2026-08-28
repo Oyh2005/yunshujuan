@@ -135,7 +135,13 @@ async def get_user_info_from_db(user_id: str) -> dict[str, Any] | None:
 
 
 async def get_user_info_from_redis(user_id: str, credentials: HTTPAuthorizationCredentials | None = None):
-    redis_client = await connect_redis()
+    try:
+        redis_client = await connect_redis()
+    except Exception as e:
+        # Redis 不可用时降级直查数据库（避免 /user/detail/ 等接口 500）
+        logger.warning(f"Redis 不可用，降级直查数据库: {type(e).__name__}")
+        return await get_user_info_from_db(user_id)
+
     key = f"user:{user_id}"
 
     try:
@@ -158,3 +164,7 @@ async def get_user_info_from_redis(user_id: str, credentials: HTTPAuthorizationC
             await set_redis_cache(key, user_data, expire=3600)
             return user_data
         return None
+    except Exception as e:
+        # 读取/写回异常同样降级直查数据库
+        logger.warning(f"读取用户缓存失败，降级直查数据库: {type(e).__name__}")
+        return await get_user_info_from_db(user_id)
