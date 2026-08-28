@@ -9,9 +9,17 @@ from app.db.redis_config import connect_redis
 _RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
 
 
+def _client_ip(request: Request) -> str:
+    """优先取直连 IP，反代场景回退 X-Forwarded-For 首段。"""
+    if request.client and request.client.host:
+        return request.client.host
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    return forwarded.split(",")[0].strip() or "unknown"
+
+
 def rate_limit(limit: int = 1, window: int = 60):
     """
-    限流依赖函数
+    限流依赖函数（按请求路径独立计数）
     :param limit: 时间窗口内的最大请求数
     :param window: 时间窗口大小（秒）
     :return: 依赖函数
@@ -21,42 +29,39 @@ def rate_limit(limit: int = 1, window: int = 60):
         if not _RATE_LIMIT_ENABLED:
             return
 
-        # 获取客户端IP
-        client_ip = request.client.host
-        if not client_ip:
-            client_ip = request.headers.get('X-Forwarded-For', '').split(',')[0].strip() or 'unknown'
+        client_ip = _client_ip(request)
 
-        # 生成限流键
-        key = f"rate_limit:aichat:{client_ip}"
+        # 按接口路径区分计数，避免不同接口互相消耗配额
+        key = f"rate_limit:{request.url.path}:{client_ip}"
 
-        # 获取Redis连接
-        redis = await connect_redis()
+        try:
+            redis = await connect_redis()
+            current = await redis.get(key)
+            current = int(current) if current else 0
 
-        # 获取当前计数
-        current = await redis.get(key)
-        current = int(current) if current else 0
+            if current >= limit:
+                raise HTTPException(
+                    status_code=429,
+                    detail="请求过于频繁，请稍后再试"
+                )
 
-        if current >= limit:
-            # 限流触发
-            raise HTTPException(
-                status_code=429,
-                detail="请求过于频繁，请稍后再试"
-            )
-
-        # 增加计数
-        if current == 0:
-            # 第一次请求，设置过期时间
-            await redis.setex(key, window, 1)
-        else:
-            # 后续请求，增加计数
-            await redis.incr(key)
+            if current == 0:
+                await redis.setex(key, window, 1)
+            else:
+                await redis.incr(key)
+        except HTTPException:
+            raise
+        except Exception as e:
+            # Redis 不可用时降级放行，避免限流把服务拖垮
+            from app.core.logger_handler import logger
+            logger.warning(f"限流检查跳过（Redis 不可用）: {type(e).__name__}")
 
     return dependency
 
 
 class RateLimitMiddleware:
     """
-    全局限流中间件
+    全局限流中间件（按 IP 独立计数）
     """
     def __init__(self, app, limit: int = 100, window: int = 60):
         self.app = app
@@ -73,41 +78,32 @@ class RateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        # 构建请求对象
         from fastapi import Request
         request = Request(scope, receive)
-
-        # 获取客户端IP
-        client_ip = request.client.host
-        if not client_ip:
-            client_ip = request.headers.get('X-Forwarded-For', '').split(',')[0].strip() or 'unknown'
-
-        # 生成限流键
+        client_ip = _client_ip(request)
         key = f"rate_limit:global:{client_ip}"
 
-        # 获取Redis连接
-        redis = await connect_redis()
+        try:
+            redis = await connect_redis()
+            current = await redis.get(key)
+            current = int(current) if current else 0
 
-        # 获取当前计数
-        current = await redis.get(key)
-        current = int(current) if current else 0
+            if current >= self.limit:
+                from starlette.responses import JSONResponse
+                response = JSONResponse(
+                    {"detail": "请求过于频繁，请稍后再试"},
+                    status_code=429
+                )
+                await response(scope, receive, send)
+                return
 
-        if current >= self.limit:
-            # 限流触发
-            from starlette.responses import JSONResponse
-            response = JSONResponse(
-                {"detail": "请求过于频繁，请稍后再试"},
-                status_code=429
-            )
-            await response(scope, receive, send)
-            return
-
-        # 增加计数
-        if current == 0:
-            # 第一次请求，设置过期时间
-            await redis.setex(key, self.window, 1)
-        else:
-            # 后续请求，增加计数
-            await redis.incr(key)
+            if current == 0:
+                await redis.setex(key, self.window, 1)
+            else:
+                await redis.incr(key)
+        except Exception as e:
+            # Redis 不可用时降级放行
+            from app.core.logger_handler import logger
+            logger.warning(f"全局限流跳过（Redis 不可用）: {type(e).__name__}")
 
         await self.app(scope, receive, send)

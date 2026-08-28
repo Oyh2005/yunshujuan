@@ -46,6 +46,7 @@ dependencies = [
     "imagehash==4.3.0",
     "bcrypt==4.3.0",
     "langchain-openai==1.1.14",
+    "asyncmy>=0.2.14",
 ]
 
 # 开发依赖

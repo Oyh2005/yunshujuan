@@ -280,6 +280,10 @@ class NoteService:
         conditions = [Note.user_id == user_id]
         if category:
             conditions.append(Note.category == category)
+        if tag:
+            # tags 为 JSON 数组列：JSON_CONTAINS(tags, '"tag"')，在 SQL 层过滤，
+            # 保证分页与总数在过滤后计算（原实现为分页后 Python 内存过滤，会漏笔记）
+            conditions.append(Note.tags.contains(tag))
 
         # 先查总数
         count_stmt = select(func.count(Note.id)).where(*conditions)
@@ -309,10 +313,6 @@ class NoteService:
         notes = result.scalars().all()
 
         note_list = [self._doc_to_response(n) for n in notes]
-
-        # tag 为 JSON 数组，在 Python 层面过滤
-        if tag:
-            note_list = [n for n in note_list if n.tags and tag in n.tags]
 
         return note_list, total
 

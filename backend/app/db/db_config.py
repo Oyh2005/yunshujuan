@@ -1,4 +1,5 @@
 import os
+import time
 
 from dotenv import load_dotenv
 from sqlalchemy import inspect, text
@@ -10,9 +11,9 @@ from app.models.chat_history import Base
 # 加载环境变量
 load_dotenv()
 
-# 数据库URL
+# 数据库URL（asyncmy：C 扩展驱动，吞吐约为纯 Python aiomysql 的 2~3 倍）
 ASYNC_DATABSE_URL = (
-    f"mysql+aiomysql://{os.getenv('MYSQL_USER', 'root')}:{os.getenv('MYSQL_PASSWORD', '')}"
+    f"mysql+asyncmy://{os.getenv('MYSQL_USER', 'root')}:{os.getenv('MYSQL_PASSWORD', '')}"
     f"@{os.getenv('MYSQL_HOST', 'localhost')}:{os.getenv('MYSQL_PORT', '3306')}"
     f"/{os.getenv('MYSQL_DATABASE', 'chat_history')}?charset=utf8mb4"
 )
@@ -20,9 +21,11 @@ ASYNC_DATABSE_URL = (
 # 创建异步引擎
 async_engine = create_async_engine(
     ASYNC_DATABSE_URL,
-    pool_size=10, # 连接池中保持的持久连接数
-    max_overflow=20, # 连接池中允许创建的额外连接数
-    echo=False # 输出sql日志
+    pool_size=10,  # 连接池中保持的持久连接数
+    max_overflow=20,  # 连接池中允许创建的额外连接数
+    pool_pre_ping=True,  # 取连接前探活，避免复用 MySQL wait_timeout 断开的陈旧连接
+    pool_recycle=1800,  # 连接使用 30 分钟后强制回收重建
+    echo=False  # 输出sql日志
 )
 
 # 创建异步会话工厂
@@ -31,6 +34,35 @@ AsyncSessionLocal = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False
 )
+
+
+def _install_slow_query_logger(threshold_ms: int = 500):
+    """
+    应用层慢查询日志：SQLAlchemy 事件监听，执行超过阈值的语句打印 WARNING。
+    阈值可通过环境变量 SLOW_QUERY_THRESHOLD_MS 覆盖（0 表示关闭）。
+    """
+    if threshold_ms <= 0:
+        return
+    from sqlalchemy import event
+
+    @event.listens_for(async_engine.sync_engine, "before_cursor_execute")
+    def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        conn.info.setdefault("_query_start_time", []).append(time.perf_counter())
+
+    @event.listens_for(async_engine.sync_engine, "after_cursor_execute")
+    def _after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        start_times = conn.info.get("_query_start_time")
+        if not start_times:
+            return
+        start = start_times.pop()
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        if elapsed_ms >= threshold_ms:
+            from app.core.logger_handler import logger
+            stmt = " ".join(statement.split())
+            logger.warning(f"慢查询 {elapsed_ms:.0f}ms: {stmt[:300]}")
+
+
+_install_slow_query_logger(int(os.getenv("SLOW_QUERY_THRESHOLD_MS", "500")))
 
 # SQLAlchemy 类型 → MySQL DDL 映射
 _MYSQL_TYPE_MAP = {

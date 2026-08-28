@@ -9,6 +9,7 @@ from starlette.staticfiles import StaticFiles
 from app.core.background_init import init_manager
 from app.core.failed_response_register import register_exception_handlers
 from app.core.logger_handler import logger
+from app.core.rate_limit import RateLimitMiddleware
 from app.db.db_config import init_db, seed_test_user
 from app.db.redis_config import close_redis, connect_redis
 from app.router.chat import chat_router
@@ -28,11 +29,9 @@ load_dotenv()
 
 app = FastAPI()
 
-# 集成限流中间件（暂时注释掉，以免在调试阶段干扰正常请求）
-# RateLimitMiddleware 基于令牌桶实现，每 60 秒允许 100 个请求
-# 正式部署时可根据接口负载调整限流策略
+# 全局限流中间件：每 60 秒允许 100 个请求（Redis 不可用时自动降级放行）
 # 所有限流（包括路由上的 Depends(rate_limit(...))）通过 RATE_LIMIT_ENABLED=false 一键关闭
-# app.add_middleware(RateLimitMiddleware, limit=100, window=60)
+app.add_middleware(RateLimitMiddleware, limit=100, window=60)
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):

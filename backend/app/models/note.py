@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Index, Integer, String, Text
 from sqlalchemy.sql import func
 
 from app.models.chat_history import Base
@@ -6,6 +6,10 @@ from app.models.chat_history import Base
 
 class Note(Base):
     __tablename__ = "notes"
+    # 列表页高频查询：user_id 过滤 + 置顶优先 + updated_at/created_at 排序
+    __table_args__ = (
+        Index("ix_notes_user_pinned_updated", "user_id", "is_pinned", "updated_at"),
+    )
 
     id = Column(String(36), primary_key=True, comment="UUID")
     user_id = Column(String(36), index=True, nullable=False, comment="用户ID")
