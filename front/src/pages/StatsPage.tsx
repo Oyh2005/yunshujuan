@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import {
   FileText,
   PenLine,
@@ -12,14 +13,14 @@ import {
   Library,
   Flame,
   Heart,
-  BarChart3,
   RefreshCw,
+  ArrowRight,
 } from 'lucide-react'
 import { statsApi } from '../api/stats'
 import type { StatsDashboard } from '../types/api'
 import { usePetStore } from '../stores/usePetStore'
 import { useHabitStore } from '../stores/useHabitStore'
-import { FadeIn } from '../components/common/motion'
+import KnowledgeLayout, { KnowledgeHeader } from '../components/knowledge/KnowledgeLayout'
 import LoadingSkeleton from '../components/common/LoadingSkeleton'
 import Heatmap from '../components/stats/Heatmap'
 import TrendChart from '../components/stats/TrendChart'
@@ -27,7 +28,7 @@ import CategoryDonut from '../components/stats/CategoryDonut'
 
 /** 总字数格式化：万 / k */
 function formatChars(n: number, lang: string): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}${lang.startsWith('zh') ? '万' : 'w'}`
+  if (n >= 10000 && lang.startsWith('zh')) return `${(n / 10000).toFixed(1)}万`
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
   return String(n)
 }
@@ -82,29 +83,27 @@ export default function StatsPage() {
   }
 
   const lang = i18n.language?.startsWith('zh') ? 'zh' : 'en'
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  const streak = [new Date().toDateString(), yesterday.toDateString()].includes(noteStreak.lastDate) ? noteStreak.count : 0
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-6">
-      <FadeIn>
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="font-heading text-xl font-semibold text-[var(--color-text)] flex items-center gap-2">
-            <BarChart3 size={22} className="text-[var(--color-accent)]" />
-            {t('stats.title')}
-          </h1>
+    <KnowledgeLayout>
+        <KnowledgeHeader title={t('stats.title')} subtitle={t('knowledgeUI.statsSubtitle')} actions={
           <button
             onClick={handleRefresh}
             disabled={loading}
-            className="btn-press flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text)] transition-colors disabled:opacity-50"
+            className="secondary-button"
           >
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            {t('common.retry')}
+            {t('knowledgeUI.refresh')}
           </button>
-        </div>
+        } />
 
         {loading && !data && <LoadingSkeleton />}
 
-        {error && !data && (
-          <div className="py-16 text-center text-sm text-[var(--color-text-tertiary)]">
+        {error && (
+          <div className="knowledge-alert" role="alert">
             <p className="mb-3">{t('common.error')}</p>
             <button
               onClick={handleRefresh}
@@ -118,34 +117,36 @@ export default function StatsPage() {
         {data && (
           <>
             {/* ── 统计卡片 ── */}
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 mb-5">
+            <div className="knowledge-stats-primary">
               <StatCard icon={<FileText size={16} />} label={t('stats.totalNotes')} value={data.summary.total_notes} />
               <StatCard icon={<PenLine size={16} />} label={t('stats.totalChars')} value={formatChars(data.summary.total_chars, lang)} />
+              <StatCard icon={<RotateCcw size={16} />} label={t('stats.totalReviews')} value={data.summary.total_reviews} />
+              <StatCard icon={<Flame size={16} />} label={t('stats.noteStreak')} value={streak} suffix={t('stats.days')} />
+            </div>
+            <div className="knowledge-stats-secondary">
               <StatCard icon={<CalendarRange size={16} />} label={t('stats.yearNotes')} value={data.summary.year_notes} />
               <StatCard icon={<TrendingUp size={16} />} label={t('stats.yearChars')} value={formatChars(data.summary.year_chars, lang)} />
-              <StatCard icon={<RotateCcw size={16} />} label={t('stats.totalReviews')} value={data.summary.total_reviews} />
               <StatCard icon={<CalendarCheck size={16} />} label={t('stats.weekReviews')} value={data.summary.week_reviews} />
               <StatCard icon={<Clock size={16} />} label={t('stats.todayReviews')} value={data.summary.today_reviews} />
               <StatCard icon={<MessageSquare size={16} />} label={t('stats.aiMessages')} value={data.summary.ai_messages} />
               <StatCard icon={<Library size={16} />} label={t('stats.kbDocs')} value={data.summary.kb_docs} />
-              <StatCard icon={<Flame size={16} />} label={t('stats.noteStreak')} value={noteStreak.count} suffix={t('stats.days')} />
               <StatCard icon={<Heart size={16} />} label={t('stats.petAffection')} value={affection} />
             </div>
 
             {/* ── 热力图 ── */}
-            <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-5 mb-5 overflow-x-auto">
-              <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">{t('stats.heatmapTitle')}</h3>
-              <Heatmap data={data.heatmap} />
+            <div className="knowledge-panel">
+              <h2>{t('stats.heatmapTitle')}</h2>
+              <div className="knowledge-heatmap-scroll"><Heatmap data={data.heatmap} /></div>
             </div>
 
             {/* ── 字数趋势 + 分类占比 ── */}
-            <div className="grid gap-5 lg:grid-cols-5">
-              <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-5 lg:col-span-3">
-                <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">{t('stats.trendTitle')}</h3>
+            <div className="knowledge-stats-charts">
+              <div className="knowledge-panel">
+                <h2>{t('stats.trendTitle')}</h2>
                 <TrendChart trend={data.trend} />
               </div>
-              <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-5 lg:col-span-2">
-                <h3 className="text-sm font-medium text-[var(--color-text)] mb-4">{t('stats.categoryTitle')}</h3>
+              <div className="knowledge-panel">
+                <h2>{t('stats.categoryTitle')}</h2>
                 <CategoryDonut
                   categories={data.categories}
                   uncategorized={data.uncategorized}
@@ -153,10 +154,10 @@ export default function StatsPage() {
                 />
               </div>
             </div>
+            <div className="knowledge-helper knowledge-streak"><Flame size={32} /><div><strong>{t('knowledgeUI.streakTitle', { count: streak })}</strong><p>{t('knowledgeUI.streakHint')}</p></div><Link className="knowledge-text-link" to="/notes/new">{t('knowledgeUI.keepWriting')}<ArrowRight size={16} /></Link><img src="/illustrations/study-cloud.png" alt="" /></div>
           </>
         )}
-      </FadeIn>
-    </div>
+    </KnowledgeLayout>
   )
 }
 
@@ -167,12 +168,12 @@ function StatCard({ icon, label, value, suffix }: {
   suffix?: string
 }) {
   return (
-    <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg px-4 py-3.5">
-      <div className="flex items-center gap-1.5 text-[var(--color-text-secondary)] mb-1.5">
+    <div className="knowledge-stat-card">
+      <div>
         {icon}
-        <span className="text-xs truncate">{label}</span>
+        <span>{label}</span>
       </div>
-      <div className="text-xl font-bold text-[var(--color-text)] leading-none flex items-baseline gap-1">
+      <div className="knowledge-stat-value">
         {value}
         {suffix && <span className="text-xs font-normal text-[var(--color-text-tertiary)]">{suffix}</span>}
       </div>

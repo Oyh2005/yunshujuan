@@ -1,254 +1,109 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
-import { Compass, Eye, Trophy, PenLine, RotateCcw, Flame, Loader2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Eye, Trophy, Plus, ArrowRight } from 'lucide-react'
 import { socialApi } from '../api/social'
 import { statsApi } from '../api/stats'
-import type { LeaderboardData, PlazaNote } from '../types/api'
-import { FadeIn } from '../components/common/motion'
+import type { LeaderboardData, LeaderboardItem, PlazaNote } from '../types/api'
+import KnowledgeLayout, { KnowledgeHeader } from '../components/knowledge/KnowledgeLayout'
+import { notePreview } from '../components/note/notePresentation'
 
-function formatTime(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 0) return <span className="text-base">🥇</span>
-  if (rank === 1) return <span className="text-base">🥈</span>
-  if (rank === 2) return <span className="text-base">🥉</span>
-  return <span className="text-xs font-medium text-[var(--color-text-tertiary)] w-5 text-center">{rank + 1}</span>
-}
-
-function RankCard({ title, icon, items, unit }: {
-  title: string
-  icon: React.ReactNode
-  items: { username: string; avatar: string | null; value: number }[]
-  unit: string
-}) {
+type Rank = keyof LeaderboardData
+const rankKeys: Rank[] = ['writing', 'review', 'streak']
+const rankTitles = { writing: 'plaza.rankWriting', review: 'plaza.rankReview', streak: 'plaza.rankStreak' }
+const rankUnits = { writing: 'plaza.unitChars', review: 'plaza.unitTimes', streak: 'plaza.unitDays' }
+function RankList({ items, unit }: { items: LeaderboardItem[]; unit: string }) {
   const { t } = useTranslation()
-  return (
-    <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-5">
-      <h3 className="text-sm font-medium text-[var(--color-text)] flex items-center gap-2 mb-4">
-        {icon}
-        {title}
-      </h3>
-      {items.length === 0 ? (
-        <p className="py-6 text-center text-xs text-[var(--color-text-tertiary)]">{t('plaza.noRank')}</p>
-      ) : (
-        <div className="space-y-2">
-          {items.map((item, i) => (
-            <div key={`${item.username}-${i}`} className="flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-[var(--color-bg-secondary)] transition-colors">
-              <RankBadge rank={i} />
-              {item.avatar ? (
-                <img src={item.avatar} alt="" className="w-7 h-7 rounded-full object-cover" />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-[var(--color-accent-bg)] text-[var(--color-accent)] text-xs font-medium flex items-center justify-center">
-                  {item.username.slice(0, 1).toUpperCase()}
-                </div>
-              )}
-              <span className="text-sm text-[var(--color-text)] truncate flex-1">{item.username}</span>
-              <span className="text-sm font-semibold text-[var(--color-accent)]">
-                {item.value}
-                <span className="text-[10px] font-normal text-[var(--color-text-tertiary)] ml-1">{unit}</span>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+  if (!items.length) return <p className="knowledge-footnote">{t('plaza.noRank')}</p>
+  return <ol className="knowledge-rank-list">{items.map((item, index) => <li key={item.user_id}>
+    <span>{index + 1}</span><Link to={'/user/' + item.user_id}><span className="knowledge-avatar">{item.avatar ? <img src={item.avatar} alt="" /> : item.username.slice(0, 1)}</span><span>{item.username}</span></Link><small><b>{item.value.toLocaleString()}</b> {unit}</small>
+  </li>)}</ol>
 }
 
 export default function PlazaPage() {
-  const { t } = useTranslation()
-  const navigate = useNavigate()
+  const { t, i18n } = useTranslation()
   const [tab, setTab] = useState<'notes' | 'rank'>('notes')
+  const [rank, setRank] = useState<Rank>('writing')
   const [notes, setNotes] = useState<PlazaNote[]>([])
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState(false)
   const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null)
-  const [rankLoading, setRankLoading] = useState(false)
+  const [rankLoading, setRankLoading] = useState(true)
+  const [rankError, setRankError] = useState(false)
+  const mounted = useRef(false)
+  const noteRequest = useRef(0)
+  const rankRequest = useRef(0)
+  const notesBusy = useRef(false)
 
-  useEffect(() => {
-    let cancelled = false
-    socialApi
-      .plaza(1)
-      .then((res) => {
-        if (cancelled) return
-        setNotes(res.data.notes)
-        setPage(1)
-        setHasMore(res.data.has_more)
-      })
-      .catch(() => {
-        if (!cancelled) toast.error(t('common.error'))
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [t])
-
-  const handleTabChange = (next: 'notes' | 'rank') => {
-    setTab(next)
-    if (next === 'rank' && !leaderboard) {
-      setRankLoading(true)
-      statsApi
-        .leaderboard()
-        .then((res) => setLeaderboard(res.data ?? null))
-        .catch(() => toast.error(t('common.error')))
-        .finally(() => setRankLoading(false))
-    }
-  }
-
-  const handleLoadMore = async () => {
-    if (loadingMore || !hasMore) return
-    setLoadingMore(true)
+  const loadNotes = useCallback(async (nextPage = 1) => {
+    if (notesBusy.current) return
+    notesBusy.current = true
+    const request = ++noteRequest.current
+    if (nextPage === 1) setLoading(true)
+    else setLoadingMore(true)
+    setError(false)
     try {
-      const res = await socialApi.plaza(page + 1)
-      setNotes((prev) => [...prev, ...res.data.notes])
-      setPage((p) => p + 1)
+      const res = await socialApi.plaza(nextPage)
+      if (!mounted.current || request !== noteRequest.current) return
+      setNotes((prev) => nextPage === 1 ? res.data.notes : [...prev, ...res.data.notes.filter((note) => !prev.some((item) => item.id === note.id))])
+      setPage(nextPage)
       setHasMore(res.data.has_more)
     } catch {
-      toast.error(t('common.error'))
+      if (mounted.current && request === noteRequest.current) setError(true)
     } finally {
-      setLoadingMore(false)
+      if (mounted.current && request === noteRequest.current) { setLoading(false); setLoadingMore(false); notesBusy.current = false }
     }
-  }
+  }, [])
 
-  return (
-    <div className="max-w-3xl mx-auto py-8 px-6">
-      <FadeIn>
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="font-heading text-xl font-semibold text-[var(--color-text)] flex items-center gap-2">
-            <Compass size={22} className="text-[var(--color-accent)]" />
-            {t('plaza.title')}
-          </h1>
-          {/* Tab 切换 */}
-          <div className="flex items-center gap-1 p-1 rounded-lg bg-[var(--color-bg-secondary)]">
-            <button
-              onClick={() => handleTabChange('notes')}
-              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                tab === 'notes'
-                  ? 'bg-[var(--color-card)] text-[var(--color-accent)] shadow-sm font-medium'
-                  : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
-              }`}
-            >
-              {t('plaza.tabNotes')}
-            </button>
-            <button
-              onClick={() => handleTabChange('rank')}
-              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                tab === 'rank'
-                  ? 'bg-[var(--color-card)] text-[var(--color-accent)] shadow-sm font-medium'
-                  : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text)]'
-              }`}
-            >
-              {t('plaza.tabRank')}
-            </button>
-          </div>
-        </div>
+  const loadRanks = useCallback(async () => {
+    const request = ++rankRequest.current
+    setRankLoading(true)
+    setRankError(false)
+    try {
+      const res = await statsApi.leaderboard()
+      if (mounted.current && request === rankRequest.current) setLeaderboard(res.data)
+    } catch {
+      if (mounted.current && request === rankRequest.current) setRankError(true)
+    } finally {
+      if (mounted.current && request === rankRequest.current) setRankLoading(false)
+    }
+  }, [])
 
-        {tab === 'notes' ? (
-          loading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 size={22} className="animate-spin text-[var(--color-text-tertiary)]" />
-            </div>
-          ) : notes.length === 0 ? (
-            <div className="py-16 text-center text-sm text-[var(--color-text-tertiary)]">
-              {t('plaza.empty')}
-            </div>
-          ) : (
-            <>
-              <div className="space-y-4">
-                {notes.map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => navigate(`/share/${n.id}`)}
-                    className="w-full text-left bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-5 hover:border-[var(--color-accent)] hover:shadow-sm transition-all"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span
-                        onClick={(e) => { e.stopPropagation(); navigate(`/user/${n.author.user_id}`) }}
-                        className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
-                        title={n.author.username}
-                      >
-                        {n.author.avatar ? (
-                          <img src={n.author.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full bg-[var(--color-accent-bg)] text-[var(--color-accent)] text-[10px] font-medium flex items-center justify-center">
-                            {n.author.username.slice(0, 1).toUpperCase()}
-                          </div>
-                        )}
-                        <span className="text-xs text-[var(--color-text-secondary)]">{n.author.username}</span>
-                      </span>
-                      {n.category && (
-                        <span className="px-2 py-0.5 text-[10px] rounded-full bg-[var(--color-accent-bg)] text-[var(--color-accent)]">
-                          {n.category}
-                        </span>
-                      )}
-                      <span className="ml-auto flex items-center gap-1 text-[11px] text-[var(--color-text-tertiary)]">
-                        <Eye size={12} />
-                        {n.view_count}
-                      </span>
-                    </div>
-                    <h2 className="text-base font-medium text-[var(--color-text)] mb-1.5">{n.title}</h2>
-                    <p className="text-sm text-[var(--color-text-secondary)] line-clamp-3 leading-relaxed">
-                      {n.content_preview}
-                    </p>
-                    <p className="mt-2 text-[11px] text-[var(--color-text-tertiary)]">{formatTime(n.updated_at)}</p>
-                  </button>
-                ))}
-              </div>
-              {hasMore && (
-                <div className="text-center pt-4">
-                  <button
-                    onClick={handleLoadMore}
-                    disabled={loadingMore}
-                    className="secondary-button"
-                  >
-                    {loadingMore ? t('common.loading') : t('plaza.loadMore')}
-                  </button>
-                </div>
-              )}
-            </>
-          )
-        ) : rankLoading && !leaderboard ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 size={22} className="animate-spin text-[var(--color-text-tertiary)]" />
-          </div>
-        ) : (
-          <div className="grid gap-5 sm:grid-cols-3">
-            <RankCard
-              title={t('plaza.rankWriting')}
-              icon={<PenLine size={15} className="text-[var(--color-accent)]" />}
-              items={leaderboard?.writing ?? []}
-              unit={t('plaza.unitChars')}
-            />
-            <RankCard
-              title={t('plaza.rankReview')}
-              icon={<RotateCcw size={15} className="text-[var(--color-accent)]" />}
-              items={leaderboard?.review ?? []}
-              unit={t('plaza.unitTimes')}
-            />
-            <RankCard
-              title={t('plaza.rankStreak')}
-              icon={<Flame size={15} className="text-[var(--color-warning)]" />}
-              items={leaderboard?.streak ?? []}
-              unit={t('plaza.unitDays')}
-            />
-            <div className="sm:col-span-3 text-center text-[11px] text-[var(--color-text-tertiary)] flex items-center justify-center gap-1.5">
-              <Trophy size={13} />
-              {t('plaza.rankHint')}
-            </div>
-          </div>
-        )}
-      </FadeIn>
-    </div>
-  )
+  useEffect(() => {
+    mounted.current = true
+    const notesVersion = noteRequest, ranksVersion = rankRequest
+    const timer = window.setTimeout(() => { void loadNotes(); void loadRanks() }, 0)
+    return () => { mounted.current = false; notesBusy.current = false; notesVersion.current++; ranksVersion.current++; window.clearTimeout(timer) }
+  }, [loadNotes, loadRanks])
+
+  const formatTime = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }) : ''
+  const rankStatus = rankError ? <div className="knowledge-alert" role="alert"><span>{t('knowledgeUI.rankError')}</span><button className="knowledge-text-link" onClick={() => void loadRanks()}>{t('common.retry')}</button></div> : rankLoading ? <p className="knowledge-footnote" role="status">{t('common.loading')}</p> : null
+  return <KnowledgeLayout>
+    <KnowledgeHeader title={t('plaza.title')} subtitle={t('knowledgeUI.plazaSubtitle')} hero actions={<Link to="/notes/new" className="primary-button"><Plus size={17} />{t('note.newNote')}</Link>} />
+    <div className="knowledge-toolbar"><div className="knowledge-filters" role="group" aria-label={t('plaza.title')}>
+      <button aria-pressed={tab === 'notes'} onClick={() => setTab('notes')}>{t('plaza.tabNotes')}</button><button aria-pressed={tab === 'rank'} onClick={() => setTab('rank')}><Trophy size={14} className="inline mr-1" />{t('plaza.tabRank')}</button>
+    </div><span className="knowledge-footnote !pt-0">{t('knowledgeUI.publicOnly')}</span></div>
+    {tab === 'notes' ? <div className="knowledge-plaza-layout">
+      <div>
+        {error && <div className="knowledge-alert" role="alert"><span>{t('knowledgeUI.loadError')}</span><button className="secondary-button" onClick={() => void loadNotes(notes.length ? page + 1 : 1)}>{t('common.retry')}</button></div>}
+        {loading ? <div role="status" aria-label={t('common.loading')} className="knowledge-plaza-grid">{[1, 2, 3, 4].map((i) => <div className="h-64 rounded-2xl animate-pulse bg-[var(--color-bg-secondary)]" key={i} />)}</div>
+          : notes.length === 0 && !error ? <div className="knowledge-panel knowledge-empty"><img src="/illustrations/study-cloud.png" alt="" /><p>{t('plaza.empty')}</p><Link to="/notes" className="knowledge-text-link">{t('knowledgeUI.myNotes')}<ArrowRight size={16} /></Link></div>
+          : <div className="knowledge-plaza-grid">{notes.map((note) => <article className="knowledge-public-note" key={note.id}>
+            <Link className="knowledge-public-author" to={'/user/' + note.author.user_id}><span className="knowledge-avatar">{note.author.avatar ? <img src={note.author.avatar} alt="" /> : note.author.username.slice(0, 1)}</span><span>{note.author.username}</span></Link>
+            <Link className="knowledge-public-body" to={'/share/' + note.id}><h2>{note.title || t('note.ui.untitled')}</h2><p>{notePreview(note.content_preview || '')}</p></Link>
+            <div className="flex flex-wrap gap-2">{note.category && <span className="knowledge-badge">{t('note.ui.categories.' + note.category, { defaultValue: note.category })}</span>}{(note.tags ?? []).slice(0, 2).map((tag, index) => <span className="knowledge-badge ready" key={tag + index}>{tag}</span>)}</div>
+            <div className="knowledge-public-footer"><time>{formatTime(note.updated_at)}</time><span><Eye size={13} />{t('knowledgeUI.views', { count: note.view_count })}</span></div>
+          </article>)}</div>}
+        {hasMore && <div className="text-center pt-5"><button className="secondary-button" disabled={loadingMore} onClick={() => void loadNotes(page + 1)}>{t(loadingMore ? 'common.loading' : 'plaza.loadMore')}</button></div>}
+      </div>
+      <aside className="knowledge-plaza-aside"><section className="knowledge-panel"><h2><Trophy size={17} className="inline mr-2 text-[var(--color-accent)]" />{t('knowledgeUI.learningRank')}</h2>
+        <div className="knowledge-rank-tabs" role="group" aria-label={t('knowledgeUI.learningRank')}>{rankKeys.map((key) => <button key={key} aria-pressed={rank === key} onClick={() => setRank(key)}>{t('knowledgeUI.rank.' + key)}</button>)}</div>
+        <p className="knowledge-footnote !pt-0 !pb-2">{t(rankTitles[rank])}</p>{rankStatus}{!rankLoading && !rankError && <RankList items={(leaderboard?.[rank] ?? []).slice(0, 5)} unit={t(rankUnits[rank])} />}
+        <button className="knowledge-text-link mt-3" onClick={() => setTab('rank')}>{t('knowledgeUI.allRanks')}<ArrowRight size={15} /></button>
+      </section><div className="knowledge-helper"><img src="/illustrations/study-cloud.png" alt="" /><div><strong>{t('knowledgeUI.shareTitle')}</strong><p>{t('knowledgeUI.shareHint')}</p><Link className="knowledge-text-link mt-2" to="/notes">{t('knowledgeUI.myNotes')}<ArrowRight size={15} /></Link></div></div></aside>
+    </div> : <>{rankStatus}{!rankLoading && !rankError && <div className="knowledge-rank-all">{rankKeys.map((key) => <section className="knowledge-panel" key={key}><h2>{t(rankTitles[key])}</h2><RankList items={leaderboard?.[key] ?? []} unit={t(rankUnits[key])} /></section>)}</div>}<p className="knowledge-footnote">{t('plaza.rankHint')}</p></>}
+  </KnowledgeLayout>
 }

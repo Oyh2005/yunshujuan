@@ -5,6 +5,7 @@ import Pet from '../components/pet/Pet'
 import CommandPalette from '../components/common/CommandPalette'
 import { useUserStore } from '../stores/useUserStore'
 import { useSettingsSync } from '../hooks/useSettingsSync'
+import '../styles/knowledge-pages.css'
 
 export default function MainLayout() {
   const isLogin = useUserStore((s) => s.isLogin)
@@ -19,7 +20,10 @@ export default function MainLayout() {
   }
 
   return (
-    <div className="app-shell">
+    <>
+    {/* 全局弹层位于工作区层叠上下文之外，确保覆盖悬浮页宠。 */}
+    <div className="global-command-palette"><CommandPalette /></div>
+    <div className={`app-shell${location.pathname === '/' ? ' is-dashboard' : ['/notes', '/knowledge', '/graph', '/stats', '/plaza'].includes(location.pathname) ? ' is-knowledge' : ''}`}>
       {/* 氛围光晕背景 */}
       <div className="aurora-bg" aria-hidden>
         <div className="aurora-blob aurora-blob-1" />
@@ -31,10 +35,6 @@ export default function MainLayout() {
         collapsed={sidebarCollapsed}
         onToggle={() => setSidebarCollapsed((v) => !v)}
       />
-      {/* 页宠「小卷」 */}
-      <Pet />
-      {/* 命令面板 ⌘K */}
-      <CommandPalette />
       <main className="app-workspace">
         {/* 页面切换：仅纯 CSS 透明度淡入（key 变化触发重挂载，无 transform/布局副作用，
             不会引起滚动条宽度抖动） */}
@@ -43,5 +43,7 @@ export default function MainLayout() {
         </div>
       </main>
     </div>
+    {/* 独立于滚动工作区，跨路由保持挂载、保留成长事件监听。 */}
+    <Pet /></>
   )
 }

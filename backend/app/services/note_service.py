@@ -354,6 +354,9 @@ class NoteService:
         note_id: str,
         user_id: str,
         top_k: int = 3,
+        *,
+        include_knowledge: bool = True,
+        raise_errors: bool = False,
     ) -> list[dict]:
         """
         获取与当前笔记语义相似的其他笔记和知识库文档。
@@ -364,18 +367,27 @@ class NoteService:
         3. 标注来源（note / knowledge_base）
         """
         note = await self.get_note(db, note_id, user_id)
-        if not note:
+        if not note or not (note.content or "").strip():
             return []
 
         related_items = []
 
         # 从笔记库检索相似笔记（排除自身）
         try:
-            note_docs = await asyncio.to_thread(
-                self._notes_store.similarity_search_with_score,
-                note.content,
-                k=top_k + 1,  # 多取一个，排除自身
+            note_filter = {"$and": [{"user_id": user_id}, {"doc_type": "note"}]}
+            indexed = await asyncio.to_thread(
+                self._notes_store.get, where=note_filter, include=["metadatas"], limit=2,
             )
+            # The metadata probe is local and does not call the embedding model.
+            has_other_notes = any(meta.get("note_id") != note_id for meta in (indexed.get("metadatas") or []))
+            note_docs = []
+            if has_other_notes:
+                note_docs = await asyncio.to_thread(
+                    self._notes_store.similarity_search_with_score,
+                    note.content,
+                    k=top_k + 1,  # 多取一个，排除自身
+                    filter=note_filter,
+                )
             for doc, score in note_docs:
                 meta_note_id = doc.metadata.get("note_id", "")
                 if meta_note_id == note_id:
@@ -390,18 +402,30 @@ class NoteService:
                 })
         except Exception as e:
             logger.error(f"从笔记库检索关联笔记失败: {e}")
+            if raise_errors:
+                raise
+
+        # Graph edges only need notes. Do not query the knowledge store for them.
+        if not include_knowledge:
+            related_items.sort(key=lambda x: x["similarity"])
+            return related_items[:top_k]
 
         # 从知识库检索相关文档
         try:
             from app.rag.vector_store import VectorStoreService
             vector_store = VectorStoreService()
-            # 直接使用 vectors_store 的 similarity_search_with_score
-            kb_docs = await asyncio.to_thread(
-                vector_store.vectors_store.similarity_search_with_score,
-                note.content,
-                k=top_k,
-                filter={"user_id": user_id},
+            indexed = await asyncio.to_thread(
+                vector_store.vectors_store.get,
+                where={"user_id": user_id}, include=[], limit=1,
             )
+            kb_docs = []
+            if indexed.get("ids"):
+                kb_docs = await asyncio.to_thread(
+                    vector_store.vectors_store.similarity_search_with_score,
+                    note.content,
+                    k=top_k,
+                    filter={"user_id": user_id},
+                )
             for doc, score in kb_docs:
                 related_items.append({
                     "id": doc.metadata.get("source", doc.metadata.get("filename", "")),
@@ -413,6 +437,8 @@ class NoteService:
                 })
         except Exception as e:
             logger.error(f"从知识库检索关联文档失败: {e}")
+            if raise_errors:
+                raise
 
         # 按相似度降序排序（分数越低越相似），取 top_k
         related_items.sort(key=lambda x: x["similarity"])

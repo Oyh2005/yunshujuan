@@ -4,10 +4,10 @@ import type { StatsCategory } from '../../types/api'
 
 /** 内置分类 → 固定色板 */
 const CATEGORY_COLORS: Record<string, string> = {
-  work: '#1F6C9F', // 蓝
-  study: '#2E9E6B', // 绿
-  life: '#E8833A', // 橙
-  project: '#8B5CF6', // 紫
+  work: '#7C53E8', // 紫
+  study: '#47A88D', // 绿
+  life: '#DB87A7', // 粉
+  project: '#6F95D9', // 蓝
   other: '#9CA3AF', // 灰
 }
 /** 未分类 */
@@ -74,10 +74,10 @@ export default function CategoryDonut({
   })
 
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex flex-wrap items-center justify-center gap-6">
       {/* 环形图 */}
       <div className="relative shrink-0">
-        <svg width={170} height={170} viewBox="0 0 170 170">
+        <svg width={170} height={170} viewBox="0 0 170 170" role="img" aria-label={t('stats.categoryTitle')}>
           <g transform="rotate(-90 85 85)">
             {/* 底色环 */}
             <circle cx={85} cy={85} r={R} fill="none" stroke="var(--color-bg-tertiary)" strokeWidth={STROKE} />
@@ -107,7 +107,7 @@ export default function CategoryDonut({
       </div>
 
       {/* 图例 */}
-      <div className="flex-1 min-w-0 space-y-1.5">
+      <div className="flex-1 min-w-[130px] space-y-1.5">
         {slices.map((s) => (
           <div key={s.key} className="flex items-center gap-2 text-sm">
             <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: s.color }} />

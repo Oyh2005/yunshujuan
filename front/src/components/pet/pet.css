@@ -29,13 +29,13 @@
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
-  /* 移动端隐藏（设置中可强制开启见 pet-force-visible） */
-  display: none;
+  display: block;
 }
 
-@media (min-width: 768px) {
-  .pet-root { display: block; }
+@media (max-width: 767px) {
+  .pet-root { max-width: 88px; max-height: 88px; --pet-visual-size: 88px; }
 }
+.pet-root:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 4px; border-radius: 40%; }
 
 .pet-root.dragging {
   cursor: grabbing;
@@ -382,12 +382,14 @@
 /* ── 气泡 ── */
 
 .pet-bubble {
-  position: absolute;
-  bottom: calc(100% + 10px);
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: 220px;
-  min-width: 90px;
+  position: fixed;
+  bottom: clamp(8px, calc(var(--pet-y) + var(--pet-visual-size, var(--pet-size)) + 10px), calc(100dvh - 120px));
+  right: clamp(8px, calc(var(--pet-x) + var(--pet-visual-size, var(--pet-size)) / 2 - 100px), calc(100vw - 208px));
+  width: 200px;
+  max-width: calc(100vw - 16px);
+  max-height: 110px;
+  overflow: auto;
+  pointer-events: none;
   padding: 8px 12px;
   border-radius: 12px;
   background: var(--color-card);
@@ -421,8 +423,8 @@
 }
 
 @keyframes pet-bubble-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.92); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  from { opacity: 0; transform: translateY(6px) scale(0.92); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* 减少动态效果偏好：页宠静态展示 */

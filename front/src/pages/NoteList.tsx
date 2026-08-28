@@ -12,6 +12,7 @@ import CategoryManageDialog from '../components/note/CategoryManageDialog'
 import NoteCard from '../components/note/NoteCard'
 import { predefinedCategories, sortNotes, type NoteSort, type NoteView } from '../components/note/notePresentation'
 import { useDebounce } from '../hooks/useDebounce'
+import { KnowledgeTopbar } from '../components/knowledge/KnowledgeLayout'
 
 const PAGE_SIZE = 20
 const VIEW_KEY = 'note_list_view'
@@ -240,10 +241,12 @@ export default function NoteList() {
   const collectionClass = 'notes-collection' + (view === 'list' ? ' is-list' : '')
 
   return (
-    <section className="notes-page" aria-labelledby="notes-heading">
-      <header className="notes-header">
+    <section className="notes-page knowledge-page" aria-labelledby="notes-heading">
+      <KnowledgeTopbar />
+      <header className="notes-header knowledge-hero">
         <div>
           <h1 id="notes-heading" className="notes-title">{t('note.title')}</h1>
+          <p className="knowledge-description">{t('knowledgeUI.notesSubtitle')}</p>
           <p className="notes-subtitle" aria-live="polite">
             {selectMode ? t('note.batch.selected', { count: selectedIds.size })
               : loading && notes.length === 0 ? t('note.ui.loading')
@@ -251,7 +254,11 @@ export default function NoteList() {
               : t(query ? 'note.ui.searchCount' : 'note.ui.total', { count: total })}
           </p>
         </div>
-        <button className="primary-button" onClick={() => navigate('/notes/new')}><Plus size={19} />{t('note.newNote')}</button>
+        <img className="knowledge-hero-cloud" src="/illustrations/study-cloud.png" alt="" />
+        <div className="knowledge-header-actions">
+          <button className="primary-button" onClick={() => navigate('/notes/new')}><Plus size={19} />{t('note.newNote')}</button>
+          <button className="secondary-button" onClick={() => setManageOpen(true)}><Settings2 size={17} />{t('note.ui.manageCategories')}</button>
+        </div>
       </header>
 
       <div className="notes-search-row">
@@ -260,7 +267,6 @@ export default function NoteList() {
           <input aria-label={t('note.search')} type="text" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={t('note.search')} />
           {searchQuery && <button className="workspace-icon-button" onClick={() => setSearchQuery('')} aria-label={t('note.ui.clearSearch')}><X size={16} /></button>}
         </div>
-        <button className="secondary-button" onClick={() => setManageOpen(true)}><Settings2 size={17} />{t('note.ui.manageCategories')}</button>
       </div>
 
       <div className="notes-toolbar">

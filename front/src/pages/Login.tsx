@@ -27,7 +27,7 @@ export default function Login() {
       const res = await authApi.login(username, password)
       login(res.token, res.user)
       i18n.changeLanguage(useLanguageStore.getState().lang)
-      navigate('/notes')
+      navigate('/')
     } catch (err: unknown) {
       const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
       if (detail && typeof detail === 'object') {

@@ -1,8 +1,8 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-/** GitHub 风格 5 级蓝色系（1-4 级；0 级用主题底色） */
-const HEAT_COLORS = ['#bfe0f7', '#7fc0ec', '#3f9ad9', '#1f6c9f']
+/** Purple intensity encodes activity; zero uses the current theme surface. */
+const HEAT_COLORS = ['#E2D7FA', '#C3A5F4', '#9C71E8', '#7043C7']
 const DAY_MS = 24 * 60 * 60 * 1000
 const WEEKS = 53
 const DAYS_IN_WEEK = 7
@@ -73,16 +73,18 @@ export default function Heatmap({ data }: { data: Record<string, number> }) {
         labels.push(null)
       }
     }
+    // The first partial month may occupy only one column; avoid colliding labels.
+    if (labels.slice(1, 3).some(Boolean)) labels[0] = null
     return { columns: cols, monthLabels: labels }
   }, [data, lang])
 
   return (
-    <div>
+    <div className="knowledge-heatmap">
       {/* 月份标签行 */}
       <div className="flex gap-[3px] mb-1">
         {monthLabels.map((label, i) => (
-          <div key={i} className="flex-1 text-[10px] text-[var(--color-text-tertiary)] truncate">
-            {label ?? ''}
+          <div key={i} className="flex-1 min-w-0 relative h-5 text-[10px] text-[var(--color-text-tertiary)]">
+            <span className="absolute left-0 top-0 whitespace-nowrap">{label ?? ''}</span>
           </div>
         ))}
       </div>
@@ -99,7 +101,8 @@ export default function Heatmap({ data }: { data: Record<string, number> }) {
               return (
                 <div
                   key={ri}
-                  className="group relative aspect-square rounded-[2px] cursor-default"
+                  className="group relative aspect-square rounded-[3px] cursor-default"
+                  title={t('stats.heatmapTooltip', { date: toKey(cell.date), count: cell.count })}
                   style={{
                     backgroundColor: level === 0 ? 'var(--color-bg-tertiary)' : HEAT_COLORS[level - 1],
                   }}

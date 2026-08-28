@@ -23,6 +23,7 @@ export default function NoteCard({ note, selected, selectMode, pinPending, onOpe
   const clearPress = () => { clearTimeout(timer.current); timer.current = undefined }
   useEffect(() => () => clearTimeout(timer.current), [])
   const title = note.title || t('note.ui.untitled')
+  const tags = note.tags ?? []
   const category = predefinedCategories.some((value) => value === note.category)
     ? t(`note.ui.categories.${note.category}`) : (note.category || t('note.ui.uncategorized'))
   const date = new Date(note.updated_at || note.created_at)
@@ -83,8 +84,8 @@ export default function NoteCard({ note, selected, selectMode, pinPending, onOpe
         <h2 className="note-card-title" title={title}>{title}</h2>
         <p className="note-card-preview">{notePreview(note.content || '') || t('note.ui.noPreview')}</p>
         <div className="note-card-tags">
-          {note.tags?.slice(0, 3).map((tag, index) => <span key={`${tag}-${index}`} className="note-keyword">{tag}</span>)}
-          {note.tags?.length > 3 && <span className="note-keyword">+{note.tags.length - 3}</span>}
+          {tags.slice(0, 3).map((tag, index) => <span key={`${tag}-${index}`} className="note-keyword">{tag}</span>)}
+          {tags.length > 3 && <span className="note-keyword">+{tags.length - 3}</span>}
         </div>
       </div>
       <div className="note-card-footer">

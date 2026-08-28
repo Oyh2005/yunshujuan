@@ -21,6 +21,7 @@ export default function DocumentDetailDrawer({ filename, onClose }: DocumentDeta
   const [error, setError] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
     // setTimeout 包裹：effect 体内不直接 setState（react-hooks/set-state-in-effect）
     const timer = window.setTimeout(() => {
       if (!filename) {
@@ -28,30 +29,33 @@ export default function DocumentDetailDrawer({ filename, onClose }: DocumentDeta
         return
       }
       setLoading(true)
+      setDetail(null)
       setError(false)
       setTab('content')
       knowledgeApi.detail(filename)
-        .then((res) => setDetail(res.data))
-        .catch(() => setError(true))
-        .finally(() => setLoading(false))
+        .then((res) => { if (!cancelled) setDetail(res.data) })
+        .catch(() => { if (!cancelled) setError(true) })
+        .finally(() => { if (!cancelled) setLoading(false) })
     }, 0)
-    return () => window.clearTimeout(timer)
+    return () => { cancelled = true; window.clearTimeout(timer) }
   }, [filename])
 
   return (
     <Dialog.Root open={!!filename} onOpenChange={(open) => { if (!open) onClose() }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/40" />
-        <Dialog.Content className="fixed top-0 right-0 h-full w-[640px] max-w-[90vw] bg-[var(--color-card)] shadow-xl flex flex-col">
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
+        <Dialog.Content className="fixed top-0 right-0 h-full w-[640px] max-w-[90vw] bg-[var(--color-card)] shadow-xl flex flex-col z-50">
           <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)] shrink-0">
             <Dialog.Title className="text-base font-medium text-[var(--color-text)] truncate flex items-center gap-2">
               <FileText size={16} className="text-[var(--color-text-tertiary)] shrink-0" />
               {detail?.filename || filename || ''}
             </Dialog.Title>
-            <Dialog.Close className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] transition-colors">
+            <Dialog.Close aria-label={t('common.cancel')} className="p-1.5 rounded text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] transition-colors">
               <X size={18} />
             </Dialog.Close>
           </div>
+
+          <Dialog.Description className="sr-only">{t('knowledge.detail')}</Dialog.Description>
 
           <div className="flex border-b border-[var(--color-border)] px-6 shrink-0">
             <button
@@ -93,9 +97,9 @@ export default function DocumentDetailDrawer({ filename, onClose }: DocumentDeta
                     {detail.content}
                   </pre>
                 )}
-                {detail.images.length > 0 && (
+                {(detail.images ?? []).length > 0 && (
                   <div className="space-y-4">
-                    {detail.images.map((img, i) => (
+                    {(detail.images ?? []).map((img, i) => (
                       <AuthImage
                         key={i}
                         src={img}
@@ -108,7 +112,7 @@ export default function DocumentDetailDrawer({ filename, onClose }: DocumentDeta
               </div>
             ) : (
               <div className="space-y-4">
-                {detail.chunks.map((chunk) => (
+                {(detail.chunks ?? []).map((chunk) => (
                   <div
                     key={chunk.chunk_id}
                     className="p-4 rounded-lg bg-[var(--color-bg-secondary)] border border-[var(--color-border)]"
@@ -120,9 +124,9 @@ export default function DocumentDetailDrawer({ filename, onClose }: DocumentDeta
                     <pre className="text-sm text-[var(--color-text)] whitespace-pre-wrap font-sans leading-relaxed">
                       {chunk.content}
                     </pre>
-                    {chunk.images.length > 0 && (
+                    {(chunk.images ?? []).length > 0 && (
                       <div className="mt-3 space-y-2">
-                        {chunk.images.map((img, i) => (
+                        {(chunk.images ?? []).map((img, i) => (
                           <AuthImage
                             key={i}
                             src={img}

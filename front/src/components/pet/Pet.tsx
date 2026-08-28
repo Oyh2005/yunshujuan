@@ -69,6 +69,22 @@ export default function Pet() {
   // 拖拽状态（dragging 参与渲染，用 state；起点坐标用 ref）
   const [dragging, setDragging] = useState(false)
   const dragStartRef = useRef({ px: 0, py: 0, ox: 0, oy: 0 })
+  const didDragRef = useRef(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  // 旧的大屏位置在手机或窗口缩小时仍须可达；不覆盖用户的显示开关。
+  useEffect(() => {
+    const clampPosition = () => {
+      const { offsetX: x, offsetY: y } = usePetStore.getState()
+      const actualSize = Math.min(size, window.innerWidth < 768 ? 88 : size)
+      const nextX = Math.min(Math.max(8, Number.isFinite(x) ? x : 24), Math.max(8, window.innerWidth - actualSize - 8))
+      const nextY = Math.min(Math.max(8, Number.isFinite(y) ? y : 24), Math.max(8, window.innerHeight - actualSize - 8))
+      if (nextX !== x || nextY !== y) setOffset(nextX, nextY)
+    }
+    clampPosition()
+    window.addEventListener('resize', clampPosition)
+    return () => window.removeEventListener('resize', clampPosition)
+  }, [size, offsetX, offsetY, setOffset])
 
   // 定时器
   const moodTimerRef = useRef<number | null>(null)
@@ -224,6 +240,8 @@ export default function Pet() {
   // ── 交互 ──
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    didDragRef.current = false
     setDragging(true)
     dragStartRef.current = { px: e.clientX, py: e.clientY, ox: offsetX, oy: offsetY }
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -233,7 +251,12 @@ export default function Pet() {
     if (!dragging) return
     const { px, py, ox, oy } = dragStartRef.current
     // 位置 = 起点偏移 + 鼠标位移（负方向）
-    setOffset(Math.max(0, ox - (e.clientX - px)), Math.max(0, oy - (e.clientY - py)))
+    if (Math.hypot(e.clientX - px, e.clientY - py) > 5) didDragRef.current = true
+    const rect = rootRef.current?.getBoundingClientRect()
+    setOffset(
+      Math.min(Math.max(8, ox - (e.clientX - px)), Math.max(8, window.innerWidth - (rect?.width ?? size) - 8)),
+      Math.min(Math.max(8, oy - (e.clientY - py)), Math.max(8, window.innerHeight - (rect?.height ?? size) - 8)),
+    )
   }
 
   const handlePointerUp = () => {
@@ -242,6 +265,7 @@ export default function Pet() {
   }
 
   const handleClick = () => {
+    if (didDragRef.current) { didDragRef.current = false; return }
     wake()
     setMood('talk')
     // 触摸限制：冷却 10 分钟 + 每日 10 次。无论是否有效都播放特效和气泡，
@@ -263,12 +287,16 @@ export default function Pet() {
 
   return (
     <div
+      ref={rootRef}
       className={`pet-root${dragging ? ' dragging' : ''}`}
       style={{
         right: offsetX,
         bottom: offsetY,
         width: size,
         height: size,
+        '--pet-size': `${size}px`,
+        '--pet-x': `${offsetX}px`,
+        '--pet-y': `${offsetY}px`,
         // 自定义主色：注入 CSS 变量，所有角色 SVG 自动生效（空值回退主题默认）
         ...(petColor ? { '--pet-body': petColor } : {}),
       } as React.CSSProperties}
@@ -277,6 +305,14 @@ export default function Pet() {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       onClick={handleClick}
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          didDragRef.current = false
+          handleClick()
+        }
+      }}
       role="button"
       aria-label={nickname}
       title={nickname}

@@ -22,6 +22,7 @@ import {
   User,
   Info,
   Plus,
+  House,
   Sun,
   Moon,
 } from 'lucide-react'
@@ -68,8 +69,10 @@ export default function CommandPalette() {
         setOpen(false)
       }
     }
+    const onOpen = () => setOpen(true)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    window.addEventListener('open-command-palette', onOpen)
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('open-command-palette', onOpen) }
   }, [navigate])
 
   // 打开时重置并聚焦（setState 移入异步回调，避免 set-state-in-effect 规则报错）
@@ -117,6 +120,7 @@ export default function CommandPalette() {
     }))
 
     const pages: PaletteItem[] = [
+      { id: 'page-home', label: t('nav.home'), icon: <House size={16} />, action: () => navigate('/') },
       { id: 'page-notes', label: t('nav.notes'), icon: <FileText size={16} />, action: () => navigate('/notes') },
       { id: 'page-chat', label: t('nav.chat'), icon: <MessageSquare size={16} />, action: () => navigate('/chat') },
       { id: 'page-sessions', label: t('nav.sessions'), icon: <History size={16} />, action: () => navigate('/sessions') },

@@ -48,8 +48,8 @@ export const notesApi = {
     return res.data
   },
 
-  graph: async () => {
-    const res = await client.get<ApiResponse<GraphData>>(endpoints.noteGraph)
+  graph: async (params: { include_semantic?: boolean; limit?: number } = {}, signal?: AbortSignal) => {
+    const res = await client.get<ApiResponse<GraphData>>(endpoints.noteGraph, { params: { include_semantic: false, ...params }, signal })
     return res.data
   },
 

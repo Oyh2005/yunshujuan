@@ -169,16 +169,16 @@ async def get_note_graph(
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(50, ge=2, le=100),
+    include_semantic: bool = Query(False, description="按需计算语义关联；默认仅查询已有双链"),
 ):
     """
     知识图谱数据（Top N 节点限制）：
     - nodes: 最近更新的笔记（id/title/category）
-    - links: 双链边（note_links 标题匹配）+ 语义相似边（复用 get_related_notes，仅笔记间）
+    - links: 已有双链；include_semantic=true 时额外计算语义关联
+    - semantic_status: not_requested / complete / partial / unavailable
 
     注意：本路由必须注册在 /{note_id} 之前，否则会被路径参数吞掉。
     """
-    import asyncio
-
     from sqlalchemy import select
 
     from app.models.note_link import NoteLink
@@ -218,32 +218,33 @@ async def get_note_graph(
                 seen_edges.add(key)
                 links.append({"source": nl.note_id, "target": target_id, "type": "link"})
 
-    # 3. 语义相似边：并发查询每篇笔记的关联（k=2，仅保留笔记间且在节点内的边）
-    sem = asyncio.Semaphore(6)
-
-    async def fetch_related(note_id: str):
-        async with sem:
+    # 3. 默认不访问模型。手动加载时顺序查询，避免共享 AsyncSession 并发使用。
+    # 首次失败即停止剩余请求，保留已有图谱，并明确报告降级状态。
+    semantic_status = "not_requested"
+    if include_semantic:
+        semantic_status = "complete"
+        completed = 0
+        for note_id in node_ids if len(node_ids) > 1 else []:
             try:
-                return note_id, await init_manager.note_service.get_related_notes(
-                    db, note_id, user_id, top_k=2
+                related = await init_manager.note_service.get_related_notes(
+                    db, note_id, user_id, top_k=2, include_knowledge=False, raise_errors=True,
                 )
+                completed += 1
             except Exception as e:
-                logger.warning(f"图谱语义检索失败 note_id={note_id}: {e}")
-                return note_id, []
+                logger.warning(f"图谱语义检索已暂停（保留已有双链）note_id={note_id}: {type(e).__name__}")
+                semantic_status = "partial" if completed else "unavailable"
+                break
+            for item in related:
+                if item.get("source") != "note":
+                    continue
+                target_id = item.get("id")
+                if target_id in node_id_set and target_id != note_id:
+                    key = (note_id, target_id)
+                    if key not in seen_edges:
+                        seen_edges.add(key)
+                        links.append({"source": note_id, "target": target_id, "type": "similar"})
 
-    results = await asyncio.gather(*[fetch_related(nid) for nid in node_ids])
-    for note_id, related in results:
-        for item in related:
-            if item.get("source") != "note":
-                continue
-            target_id = item.get("id")
-            if target_id in node_id_set and target_id != note_id:
-                key = (note_id, target_id)
-                if key not in seen_edges:
-                    seen_edges.add(key)
-                    links.append({"source": note_id, "target": target_id, "type": "similar"})
-
-    return success_response(data={"nodes": nodes, "links": links})
+    return success_response(data={"nodes": nodes, "links": links, "semantic_status": semantic_status})
 
 
 @note_router.delete("/category/{category}")

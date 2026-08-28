@@ -28,7 +28,8 @@ export interface Note {
   user_id: string
   title: string
   content: string
-  tags: string[]
+  // Newly created notes can have null tags while automatic tagging is pending.
+  tags?: string[] | null
   category: string
   is_pinned: boolean
   is_public: boolean
@@ -221,6 +222,7 @@ export interface GraphLink {
 export interface GraphData {
   nodes: GraphNode[]
   links: GraphLink[]
+  semantic_status?: 'not_requested' | 'complete' | 'partial' | 'unavailable'
 }
 
 // ── 社交（方向 B：好友 + 动态流）──

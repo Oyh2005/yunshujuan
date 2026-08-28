@@ -1,5 +1,5 @@
 import { useState, useEffect, useSyncExternalStore } from 'react'
-import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -24,6 +24,7 @@ import {
   Info,
   LogOut,
   Columns2,
+  House,
 } from 'lucide-react'
 import { useUserStore } from '../../stores/useUserStore'
 import { authApi } from '../../api/auth'
@@ -94,7 +95,6 @@ interface SidebarProps {
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const location = useLocation()
   const logout = useUserStore((s) => s.logout)
   const userInfo = useUserStore((s) => s.userInfo)
   const mobile = useSyncExternalStore(subscribeToWidth, getCompactSnapshot, () => false)
@@ -137,13 +137,13 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     <aside className={`app-sidebar${compact ? ' is-collapsed' : ''}`}>
       <div className="sidebar-brand">
         {!compact && (
-          <NavLink to="/notes" className="sidebar-logo" aria-label={t('app.name')}>
+          <NavLink to="/" className="sidebar-logo" aria-label={t('app.name')}>
             <Cloud size={31} strokeWidth={1.8} />
             <span>{t('app.name')}</span>
           </NavLink>
         )}
         {mobile ? (
-          <NavLink to="/notes" className="sidebar-mobile-logo" aria-label={t('app.name')}><Cloud size={29} /></NavLink>
+          <NavLink to="/" className="sidebar-mobile-logo" aria-label={t('app.name')}><Cloud size={29} /></NavLink>
         ) : (
           <button onClick={onToggle} className="workspace-icon-button sidebar-toggle" title={collapsed ? t('nav.expand') : t('nav.collapse')} aria-label={collapsed ? t('nav.expand') : t('nav.collapse')} aria-expanded={!collapsed}>
             <Columns2 size={17} />
@@ -152,6 +152,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       <nav className="sidebar-navigation" aria-label={t('nav.navigation')}>
+        <NavLink to="/" end className={({ isActive }) => `nav-item sidebar-link sidebar-home-link${isActive ? ' active' : ''}`} title={t('nav.home')} aria-label={t('nav.home')}><House size={18} />{!compact && <span className="sidebar-label">{t('nav.home')}</span>}</NavLink>
         {navGroups.map((group) => {
           const groupCollapsed = !!collapsedGroups[group.labelKey]
           return (
@@ -186,7 +187,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                         key={path}
                         to={path}
                         className={({ isActive }) =>
-                          `nav-item sidebar-link${isActive || (path === '/notes' && location.pathname === '/') ? ' active' : ''}`
+                          `nav-item sidebar-link${isActive ? ' active' : ''}`
                         }
                         title={t(labelKey)}
                         aria-label={t(labelKey)}

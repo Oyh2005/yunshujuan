@@ -8,6 +8,7 @@ import LoadingSkeleton from '../components/common/LoadingSkeleton'
 const Login = lazy(() => import('../pages/Login'))
 const Register = lazy(() => import('../pages/Register'))
 const NoteList = lazy(() => import('../pages/NoteList'))
+const Dashboard = lazy(() => import('../pages/Dashboard'))
 const NoteEditor = lazy(() => import('../pages/NoteEditor'))
 const AIChat = lazy(() => import('../pages/AIChat'))
 const Sessions = lazy(() => import('../pages/Sessions'))
@@ -51,7 +52,7 @@ const routes: RouteObject[] = [
     path: '/',
     element: <MainLayout />,
     children: [
-      { index: true, element: <LazyLoad><NoteList /></LazyLoad> },
+      { index: true, element: <LazyLoad><Dashboard /></LazyLoad> },
       { path: 'notes', element: <LazyLoad><NoteList /></LazyLoad> },
       { path: 'notes/:id', element: <LazyLoad><NoteEditor /></LazyLoad> },
       { path: 'notes/new', element: <LazyLoad><NoteEditor /></LazyLoad> },

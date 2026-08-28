@@ -42,6 +42,9 @@
 .is-collapsed .sidebar-brand { justify-content: center; padding: 22px 8px; }
 .is-collapsed .sidebar-navigation { padding-inline: 8px; }
 .is-collapsed .sidebar-link { justify-content: center; padding: 11px 0; }
+/* 首页入口：仅微调左内边距与组标题（12px）对齐；折叠时恢复居中 */
+.sidebar-link.sidebar-home-link { padding-left: 12px; }
+.is-collapsed .sidebar-home-link { padding-left: 0; }
 .is-collapsed .sidebar-section { margin-bottom: 10px; }
 .is-collapsed .sidebar-footer { padding: 10px 6px; }
 .is-collapsed .sidebar-account { justify-content: center; padding: 5px; }

@@ -1,157 +1,115 @@
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import * as Dialog from '@radix-ui/react-dialog'
 import { toast } from 'sonner'
-import { Upload, FileText, Trash2, Loader2, CheckCircle2, AlertCircle, Link2, X } from 'lucide-react'
+import { Upload, FileText, Trash2, Loader2, CheckCircle2, AlertCircle, Link2, X, Search, Layers3, Clock, ArrowRight } from 'lucide-react'
 import { knowledgeApi } from '../api/knowledge'
 import { useSSE } from '../hooks/useSSE'
-import type { KnowledgeSSEMessage } from '../types/api'
-import EmptyState from '../components/common/EmptyState'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import DocumentDetailDrawer from '../components/knowledge/DocumentDetailDrawer'
+import KnowledgeLayout, { KnowledgeHeader } from '../components/knowledge/KnowledgeLayout'
 import { usePetStore } from '../stores/usePetStore'
 
-interface UploadFile {
-  file: File
-  progress: number
-  status: 'pending' | 'uploading' | 'success' | 'fail'
-  error?: string
-}
+interface DocumentSummary { id: string; filename: string; chunk_count: number; created_at?: string | null }
+interface UploadFile { file: File; progress: number; status: 'pending' | 'uploading' | 'success' | 'fail'; error?: string }
+const extension = (filename: string) => filename.split('.').pop()?.toLowerCase() ?? ''
 
 export default function KnowledgeBase() {
-  const { t } = useTranslation()
-  const { start: startSSE } = useSSE()
-  const [docs, setDocs] = useState<Array<{ id: string; filename: string; chunk_count: number; created_at: string }>>([])
+  const { t, i18n } = useTranslation()
+  const { start: startSSE, abort, loading: uploading } = useSSE()
+  const [docs, setDocs] = useState<DocumentSummary[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([])
-  const [uploadTotal, setUploadTotal] = useState(0)
-  const [uploadDone, setUploadDone] = useState(0)
   const [dragOver, setDragOver] = useState(false)
   const [showClean, setShowClean] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; filename: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DocumentSummary | null>(null)
   const [detailFilename, setDetailFilename] = useState<string | null>(null)
   const [clipOpen, setClipOpen] = useState(false)
   const [clipUrl, setClipUrl] = useState('')
   const [clipping, setClipping] = useState(false)
+  const [search, setSearch] = useState('')
+  const [type, setType] = useState('all')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const mounted = useRef(false)
+  const uploadBusy = useRef(false)
+  const listRequest = useRef(0)
 
-  const loadDocs = async () => {
+  const loadDocs = useCallback(async () => {
+    const request = ++listRequest.current
     setLoading(true)
+    setLoadError(false)
     try {
       const res = await knowledgeApi.list()
-      const documents = (res.data as { documents: Array<{ id: string; filename: string; chunk_count: number; created_at: string }> } | undefined)?.documents || []
-      setDocs(documents)
+      if (mounted.current && request === listRequest.current) setDocs(res.data?.documents ?? [])
     } catch {
-      toast.error('加载文档列表失败')
+      if (mounted.current && request === listRequest.current) setLoadError(true)
     } finally {
-      setLoading(false)
+      if (mounted.current && request === listRequest.current) setLoading(false)
     }
-  }
-
-  useEffect(() => {
-    // setTimeout 包裹：loadDocs 内部同步 setState（react-hooks/set-state-in-effect）
-    const timer = window.setTimeout(() => { void loadDocs() }, 0)
-    return () => window.clearTimeout(timer)
   }, [])
 
+  useEffect(() => {
+    mounted.current = true
+    const requestVersion = listRequest
+    const timer = window.setTimeout(() => void loadDocs(), 0)
+    return () => { mounted.current = false; requestVersion.current++; window.clearTimeout(timer); abort() }
+  }, [loadDocs, abort])
+
   const handleClip = async () => {
-    const url = clipUrl.trim()
-    if (!url) {
-      toast.error(t('clip.urlRequired'))
-      return
-    }
+    if (clipping || !clipUrl.trim()) return
     setClipping(true)
     try {
-      const res = await knowledgeApi.clip(url)
-      const data = res.data as { filename?: string } | undefined
-      toast.success(t('clip.success', { filename: data?.filename ?? '' }))
+      const res = await knowledgeApi.clip(clipUrl.trim())
+      usePetStore.getState().trigger('doc_uploaded')
+      if (!mounted.current) return
+      toast.success(t('clip.success', { filename: res.data?.filename ?? '' }))
       setClipOpen(false)
       setClipUrl('')
-      loadDocs()
-      // 页宠联动：剪藏入库
-      usePetStore.getState().trigger('doc_uploaded')
-    } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      toast.error(detail || t('clip.failed'))
+      void loadDocs()
+    } catch {
+      if (mounted.current) toast.error(t('clip.failed'))
     } finally {
-      setClipping(false)
+      if (mounted.current) setClipping(false)
     }
   }
 
-  const handleFilesSelected = (files: FileList) => {
-    const newFiles: UploadFile[] = Array.from(files).map((f) => ({ file: f, progress: 0, status: 'pending' }))
+  const handleFilesSelected = async (files: FileList) => {
+    if (uploadBusy.current || !files.length) return
+    uploadBusy.current = true
+    const newFiles: UploadFile[] = Array.from(files).map((file) => ({ file, progress: 0, status: 'pending' }))
     setUploadFiles(newFiles)
-    setUploadTotal(newFiles.length)
-    setUploadDone(0)
-
+    const successful = new Set<string>()
     const formData = new FormData()
-    newFiles.forEach((f) => formData.append('files', f.file))
-
-    startSSE(
-      '/knowledge/add/multiple/stream',
-      formData,
-      {
-        onKnowledgeProgress: (data: KnowledgeSSEMessage) => {
-          if (data.event_type === 'processing') {
-            setUploadFiles((prev) =>
-              prev.map((uf) =>
-                uf.file.name === data.filename
-                  ? { ...uf, progress: data.progress || 0, status: 'uploading' }
-                  : uf
-              )
-            )
-          } else if (data.event_type === 'completed') {
-            setUploadFiles((prev) =>
-              prev.map((uf) =>
-                uf.file.name === data.filename
-                  ? { ...uf, progress: 100, status: 'success' }
-                  : uf
-              )
-            )
-            setUploadDone((c) => c + 1)
-          } else if (data.event_type === 'error') {
-            setUploadFiles((prev) =>
-              prev.map((uf) =>
-                uf.file.name === data.filename
-                  ? { ...uf, status: 'fail', error: data.error_message || '上传失败' }
-                  : uf
-              )
-            )
-            setUploadDone((c) => c + 1)
-          } else if (data.event_type === 'finish') {
-            loadDocs()
-            setUploadFiles((prev) => {
-              const allSuccess = prev.length > 0 && prev.every((uf) => uf.status === 'success')
-              return allSuccess ? [] : prev
-            })
-            setUploadTotal(0)
-            setUploadDone(0)
-            // 页宠联动：文档上传完成
-            usePetStore.getState().trigger('doc_uploaded')
-          }
+    newFiles.forEach(({ file }) => formData.append('files', file))
+    try {
+      await startSSE('/knowledge/add/multiple/stream', formData, {
+        onKnowledgeProgress: (data) => {
+          if (!mounted.current) return
+          if (data.event_type === 'completed' && data.filename) successful.add(data.filename)
+          setUploadFiles((prev) => prev.map((item) => {
+            if (item.file.name !== data.filename) return item
+            if (data.event_type === 'completed') return { ...item, progress: 100, status: 'success' }
+            if (data.event_type === 'error') return { ...item, status: 'fail', error: data.error_message || t('knowledge.fail') }
+            if (data.event_type === 'processing') return { ...item, progress: Math.min(100, Math.max(0, data.progress || 0)), status: 'uploading' }
+            return item
+          }))
         },
         onError: () => {
-          setUploadFiles((prev) =>
-            prev.map((uf) =>
-              uf.status === 'uploading' ? { ...uf, status: 'fail' as const } : uf
-            )
-          )
+          if (mounted.current) setUploadFiles((prev) => prev.map((item) => item.status === 'pending' || item.status === 'uploading' ? { ...item, status: 'fail', error: t('knowledge.fail') } : item))
         },
+      })
+    } finally {
+      uploadBusy.current = false
+      if (mounted.current) {
+        // A dropped stream must not leave files showing "uploading" forever.
+        setUploadFiles((prev) => prev.map((item) => item.status === 'pending' || item.status === 'uploading' ? { ...item, status: 'fail', error: t('knowledge.fail') } : item))
+        if (successful.size) {
+          void loadDocs()
+          usePetStore.getState().trigger('doc_uploaded')
+        }
       }
-    )
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(true)
-  }
-
-  const handleDragLeave = () => setDragOver(false)
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    if (e.dataTransfer.files.length > 0) {
-      handleFilesSelected(e.dataTransfer.files)
     }
   }
 
@@ -159,208 +117,70 @@ export default function KnowledgeBase() {
     if (!deleteTarget) return
     try {
       await knowledgeApi.deleteByFilename(deleteTarget.filename)
-      setDocs((prev) => prev.filter((d) => d.id !== deleteTarget.id))
-    } catch {
-      toast.error('删除文档失败')
-    }
+      listRequest.current++
+      setLoading(false)
+      setDocs((prev) => prev.filter((doc) => doc.filename !== deleteTarget.filename))
+    } catch { toast.error(t('common.error')) }
     setDeleteTarget(null)
   }
-
   const handleCleanAll = async () => {
     try {
       await knowledgeApi.cleanAll()
+      listRequest.current++
+      setLoading(false)
       setDocs([])
-    } catch {
-      toast.error('清空知识库失败')
-    }
+    } catch { toast.error(t('common.error')) }
     setShowClean(false)
   }
-
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes}B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+  const formatDate = (value?: string | null) => {
+    if (!value || !Number.isFinite(Date.parse(value))) return '—'
+    return new Date(value).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })
   }
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-  }
-
-  return (
-    <div className="max-w-4xl mx-auto py-8 px-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-xl font-semibold text-[var(--color-text)]">{t('knowledge.title')}</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setClipOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-bg)] transition-colors"
-          >
-            <Link2 size={14} />
-            {t('clip.button')}          </button>
-          {docs.length > 0 && (
-            <button
-              onClick={() => setShowClean(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm rounded-md border border-[var(--color-border)] text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)] transition-colors"
-            >
-              <Trash2 size={14} />
-              {t('knowledge.cleanAll')}
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className={`relative border-2 border-dashed rounded-lg p-10 text-center transition-colors ${
-          dragOver ? 'border-[var(--color-accent)] bg-[var(--color-accent-bg)]' : 'border-[var(--color-border)] hover:border-[var(--color-text-tertiary)]'
-        }`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept=".pdf,.txt,.md,.docx,.pptx"
-          className="hidden"
-          onChange={(e) => e.target.files && handleFilesSelected(e.target.files)}
-        />
-        <Upload size={24} className="mx-auto mb-3 text-[var(--color-text-tertiary)]" />
-        <p className="text-sm text-[var(--color-text-secondary)] mb-1">{t('knowledge.dragDrop')}</p>
-        <p className="text-xs text-[var(--color-text-tertiary)] mb-4">{t('knowledge.fileTypes')}</p>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="px-4 py-2 text-sm rounded-md bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:bg-[var(--color-accent-hover)] transition-colors"
-        >
-          {t('knowledge.upload')}
-        </button>
-      </div>
-
-      {uploadFiles.length > 0 && (
-        <div className="mt-4 space-y-2">
-          {uploadFiles.map((uf, i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-lg bg-[var(--color-card)] border border-[var(--color-border)]">
-              {uf.status === 'success' ? (
-                <CheckCircle2 size={16} className="text-[var(--color-success)] shrink-0" />
-              ) : uf.status === 'fail' ? (
-                <AlertCircle size={16} className="text-[var(--color-danger)] shrink-0" />
-              ) : (
-                <Loader2 size={16} className="animate-spin text-[var(--color-accent)] shrink-0" />
-              )}
-              <span className="text-sm text-[var(--color-text)] flex-1 truncate">{uf.file.name}</span>
-              {uf.status === 'fail' && uf.error ? (
-                <span className="text-xs text-[var(--color-danger)] truncate max-w-[240px]">{uf.error}</span>
-              ) : (
-                <span className="text-xs text-[var(--color-text-tertiary)]">{formatSize(uf.file.size)}</span>
-              )}
-              {uf.status === 'uploading' && (
-                <div className="w-24 h-1.5 rounded-full bg-[var(--color-bg-tertiary)] overflow-hidden">
-                  <div className="h-full bg-[var(--color-accent)] rounded-full transition-all" style={{ width: `${uf.progress}%` }} />
-                </div>
-              )}
-            </div>
-          ))}
-          {uploadDone === uploadTotal && uploadDone > 0 && (
-            <p className="text-xs text-[var(--color-success)] text-center">{t('knowledge.success')}</p>
-          )}
-        </div>
-      )}
-
-      <div className="mt-8">
-        <h2 className="text-sm font-medium text-[var(--color-text)] mb-4">{t('knowledge.title')} ({docs.length})</h2>
-
-        {loading ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-16 bg-[var(--color-bg-tertiary)] rounded-lg animate-pulse" />
-            ))}
-          </div>
-        ) : docs.length === 0 ? (
-          <EmptyState icon={<FileText size={48} />} message={t('knowledge.empty')} />
-        ) : (
-          <div className="space-y-2">
-            {docs.map((doc) => (
-              <div
-                key={doc.id}
-                onClick={() => setDetailFilename(doc.filename)}
-                className="flex items-center justify-between px-4 py-3 rounded-lg bg-[var(--color-card)] border border-[var(--color-border)] hover:border-[var(--color-accent)] cursor-pointer transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <FileText size={16} className="text-[var(--color-text-tertiary)] shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm text-[var(--color-text)] truncate">{doc.filename}</p>
-                    <p className="text-xs text-[var(--color-text-tertiary)]">
-                      {doc.chunk_count} chunks | {formatDate(doc.created_at)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(doc) }}
-                    className="workspace-icon-button"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <ConfirmDialog open={showClean} onOpenChange={setShowClean} title={t('knowledge.cleanAll')} message={t('knowledge.cleanConfirm')} variant="danger" confirmText={t('knowledge.cleanAll')} onConfirm={handleCleanAll} />
-      <ConfirmDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)} title={t('common.confirm')} message={t('knowledge.deleteConfirm')} variant="danger" confirmText={t('note.delete')} onConfirm={handleDelete} />
-      <DocumentDetailDrawer filename={detailFilename} onClose={() => setDetailFilename(null)} />
-
-      {/* 网页剪藏弹窗 */}
-      {clipOpen && (
-        <>
-          <div className="fixed inset-0 bg-black/40 z-50" onClick={() => !clipping && setClipOpen(false)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[var(--color-card)] rounded-lg shadow-xl p-6 w-[440px] max-w-[90vw] border border-[var(--color-border)]">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-medium text-[var(--color-text)] flex items-center gap-2">
-                <Link2 size={16} className="text-[var(--color-accent)]" />
-                {t('clip.title')}
-              </h3>
-              <button
-                onClick={() => setClipOpen(false)}
-                disabled={clipping}
-                className="workspace-icon-button"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <input
-              type="url"
-              value={clipUrl}
-              onChange={(e) => setClipUrl(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !clipping) handleClip() }}
-              placeholder={t('clip.placeholder')}
-              disabled={clipping}
-              autoFocus
-              className="w-full px-3 py-2 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text)] placeholder:text-[var(--color-text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] disabled:opacity-60"
-            />
-            <p className="text-xs text-[var(--color-text-tertiary)] mt-2">{t('clip.hint')}</p>
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => setClipOpen(false)}
-                disabled={clipping}
-                className="secondary-button"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleClip}
-                disabled={clipping || !clipUrl.trim()}
-                className="primary-button"
-              >
-                {clipping && <Loader2 size={14} className="animate-spin" />}
-                {clipping ? t('clip.processing') : t('clip.confirm')}
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+  const latest = docs.reduce<string | null>((latest, doc) => doc.created_at && Number.isFinite(Date.parse(doc.created_at)) && (!latest || Date.parse(doc.created_at) > Date.parse(latest)) ? doc.created_at : latest, null)
+  const filtered = docs.filter((doc) => doc.filename.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) && (type === 'all' || (type === 'document' ? ['docx', 'pptx', 'txt'].includes(extension(doc.filename)) : extension(doc.filename) === type)))
+  const metric = (value: number | string) => loading || loadError ? '—' : value
+  return <KnowledgeLayout>
+    <KnowledgeHeader title={t('knowledge.title')} subtitle={t('knowledgeUI.librarySubtitle')} actions={<>
+      <button className="secondary-button" onClick={() => setClipOpen(true)}><Link2 size={16} />{t('clip.button')}</button>
+      <button className="primary-button" disabled={uploading} onClick={() => fileInputRef.current?.click()}><Upload size={17} />{t('knowledge.upload')}</button>
+    </>} />
+    <div className={'knowledge-upload' + (dragOver ? ' is-dragging' : '')} onDragOver={(event) => { event.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); void handleFilesSelected(event.dataTransfer.files) }}>
+      <input ref={fileInputRef} type="file" multiple accept=".pdf,.txt,.md,.docx,.pptx" className="hidden" onChange={(event) => { if (event.target.files) void handleFilesSelected(event.target.files); event.target.value = '' }} />
+      <button className="knowledge-upload-target" disabled={uploading} onClick={() => fileInputRef.current?.click()}><Upload size={33} /><span><strong>{t(uploading ? 'knowledge.uploading' : 'knowledge.dragDrop')}</strong><small>{t('knowledge.fileTypes')}</small></span></button>
+      <img src="/illustrations/study-cloud.png" alt="" />
     </div>
-  )
+    {uploadFiles.length > 0 && <div className="mt-4 space-y-2" aria-live="polite">{uploadFiles.map((item, i) => <div key={i} className="knowledge-panel flex items-center gap-3 !p-4">
+      {item.status === 'success' ? <CheckCircle2 size={18} className="text-[var(--color-success)] shrink-0" /> : item.status === 'fail' ? <AlertCircle size={18} className="text-[var(--color-danger)] shrink-0" /> : <Loader2 size={18} className="animate-spin shrink-0" />}
+      <span className="text-sm truncate flex-1">{item.file.name}</span><span className="text-xs">{item.status === 'fail' ? item.error : item.status === 'success' ? t('knowledge.success') : Math.round(item.progress) + '%'}</span>
+    </div>)}</div>}
+    <div className="knowledge-metrics">
+      <div className="knowledge-metric"><span><FileText size={24} /></span><div><small>{t('knowledgeUI.documentCount')}</small><strong>{metric(docs.length)}</strong></div></div>
+      <div className="knowledge-metric"><span><Layers3 size={24} /></span><div><small>{t('knowledgeUI.chunkCount')}</small><strong>{metric(docs.reduce((sum, doc) => sum + doc.chunk_count, 0))}</strong></div></div>
+      <div className="knowledge-metric"><span><Clock size={24} /></span><div><small>{t('knowledgeUI.latest')}</small><strong>{metric(formatDate(latest))}</strong></div></div>
+    </div>
+    <div className="knowledge-toolbar">
+      <div className="knowledge-filters" role="group" aria-label={t('knowledgeUI.type')}>
+        {['all', 'pdf', 'document', 'md'].map((value) => <button key={value} aria-pressed={type === value} onClick={() => setType(value)}>{value === 'all' ? t('note.all') : value === 'document' ? t('knowledgeUI.documents') : value === 'md' ? 'Markdown' : 'PDF'}</button>)}
+      </div>
+      <label className="knowledge-search"><Search size={16} /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label={t('knowledgeUI.searchFiles')} placeholder={t('knowledgeUI.searchFiles')} /></label>
+    </div>
+    {loadError && <div role="alert" className="knowledge-alert"><span>{t('knowledgeUI.loadError')}</span><button className="secondary-button" onClick={() => void loadDocs()}>{t('common.retry')}</button></div>}
+    {loading && docs.length === 0 ? <div role="status" aria-label={t('common.loading')} className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-16 rounded-xl bg-[var(--color-bg-secondary)] animate-pulse" />)}</div>
+      : !loadError && filtered.length === 0 ? <div className="knowledge-panel knowledge-empty"><img src="/illustrations/study-cloud.png" alt="" /><p>{t(docs.length ? 'note.ui.noResults' : 'knowledge.empty')}</p>{docs.length > 0 && <button className="secondary-button" onClick={() => { setType('all'); setSearch('') }}>{t('note.ui.clearFilters')}</button>}</div>
+      : docs.length > 0 && <div className="knowledge-table-wrap"><table className="knowledge-table"><thead><tr>{['filename', 'type', 'chunkCount', 'status', 'added', 'actions'].map((key) => <th scope="col" key={key}>{t('knowledgeUI.' + key)}</th>)}</tr></thead><tbody>{filtered.map((doc) => <tr key={doc.id}>
+        <td><button className="knowledge-document-name" onClick={() => setDetailFilename(doc.filename)}><span className={'knowledge-file-icon ' + extension(doc.filename)}><FileText size={20} /></span><span title={doc.filename}>{doc.filename}</span></button></td>
+        <td><span className="knowledge-badge">{extension(doc.filename).toUpperCase() || '—'}</span></td><td>{doc.chunk_count}</td>
+        <td><span className={'knowledge-badge' + (doc.chunk_count > 0 ? ' ready' : '')}>{t(doc.chunk_count > 0 ? 'knowledgeUI.ready' : 'knowledgeUI.noChunks')}</span></td><td><time>{formatDate(doc.created_at)}</time></td>
+        <td><div className="knowledge-table-actions"><button className="knowledge-text-link" onClick={() => setDetailFilename(doc.filename)} aria-label={t('knowledge.detail') + '：' + doc.filename}>{t('knowledgeUI.view')}</button><button className="workspace-icon-button" disabled={uploading || clipping} onClick={() => setDeleteTarget(doc)} aria-label={t('note.delete') + '：' + doc.filename}><Trash2 size={16} /></button></div></td>
+      </tr>)}</tbody></table></div>}
+    {docs.length > 0 && <div className="flex justify-end mt-3"><button className="knowledge-text-link !text-[var(--color-text-tertiary)]" disabled={uploading || clipping} onClick={() => setShowClean(true)}><Trash2 size={14} />{t('knowledge.cleanAll')}</button></div>}
+    <div className="knowledge-helper"><img src="/illustrations/study-cloud.png" alt="" /><div><strong>{t('knowledgeUI.askTitle')}</strong><p>{t('knowledgeUI.askHint')}</p></div><Link className="knowledge-text-link" to="/chat">{t('knowledgeUI.ask')}<ArrowRight size={16} /></Link></div>
+    <ConfirmDialog open={showClean} onOpenChange={setShowClean} title={t('knowledge.cleanAll')} message={t('knowledge.cleanConfirm')} variant="danger" confirmText={t('knowledge.cleanAll')} onConfirm={handleCleanAll} />
+    <ConfirmDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)} title={t('common.confirm')} message={t('knowledge.deleteConfirm')} variant="danger" confirmText={t('note.delete')} onConfirm={handleDelete} />
+    <DocumentDetailDrawer filename={detailFilename} onClose={() => setDetailFilename(null)} />
+    <Dialog.Root open={clipOpen} onOpenChange={(open) => { if (!clipping) setClipOpen(open) }}><Dialog.Portal><Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" /><Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[var(--color-card)] text-[var(--color-text)] rounded-2xl shadow-xl p-6 w-[440px] max-w-[90vw] border border-[var(--color-border)]">
+      <div className="flex items-center justify-between mb-4"><Dialog.Title className="font-semibold">{t('clip.title')}</Dialog.Title><Dialog.Close disabled={clipping} className="workspace-icon-button" aria-label={t('common.cancel')}><X size={17} /></Dialog.Close></div>
+      <form onSubmit={(event) => { event.preventDefault(); void handleClip() }}><input type="url" required value={clipUrl} onChange={(event) => setClipUrl(event.target.value)} aria-label={t('clip.placeholder')} placeholder={t('clip.placeholder')} disabled={clipping} className="w-full px-3 py-2 text-sm rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)]" /><Dialog.Description className="text-xs text-[var(--color-text-secondary)] mt-3">{t('clip.hint')}</Dialog.Description><div className="flex justify-end gap-2 mt-5"><Dialog.Close type="button" disabled={clipping} className="secondary-button">{t('common.cancel')}</Dialog.Close><button type="submit" disabled={clipping || !clipUrl.trim()} className="primary-button">{clipping && <Loader2 size={15} className="animate-spin" />}{t(clipping ? 'clip.processing' : 'clip.confirm')}</button></div></form>
+    </Dialog.Content></Dialog.Portal></Dialog.Root>
+  </KnowledgeLayout>
 }

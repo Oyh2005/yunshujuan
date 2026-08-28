@@ -122,8 +122,10 @@ class FakeChromaStore:
     def similarity_search_with_score(self, query, k=4, filter=None, **kwargs):
         return [(d, 0.5) for d in self._filtered(filter)[:k]]
 
-    def get(self, include=None, where=None):
+    def get(self, include=None, where=None, limit=None):
         pairs = [(i, d) for i, d in self._docs.items() if _match_filter(d.metadata, where)]
+        if limit is not None:
+            pairs = pairs[:limit]
         return {
             "ids": [i for i, _ in pairs],
             "documents": [d.page_content for _, d in pairs],
