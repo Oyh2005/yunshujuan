@@ -17,9 +17,15 @@ def _client_ip(request: Request) -> str:
     return forwarded.split(",")[0].strip() or "unknown"
 
 
+def _instance_port(request: Request) -> int:
+    """请求端口：同一 IP 上可同时跑多个实例（开发 8000 + 临时验证实例），
+    限流 key 必须区分端口，否则实例间互相消耗配额。"""
+    return request.url.port or (443 if request.url.scheme == "https" else 80)
+
+
 def rate_limit(limit: int = 1, window: int = 60):
     """
-    限流依赖函数（按请求路径独立计数）
+    限流依赖函数（按接口路径独立计数）
     :param limit: 时间窗口内的最大请求数
     :param window: 时间窗口大小（秒）
     :return: 依赖函数
@@ -31,8 +37,8 @@ def rate_limit(limit: int = 1, window: int = 60):
 
         client_ip = _client_ip(request)
 
-        # 按接口路径区分计数，避免不同接口互相消耗配额
-        key = f"rate_limit:{request.url.path}:{client_ip}"
+        # 按接口路径 + 实例端口区分计数，避免不同接口/不同实例互相消耗配额
+        key = f"rate_limit:{request.url.path}:{_instance_port(request)}:{client_ip}"
 
         try:
             redis = await connect_redis()
@@ -81,7 +87,7 @@ class RateLimitMiddleware:
         from fastapi import Request
         request = Request(scope, receive)
         client_ip = _client_ip(request)
-        key = f"rate_limit:global:{client_ip}"
+        key = f"rate_limit:global:{_instance_port(request)}:{client_ip}"
 
         try:
             redis = await connect_redis()
