@@ -20,7 +20,7 @@ chat_router = APIRouter(prefix="/chat", tags=["chat"])
 async def query_stream(
         request: QueryRequest,
         user_id: str = Depends(get_current_user_id),
-        _: None = Depends(rate_limit(limit=10, window=60))
+        _: None = Depends(rate_limit(limit=60, window=60))
 ):
     """查询Agent流式响应"""
     session_id = request.session_id or str(uuid.uuid4())

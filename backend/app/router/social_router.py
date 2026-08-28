@@ -396,7 +396,7 @@ async def send_friend_request(
     payload: FriendRequestIn,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+    _: None = Depends(rate_limit(limit=60, window=60)),
 ):
     """发送好友申请（自动给接收方创建通知）。"""
     target = payload.user_id.strip()
@@ -488,7 +488,7 @@ async def create_post(
     payload: PostCreate,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+    _: None = Depends(rate_limit(limit=60, window=60)),
 ):
     """发布动态（文字 + 图片 + 可选引用笔记）。"""
     content = payload.content.strip()
@@ -861,7 +861,7 @@ async def follow_user(
     target_id: str,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+    _: None = Depends(rate_limit(limit=60, window=60)),
 ):
     """关注用户（幂等；不能关注自己；通知被关注方）。"""
     if target_id == user_id:

@@ -138,7 +138,7 @@ async def delete_by_filename(
 async def get_all_md5_records(
         user_id: str = Depends(get_current_user_id),
         knowledge_service: KnowledgeService = Depends(get_knowledge_service),
-        _: None = Depends(rate_limit(limit=10, window=60))
+        _: None = Depends(rate_limit(limit=60, window=60))
 ):
     """获取用户的所有MD5记录"""
     records = await knowledge_service.handle_get_all_md5_records(user_id)
@@ -153,7 +153,7 @@ async def get_md5_info(
         md5_value: str,
         user_id: str = Depends(get_current_user_id),
         knowledge_service: KnowledgeService = Depends(get_knowledge_service),
-        _: None = Depends(rate_limit(limit=10, window=60))
+        _: None = Depends(rate_limit(limit=60, window=60))
 ):
     """
     获取MD5对应的文档信息
@@ -170,7 +170,7 @@ async def get_md5_info(
 async def get_user_knowledge_list(
         user_id: str = Depends(get_current_user_id),
         knowledge_service: KnowledgeService = Depends(get_knowledge_service),
-        _: None = Depends(rate_limit(limit=10, window=60))
+        _: None = Depends(rate_limit(limit=60, window=60))
 ):
     """获取用户的知识库文档列表"""
     documents = await knowledge_service.handle_get_user_knowledge(user_id)
@@ -185,7 +185,7 @@ async def get_document_detail(
         filename: str,
         user_id: str = Depends(get_current_user_id),
         knowledge_service: KnowledgeService = Depends(get_knowledge_service),
-        _: None = Depends(rate_limit(limit=10, window=60))
+        _: None = Depends(rate_limit(limit=60, window=60))
 ):
     """获取文档详情内容"""
     document = await knowledge_service.handle_get_document_detail(user_id, filename)
@@ -197,7 +197,7 @@ async def get_document_chunks(
         filename: str,
         user_id: str = Depends(get_current_user_id),
         knowledge_service: KnowledgeService = Depends(get_knowledge_service),
-        _: None = Depends(rate_limit(limit=10, window=60))
+        _: None = Depends(rate_limit(limit=60, window=60))
 ):
     """获取文档切片信息"""
     chunks = await knowledge_service.handle_get_document_chunks(user_id, filename)
@@ -256,7 +256,7 @@ async def serve_batch_images(
         md5: str,
         user_id: str = Depends(get_current_user_id),
         knowledge_service: KnowledgeService = Depends(get_knowledge_service),
-        _: None = Depends(rate_limit(limit=10, window=60))
+        _: None = Depends(rate_limit(limit=60, window=60))
 ):
     """返回指定PDF的所有图片（单次请求，JSON + base64）"""
     result = await knowledge_service.handle_get_batch_images(user_id, md5)

@@ -41,7 +41,7 @@ async def create_note(
     payload: NoteCreate,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+    _: None = Depends(rate_limit(limit=60, window=60)),
 ):
     """
     创建笔记：
@@ -89,7 +89,7 @@ async def batch_delete_notes(
     payload: BatchIdsRequest,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+    _: None = Depends(rate_limit(limit=60, window=60)),
 ):
     """
     批量删除笔记：按 ID 列表删除笔记及其向量。
@@ -128,7 +128,7 @@ async def batch_update_category(
     payload: BatchCategoryRequest,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+    _: None = Depends(rate_limit(limit=60, window=60)),
 ):
     """
     批量更新笔记分类。
@@ -142,7 +142,7 @@ async def batch_pin_notes(
     payload: BatchPinRequest,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+    _: None = Depends(rate_limit(limit=60, window=60)),
 ):
     """
     批量置顶/取消置顶笔记。
@@ -290,7 +290,7 @@ class AssistRequest(BaseModel):
 async def assist_stream(
     payload: AssistRequest,
     user_id: str = Depends(get_current_user_id),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+    _: None = Depends(rate_limit(limit=60, window=60)),
 ):
     """
     AI 写作辅助 SSE 流式输出。支持三种模式：
@@ -314,7 +314,7 @@ async def update_note(
     payload: NoteUpdate,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+    _: None = Depends(rate_limit(limit=60, window=60)),
 ):
     """
     更新笔记：修改 title/content，content 变更时同步更新 ChromaDB 向量。
@@ -347,7 +347,7 @@ async def delete_note(
     note_id: str,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(rate_limit(limit=10, window=60)),
+    _: None = Depends(rate_limit(limit=60, window=60)),
 ):
     """
     删除笔记：联删 MySQL 记录、ChromaDB 向量、以及级联的 review_records。
