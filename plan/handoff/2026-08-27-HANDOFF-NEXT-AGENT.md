@@ -1,8 +1,9 @@
 # 云舒卷（RAG Notebook）开发交接文档（给下一个 Agent）
 
-> 更新：2026-08-29（最新一轮：社交私聊 P0——仅好友私聊 + WebSocket 实时；上几轮：稳定性三件套 + PWA、体验打磨四项、AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
+> 更新：2026-08-29（最新一轮：私聊微信化五阶段——视觉/输入增强/消息操作/会话管理/实时状态；上几轮：社交私聊 P0、稳定性三件套 + PWA、体验打磨四项、AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
 > - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
+> - `plan/records/2026-08-29-wechat-chat-delivery.md` —— 私聊微信化五阶段交付（视觉/图片/引用撤回/会话管理/实时状态，含验证）
 > - `plan/records/2026-08-29-social-chat-delivery.md` —— 社交私聊 P0 交付（好友私聊 + WebSocket 实时，含验证）
 > - `plan/records/2026-08-29-stability-pwa-delivery.md` —— 稳定性三件套 + PWA 交付（备份/错误监控/日志巡检/Service Worker，含验证）
 > - `plan/records/2026-08-29-experience-polish-delivery.md` —— 体验打磨交付（导出增强/AI 对话细节/首页周报月报/移动端抽屉，含验证）
@@ -40,7 +41,7 @@
 | 会话管理 | 列表/历史/删除（**历史截断 60 条子查询倒序取 id 再正序，勿改回**）；**自定义名称 + 置顶**（`PATCH /chat/session/{id}`，custom_title 优先于自动标题，置顶排序 pinned_at 降序） | `pages/Sessions.tsx`、`api/sessions.ts`、`components/common/PromptDialog.tsx` |
 | 回顾/打卡/番茄钟 | 艾宾浩斯 + LLM 出题；streak + 每日任务；25+5 番茄钟（页宠联动） | `DailyReview/HabitPage/PomodoroPage.tsx`、`components/learning/LearningLayout.tsx` |
 | 仪表盘/图谱 | 热力图/趋势/环形图（自绘 SVG）+ 排行榜；d3-force 知识图谱（语义关联按需加载） | `StatsPage/GraphPage.tsx` |
-| 社交 | 好友/关注、动态流（图文/点赞评论）、通知红点、知识广场、个人主页成就墙；**好友私聊**（仅好友 403 校验、会话/历史/已读、**WebSocket 实时推送** `/ws/chat`） | `pages/SocialFeed/FriendsPage/NotificationsPage/PlazaPage/UserProfilePage/MessagesPage.tsx`、`backend/app/router/social_router.py`、`ws_router.py`、`core/ws_manager.py` |
+| 社交 | 好友/关注、动态流（图文/点赞评论）、通知红点、知识广场、个人主页成就墙；**微信式私聊**（仅好友 403、气泡头像/时间分组/发送状态、emoji/图片消息、复制/引用回复/2 分钟撤回、置顶/删除/搜索、在线绿点/正在输入、WS 实时 `/ws/chat`） | `pages/SocialFeed/FriendsPage/NotificationsPage/PlazaPage/UserProfilePage/MessagesPage.tsx`、`backend/app/router/social_router.py`、`ws_router.py`、`core/ws_manager.py` |
 | 分享 | 免登录分享页 `/share/:id` + 浏览计数 | `PublicSharePage.tsx`、`share_router.py`（含 `/public` API） |
 | 页宠「小卷」 | 9 情绪、拖拽、好感度等级、形象切换、**养成数据云端同步** | `components/pet/`、`stores/usePetStore.ts`、`hooks/useSettingsSync.ts` |
 | 稳定性三件套 | **备份脚本**（MySQL dump + media + data 打包，`deploy/backup.ps1`）；**前端错误监控**（`POST /telemetry/error` 匿名可上报 + ErrorBoundary/全局 error 监听，30s 节流）；**日志巡检**（`deploy/check-logs.ps1`，ERROR/慢查询统计 + 计划任务告警） | `models/error_report.py`、`router/telemetry_router.py`、`api/telemetry.ts` |
@@ -112,6 +113,12 @@
 42. **vite 代理 ws 需显式 `ws: true`**：`'/ws/'` 新前缀（`'^/social/'` 正则代理没开 ws）；nginx 侧需 `map $http_upgrade` + `proxy_set_header Upgrade/Connection`（示例已补）
 43. **私聊好友校验**：复用 `_friend_ids`（双向 accepted）；非好友 403（前端在好友列表/主页 is_friend 才显示私信入口，双保险）
 44. **前端 WS 事件回调用 ref 同步**（渲染期禁写 ref 规则）：`eventsRef` 在 effect 中更新，`onMessage` 里读 `selectedPeerRef` 判断是否当前会话
+
+### 微信化私聊踩坑（08-29 晚）
+48. **WS 广播会推给自己**：connect 后 broadcast online 会把新连接自己也广播到 → `broadcast(payload, exclude_user_id=...)` 排除自己；offline 时该用户已断开无需排除但参数一致更稳
+49. **渲染期禁 `Date.now()`**（eslint purity）：撤回按钮的 2 分钟窗口不能用 Date.now() 判断 → 用挂载时快照 `referenceNow` 近似，后端撤回接口仍严格校验（"发送超过 2 分钟，不能撤回"）兜底
+50. **`private_messages` 已扩展 4 列**（message_type/reply_to_id/reply_content/recalled，自动 ALTER）——写历史查询/WS 消息结构时注意新字段；图片消息 content 为 `/media/chat/...` URL（会话预览判断 `startsWith('/media/')` 显示 [图片]）
+51. **引用摘要冗余存**：`reply_content` 在发送时从被引用消息复制（图片消息引用显示 [图片]），原消息撤回/删除不影响引用展示
 
 ### 注册/bcrypt 踩坑（08-29 晚）
 45. **⚠️ 注册接口曾 500（DetachedInstanceError）**：`user.date_joined` 是 **server_default 列**，INSERT 后 ORM 不知道其值；`register` 在 `async with` 块内 commit 后、块外 `_user_to_response` 访问该属性 → 懒加载 → session 已关闭 → 500。**修复：commit 后 `await session.refresh(user)`**（在 with 块内）。同类问题：任何 server_default/DB 生成列，commit 后需 refresh 再在 session 外访问
@@ -185,6 +192,14 @@
 - **WebSocket 实时**：`/ws/chat?token=` + `ws_manager` 连接管理；message/read/unread 三类推送；30s 心跳/60s 超时；离线落库重连补拉
 - **前端**：`useChatSocket`（指数退避重连）+ `MessagesPage`（会话列表/聊天窗/已读状态/移动端两栏）+ Sidebar 私信入口与未读徽标（WS 即时 + 30s 轮询兜底）+ 好友列表/主页私信入口
 - **验证**：探针 15 项 ALL PASS（websockets 客户端实测推送/已读/分页/敏感词/非法 token）；nginx 示例补 WS upgrade；⚠️ 双账号实时互聊需本机验证
+
+**⑪ 私聊微信化五阶段（08-29 晚，全部验证）**：详见 `plan/records/2026-08-29-wechat-chat-delivery.md`
+- **视觉**：气泡旁头像/时间分组/乐观发送+失败重发/已读状态
+- **输入**：emoji 表情面板 + 图片消息（上传/存储/气泡渲染/点击预览）
+- **操作**：复制/引用回复（摘要冗余）/2 分钟撤回（WS recall 推送）
+- **会话管理**：个人置顶/删除会话（个人设置表）/搜索
+- **实时状态**：WS 在线/离线广播（排除自己）+ typing 正在输入 + 在线绿点
+- **验证**：四组探针 ALL PASS（图片 6 项/撤回 7 项/会话设置 8 项/WS 状态 4 项）+ tsc/eslint 全绿；⚠️ 双账号全功能实测需本机验证
 
 ### 🔜 待办（按触发条件）
 | 项 | 触发条件 | 参考 |
