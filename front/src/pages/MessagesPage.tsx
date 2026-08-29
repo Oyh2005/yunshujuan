@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ArrowLeft, ImagePlus, Loader2, MessageSquare, Pin, Search, Send, Smile, Trash2, Users, X } from 'lucide-react'
+import { ArrowLeft, Copy, ImagePlus, Loader2, MessageSquare, Pin, Quote, Search, Send, Smile, Trash2, Undo2, Users, X } from 'lucide-react'
 import { messagesApi, type ChatConversation, type ChatMessage, type ChatPeer } from '../api/messages'
 import { socialApi } from '../api/social'
 import { useChatSocket } from '../hooks/useChatSocket'
@@ -95,6 +95,10 @@ export default function MessagesPage() {
   const [showEmoji, setShowEmoji] = useState(false)
   const [imageUploading, setImageUploading] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
+  // 渲染期不可调 Date.now()（purity 规则）：撤回按钮的 2 分钟窗口用挂载时快照近似，
+  // 超时后后端仍会校验（提示"发送超过 2 分钟"）
+  const [referenceNow] = useState(() => Date.now())
   const imageInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const selectedPeerRef = useRef<string | null>(null)
@@ -213,6 +217,10 @@ export default function MessagesPage() {
       // 对方读了我们的消息：刷新已读状态
       setMessages((prev) => prev.map((m) => ({ ...m, read: true })))
     },
+    onRecall: (messageId) => {
+      // 对方撤回消息：本地标记撤回
+      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, recalled: true, status: undefined } : m))
+    },
   })
 
   /** 会话列表同步：已有会话更新预览；首聊（无会话）插入新会话项 */
@@ -228,7 +236,7 @@ export default function MessagesPage() {
   }, [directPeer])
 
   /** 发送消息（乐观更新：先本地插入"发送中"，成功替换为服务端消息，失败标记可重发） */
-  const sendMessage = useCallback(async (peerId: string, content: string, messageType: 'text' | 'image' = 'text') => {
+  const sendMessage = useCallback(async (peerId: string, content: string, messageType: 'text' | 'image' = 'text', replyToId?: number) => {
     const tempId = -Date.now()
     const tempMsg: ChatMessage = {
       id: tempId,
@@ -236,13 +244,15 @@ export default function MessagesPage() {
       sender_id: userId,
       message_type: messageType,
       content,
+      reply_to_id: replyToId,
+      reply_content: replyToId ? replyTo?.reply_content || replyTo?.content : undefined,
       read: false,
       created_at: new Date().toISOString(),
       status: 'sending',
     }
     setMessages((prev) => [...prev, tempMsg])
     try {
-      const msg = await messagesApi.send(peerId, content, messageType)
+      const msg = await messagesApi.send(peerId, content, messageType, replyToId)
       if (msg) {
         setMessages((prev) => prev.map((m) => m.id === tempId ? { ...msg } : m))
         syncConversationAfterSend(peerId, msg)
@@ -255,7 +265,7 @@ export default function MessagesPage() {
       setSendError(status === 403 ? text('仅好友之间可以私聊，先去添加好友吧', 'Only friends can chat. Add them as a friend first.') : detail || text('发送失败，请重试', 'Failed to send. Please retry.'))
       return false
     }
-  }, [setSendError, syncConversationAfterSend, text, userId])
+  }, [replyTo, setSendError, syncConversationAfterSend, text, userId])
 
   const handleSend = async () => {
     const content = input.trim()
@@ -264,9 +274,32 @@ export default function MessagesPage() {
     setSendError('')
     setInput('')
     try {
-      await sendMessage(selectedPeerId, content)
+      const ok = await sendMessage(selectedPeerId, content, 'text', replyTo?.id)
+      if (ok) setReplyTo(null)
     } finally {
       setSending(false)
+    }
+  }
+
+  /** 复制消息内容 */
+  const copyMessage = async (msg: ChatMessage) => {
+    try {
+      await navigator.clipboard.writeText(msg.message_type === 'image' ? msg.content : msg.content)
+      toast.success(text('已复制', 'Copied'))
+    } catch {
+      toast.error(text('复制失败', 'Copy failed'))
+    }
+  }
+
+  /** 撤回消息（2 分钟内，仅本人） */
+  const recallMessage = async (msg: ChatMessage) => {
+    if (!selectedPeerId) return
+    try {
+      const updated = await messagesApi.recall(selectedPeerId, msg.id)
+      if (updated) setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...updated } : m))
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail || text('撤回失败', 'Recall failed'))
     }
   }
 
@@ -275,7 +308,7 @@ export default function MessagesPage() {
     if (!selectedPeerId) return
     setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: 'sending' } : m))
     setSendError('')
-    const ok = await sendMessage(selectedPeerId, msg.content, msg.message_type === 'image' ? 'image' : 'text')
+    const ok = await sendMessage(selectedPeerId, msg.content, msg.message_type === 'image' ? 'image' : 'text', msg.reply_to_id || undefined)
     if (ok) {
       // 重发成功：移除旧的失败消息（sendMessage 已插入新临时消息）
       setMessages((prev) => prev.filter((m) => m.id !== msg.id))
@@ -450,7 +483,9 @@ export default function MessagesPage() {
                         <div className="messages-bubble-main">
                           {showTime && <time className="messages-bubble-time">{formatTime(msg.created_at, english)}</time>}
                           <div className="messages-bubble-content">
-                            {msg.status === 'failed' ? (
+                            {msg.recalled ? (
+                              <p className="messages-recalled">{mine ? text('你撤回了一条消息', 'You recalled a message') : text('对方撤回了一条消息', 'Message recalled')}</p>
+                            ) : msg.status === 'failed' ? (
                               <>
                                 {msg.message_type === 'image'
                                   ? <img className="messages-image failed" src={msg.content} alt="" onClick={() => setPreviewImage(msg.content)} />
@@ -460,16 +495,32 @@ export default function MessagesPage() {
                             ) : msg.message_type === 'image' ? (
                               <img className="messages-image" src={msg.content} alt={text('聊天图片', 'Chat image')} loading="lazy" onClick={() => setPreviewImage(msg.content)} />
                             ) : (
-                              <p>{msg.content}</p>
+                              <>
+                                {msg.reply_content && (
+                                  <div className="messages-quote" title={text('引用消息', 'Quoted message')}>
+                                    <span>{msg.reply_content}</span>
+                                  </div>
+                                )}
+                                <p>{msg.content}</p>
+                              </>
                             )}
                           </div>
                           {mine && (
                             <span className="messages-send-status">
-                              {msg.status === 'sending' ? <Loader2 size={11} className="animate-spin" /> : msg.status === 'failed' ? <span className="messages-status-failed">{text('未发送', 'Not sent')}</span> : msg.read ? text('已读', 'Read') : text('未读', 'Unread')}
+                              {msg.status === 'sending' ? <Loader2 size={11} className="animate-spin" /> : msg.status === 'failed' ? <span className="messages-status-failed">{text('未发送', 'Not sent')}</span> : msg.recalled ? '' : msg.read ? text('已读', 'Read') : text('未读', 'Unread')}
                             </span>
                           )}
                         </div>
                         {mine && <SocialAvatar username={user?.username || ''} avatar={user?.avatar || null} size={30} />}
+                        {!msg.recalled && msg.status !== 'sending' && (
+                          <div className="messages-msg-actions">
+                            <button onClick={() => void copyMessage(msg)} title={text('复制', 'Copy')} aria-label={text('复制', 'Copy')}><Copy size={13} /></button>
+                            <button onClick={() => setReplyTo(msg)} title={text('引用回复', 'Reply')} aria-label={text('引用回复', 'Reply')}><Quote size={13} /></button>
+                            {mine && !msg.recalled && (referenceNow - validTime(msg.created_at)) <= 2 * 60 * 1000 && (
+                              <button onClick={() => void recallMessage(msg)} title={text('撤回', 'Recall')} aria-label={text('撤回', 'Recall')}><Undo2 size={13} /></button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </Fragment>
                   )
@@ -478,6 +529,13 @@ export default function MessagesPage() {
               </div>
               <footer className="messages-chat-input">
                 {sendError && <p className="messages-send-error">{sendError}</p>}
+                {replyTo && (
+                  <div className="messages-reply-bar">
+                    <Quote size={13} />
+                    <span className="messages-reply-copy">{replyTo.reply_content || replyTo.content}</span>
+                    <button onClick={() => setReplyTo(null)} aria-label={text('取消引用', 'Cancel reply')}><X size={13} /></button>
+                  </div>
+                )}
                 <div className="messages-input-bar">
                   <div className="messages-input-tools">
                     <button className={`messages-tool${showEmoji ? ' is-active' : ''}`} onClick={() => setShowEmoji((v) => !v)} title={text('表情', 'Emoji')} aria-label={text('表情', 'Emoji')}><Smile size={18} /></button>

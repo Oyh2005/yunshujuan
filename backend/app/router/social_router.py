@@ -1004,6 +1004,7 @@ async def user_public_notes(
 class ChatMessageRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=2000, description="消息内容（image 时为图片 URL）")
     message_type: str = Field("text", description="text/image")
+    reply_to_id: int | None = Field(None, description="被引用消息ID（引用回复）")
 
 
 async def _get_conversation(db: AsyncSession, user_x: str, user_y: str) -> ChatConversation | None:
@@ -1055,6 +1056,9 @@ def _message_dict(msg: PrivateMessage) -> dict:
         "sender_id": msg.sender_id,
         "message_type": msg.message_type or "text",
         "content": msg.content,
+        "reply_to_id": msg.reply_to_id,
+        "reply_content": msg.reply_content,
+        "recalled": msg.recalled,
         "read": msg.read,
         "created_at": str(msg.created_at) if msg.created_at else None,
     }
@@ -1213,7 +1217,22 @@ async def send_chat_message(
         _assert_clean(payload.content)
 
     conv = await _ensure_conversation(db, user_id, target_id)
-    msg = PrivateMessage(conversation_id=conv.id, sender_id=user_id, content=payload.content, message_type=message_type)
+
+    # 引用回复：冗余被引用消息摘要（防原消息撤回/删除后引用丢失）
+    reply_content = None
+    if payload.reply_to_id:
+        ref = (await db.execute(select(PrivateMessage).where(
+            PrivateMessage.id == payload.reply_to_id,
+            PrivateMessage.conversation_id == conv.id,
+        ))).scalar_one_or_none()
+        if ref:
+            ref_text = "[图片]" if ref.message_type == "image" else (ref.content or "")
+            reply_content = ref_text[:200]
+
+    msg = PrivateMessage(
+        conversation_id=conv.id, sender_id=user_id, content=payload.content,
+        message_type=message_type, reply_to_id=payload.reply_to_id, reply_content=reply_content,
+    )
     db.add(msg)
     conv.last_message = payload.content[:500]
     conv.last_message_at = datetime.now()
@@ -1262,6 +1281,47 @@ async def mark_conversation_read(
 
     unread = await _unread_count(db, user_id)
     return success_response(data={"unread": unread})
+
+
+@social_router.post("/chat/conversations/{target_id}/messages/{message_id}/recall")
+async def recall_chat_message(
+    target_id: str,
+    message_id: int,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit(limit=30, window=60)),
+):
+    """撤回消息：仅本人 + 发送 2 分钟内（微信规则）；WS 通知对方。"""
+    conv = await _get_conversation(db, user_id, target_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    msg = (await db.execute(select(PrivateMessage).where(
+        PrivateMessage.id == message_id,
+        PrivateMessage.conversation_id == conv.id,
+    ))).scalar_one_or_none()
+    if not msg:
+        raise HTTPException(status_code=404, detail="消息不存在")
+    if msg.sender_id != user_id:
+        raise HTTPException(status_code=403, detail="只能撤回自己的消息")
+    if msg.created_at and (datetime.now() - msg.created_at).total_seconds() > 120:
+        raise HTTPException(status_code=400, detail="发送超过 2 分钟，不能撤回")
+
+    msg.recalled = True
+    # 会话预览同步（撤回的是最后一条时更新预览）
+    if conv.last_sender_id == user_id and conv.last_message == msg.content:
+        conv.last_message = "[已撤回]"
+    await db.commit()
+    await db.refresh(msg)
+
+    from app.core.ws_manager import ws_manager
+
+    await ws_manager.send_to_user(target_id, {
+        "type": "recall",
+        "conversation_id": conv.id,
+        "message_id": msg.id,
+        "message": _message_dict(msg),
+    })
+    return success_response(data={"message": _message_dict(msg)})
 
 
 @social_router.get("/chat/unread-count")

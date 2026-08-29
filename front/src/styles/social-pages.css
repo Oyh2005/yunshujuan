@@ -273,6 +273,16 @@
 .messages-resend:hover { filter: brightness(.94); }
 .messages-send-status { display: inline-flex; align-items: center; gap: 3px; margin-top: 3px; padding: 0 4px; font-size: 9px; color: var(--color-text-tertiary); }
 .messages-status-failed { color: var(--color-danger); }
+.messages-recalled { padding: 8px 14px; font-size: 12px; font-style: italic; color: var(--color-text-tertiary); background: transparent; border: none; box-shadow: none; }
+.messages-quote { max-width: 260px; margin-bottom: 4px; padding: 6px 10px; border-left: 3px solid var(--color-accent); border-radius: 0 8px 8px 0; background: var(--color-bg-secondary); font-size: 11px; color: var(--color-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.messages-msg-actions { display: flex; gap: 2px; align-self: center; opacity: 0; transition: opacity .15s; }
+.messages-bubble:hover .messages-msg-actions, .messages-msg-actions:focus-within { opacity: 1; }
+.messages-msg-actions button { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; color: var(--color-text-tertiary); background: var(--color-card); border: 1px solid var(--color-border); }
+.messages-msg-actions button:hover { color: var(--color-accent); background: var(--color-accent-bg); }
+.messages-reply-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 7px 11px; border: 1px solid var(--color-accent-border); border-radius: 10px; background: var(--color-accent-surface); color: var(--color-accent); font-size: 11px; }
+.messages-reply-copy { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-secondary); }
+.messages-reply-bar button { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: var(--color-text-tertiary); }
+.messages-reply-bar button:hover { color: var(--color-text); background: var(--color-bg-secondary); }
 .messages-image { display: block; max-width: 240px; max-height: 260px; border-radius: 12px; cursor: zoom-in; border: 1px solid var(--color-border-light); }
 .messages-image.failed { opacity: .55; }
 .messages-image-preview { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(10, 8, 20, .78); backdrop-filter: blur(3px); }

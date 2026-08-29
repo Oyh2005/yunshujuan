@@ -5,6 +5,7 @@ import type { ChatMessage } from '../api/messages'
 export interface ChatSocketEvents {
   onMessage?: (message: ChatMessage) => void
   onRead?: (conversationId: string) => void
+  onRecall?: (messageId: number, conversationId: string) => void
 }
 
 /**
@@ -47,6 +48,8 @@ export function useChatSocket(events: ChatSocketEvents, enabled = true) {
             eventsRef.current.onMessage?.(data.message as ChatMessage)
           } else if (data.type === 'read') {
             eventsRef.current.onRead?.(data.conversation_id as string)
+          } else if (data.type === 'recall') {
+            eventsRef.current.onRecall?.(Number(data.message_id), data.conversation_id as string)
           } else if (data.type === 'unread') {
             setUnread(Number(data.count) || 0)
           }

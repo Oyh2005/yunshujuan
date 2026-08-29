@@ -121,6 +121,9 @@ class PrivateMessage(Base):
     sender_id = Column(String(36), index=True, nullable=False, comment="发送者用户ID")
     message_type = Column(String(10), default="text", nullable=False, comment="消息类型 text/image")
     content = Column(Text, nullable=False, comment="消息内容（image 时为图片 URL）")
+    reply_to_id = Column(Integer, nullable=True, comment="被引用消息ID")
+    reply_content = Column(String(200), nullable=True, comment="被引用消息摘要（冗余，防删除后丢失）")
+    recalled = Column(Boolean, default=False, nullable=False, comment="是否已撤回")
     read = Column(Boolean, default=False, nullable=False, index=True, comment="接收方是否已读")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, comment="发送时间")
 

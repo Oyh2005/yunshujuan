@@ -24,6 +24,9 @@ export interface ChatMessage {
   sender_id: string
   message_type?: 'text' | 'image'
   content: string
+  reply_to_id?: number | null
+  reply_content?: string | null
+  recalled?: boolean
   read: boolean
   created_at: string | null
   /** 本地发送状态（仅前端乐观更新用，服务端无此字段） */
@@ -57,8 +60,14 @@ export const messagesApi = {
   },
 
   /** 发送私聊消息 */
-  send: async (peerId: string, content: string, messageType: 'text' | 'image' = 'text') => {
-    const res = await client.post<ApiResponse<{ message: ChatMessage }>>(endpoints.chatSend(peerId), { content, message_type: messageType })
+  send: async (peerId: string, content: string, messageType: 'text' | 'image' = 'text', replyToId?: number) => {
+    const res = await client.post<ApiResponse<{ message: ChatMessage }>>(endpoints.chatSend(peerId), { content, message_type: messageType, reply_to_id: replyToId })
+    return res.data.data?.message
+  },
+
+  /** 撤回消息（2 分钟内，仅本人） */
+  recall: async (peerId: string, messageId: number) => {
+    const res = await client.post<ApiResponse<{ message: ChatMessage }>>(endpoints.chatRecall(peerId, messageId))
     return res.data.data?.message
   },
 
