@@ -1,11 +1,10 @@
 # 云舒卷（RAG Notebook）开发交接文档（给下一个 Agent）
 
-> 更新：2026-08-29（最新一轮：稳定性三件套 + PWA 化——备份脚本/错误监控/日志巡检/vite-plugin-pwa；上两轮：体验打磨四项、AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
+> 更新：2026-08-29（最新一轮：稳定性三件套 + PWA 化——备份脚本/错误监控/日志巡检/vite-plugin-pwa；上几轮：体验打磨四项、AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
 > - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
 > - `plan/records/2026-08-29-stability-pwa-delivery.md` —— 稳定性三件套 + PWA 交付（备份/错误监控/日志巡检/Service Worker，含验证）
 > - `plan/records/2026-08-29-experience-polish-delivery.md` —— 体验打磨交付（导出增强/AI 对话细节/首页周报月报/移动端抽屉，含验证）
-> - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
 > - `plan/records/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
 > - `plan/records/2026-08-29-ai-chat-latency-interview-qa.md` —— 同上项目的面试问答素材（数据怎么测的、预判追问应对）
 > - `plan/fixes/2026-08-29-ai-chat-flash-fix.md` —— 新会话首问闪屏排查全记录（MainLayout key 重挂载根因 + 双层修复）
@@ -23,9 +22,9 @@
 
 **云舒卷**：AI 驱动的个人知识管理平台（笔记 + RAG + 间隔回顾 + 社交 + 页宠养成）。
 - 后端：FastAPI + LangChain + ChromaDB + MySQL + Redis（`backend/`）
-- 前端：React 19 + TypeScript + Vite 8 + **Tailwind CSS 4**（CSS-first）+ **React Router 7** + Zustand + framer-motion（`front/`）
+- 前端：React 19 + TypeScript + Vite 8 + **Tailwind CSS 4**（CSS-first）+ **React Router 7** + Zustand + framer-motion + **vite-plugin-pwa**（Service Worker/manifest，`front/`）
 - **✅ 已是 git 仓库**（2026-08-28 初始化）：远程 `origin → https://github.com/Oyh2005/yunshujuan.git`（分支 `main`）
-- **✅ 本地与 origin/main 已同步**（08-29 核对：0 ahead / 0 behind，工作区干净）——旧文档「2 个提交未推送」已过时
+- **⚠️ 本地领先 origin/main 4 个提交待推送**（08-29 晚：`3299709` 错误监控、`ae11b7e` 运维脚本、`09fc9f5` PWA、`195ea07` docs）——开新会话提醒用户 `git push`（凭据/PAT 由用户本机操作，沙箱无凭据）；此前体验打磨 5 个提交用户已确认推送
 - 用户会手动改代码，开工前先 `git status` 核对最近改动
 
 ## 2. 当前已完成功能总览（勿重复开发）
@@ -58,9 +57,10 @@
 4. 后端启动：开发 `cd backend && .venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000`；生产 `.\start_prod.ps1`（4 workers）
 5. **限流已开启**（`RATE_LIMIT_ENABLED=true`）：全局限流 300 次/分钟；普通读写接口 120 次/分钟；上传 10、剪藏 6、模板/社交写/聊天流 30。**限流 key 含端口**（`rate_limit:/path:port:ip`），同机多实例互不干扰
 6. **模型配置**：对话=DeepSeek 云端（`deepseek-v4-flash`）；嵌入=本地 Ollama（`nomic-embed-text`）；重排序=本地 bge-reranker-v2-m3（**2026-08-29 已自动补全下载 2.17GB**，之前一直缺失导致重排序静默失败降级）
+7. **PWA/错误监控（08-29 晚）**：`vite-plugin-pwa` 只随 `npm run build` 产物生效（dev 模式不注册 SW，不影响开发）；`POST /telemetry/error` 允许匿名（登录页也上报），`error_reports` 表启动自动创建；备份/巡检脚本在 `deploy/`（**.ps1 已带 UTF-8 BOM，编辑后勿丢**，见踩坑 34）
 
 ### 沙箱验证方式
-5. **pytest 沙箱跑不了**（tmp_path PermissionError）→ 后端验证用 **py_compile + 临时 uvicorn 801x 实测**（探针脚本断言，测后 kill + 清理数据）
+5. **pytest 沙箱跑不了**（tmp_path PermissionError）→ 后端验证用 **py_compile + 临时 uvicorn 801x 实测**（探针脚本断言，测后 kill + 清理数据）。可复用探针：`.probe_export_zip.py`（zip 导出，8017）、`.probe_period_stats.py`（周月聚合，8018）、`.probe_telemetry.py`（错误上报，8019）、`.probe_ai_perf.py`（SSE 时间线）、`.probe_verify*.py`（DeepSeek 对照）
 6. **vite build/dev 沙箱跑不了**（spawn EPERM）→ 前端用 `npx tsc -b --noEmit` + `npx eslint src --ext .ts,.tsx`；CSS 可用 Node 直接调 `@tailwindcss/postcss` 编译验证（见历史做法）
 7. **npm install 需指定缓存**：`--cache "D:\项目\RAGNotebook-master\.npm-cache" --no-audit --no-fund`
 8. PowerShell 传中文 body 会编码损坏，后端断言必须用 Python/UTF-8 客户端
@@ -107,13 +107,14 @@
 ## 4. 剩余任务（按优先级）
 
 ### ⚠️ 立即事项
-- **本地 2 个提交未推送 `origin/main`**（`e6e8304` SWR 缓存、`118182c` plan 分类）——提醒用户 `git push`（凭据/PAT 由用户本机操作）
+- **本地 4 个提交未推送 `origin/main`**（`3299709` 错误监控 / `ae11b7e` 运维脚本 / `09fc9f5` PWA / `195ea07` docs）——提醒用户 `git push`（凭据/PAT 由用户本机操作）
+- **用户待办（08-29 晚）**：① 重启后端 8000（`error_reports` 表自动创建 + `/telemetry/error` 路由）；② 本机 `cd front && npm run build` 验证 PWA（沙箱跑不了 vite build——检查 `dist/sw.js`、manifest、DevTools Application 面板 SW 注册与离线缓存）；③ 可选：备份/巡检脚本挂计划任务（`deploy/backup.ps1` 与 `deploy/check-logs.ps1` 头部有注册示例）
 
 ### ✅ 全部里程碑已完成（M2/M3/M4、方向 A/B/C1/C2/C3、数据上云、D 阶段一、备选精选、UI 改版、lint 清零、风格统一）
 
 > 每项的交付物/验证/踩坑见 `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md`，此处不重复。
 
-### 最近两轮工作要点
+### 最新工作要点
 **① 首页 + 知识页改版（08-28）**：Dashboard 首页（淡紫横幅/云朵插画/快捷操作/最近记录/图谱预览/成长卡）；KnowledgeBase/Plaza/Stats/Graph 统一 `KnowledgeLayout` + `knowledge-pages.css`；图谱语义关联按需加载（`include_semantic` + `semantic_status`）；空标签兜底；页宠拖拽边界钳制
 
 **② 性能优化三批（08-29，均已验证）**：
