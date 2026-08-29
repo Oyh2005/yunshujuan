@@ -22,7 +22,7 @@
 .dashboard-top-actions { flex: 1; display: flex; justify-content: flex-end; align-items: center; gap: 18px; }
 .dashboard-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 9px; color: var(--color-text-secondary); }
 .dashboard-icon-button:hover { background: var(--color-accent-bg); color: var(--color-accent); }
-.dashboard-profile { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: linear-gradient(135deg,#A88BFF,#7349EF); color: #fff; font-weight: 650; box-shadow: 0 4px 10px #7651ef1a; }
+.dashboard-profile { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; overflow: hidden; background: linear-gradient(135deg,#A88BFF,#7349EF); color: #fff; font-weight: 650; box-shadow: 0 4px 10px #7651ef1a; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 22px; align-items: start; }
 .dashboard-main, .dashboard-rail { min-width: 0; }
 .dashboard-hero { min-height: 320px; border-radius: 20px; overflow: hidden; position: relative; display: flex; align-items: center; background: linear-gradient(120deg,#E2E7FF 0%,#ECE4FE 51%,#FCECF2 100%); isolation: isolate; }

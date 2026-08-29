@@ -11,6 +11,7 @@ import { getPetLevel, LEVEL_THRESHOLDS, usePetStore } from '../stores/usePetStor
 import { useHabitStore } from '../stores/useHabitStore'
 import { getCharacter } from '../components/pet/characters/registry'
 import { notePreview } from '../components/note/notePresentation'
+import AuthImage from '../components/common/AuthImage'
 import type { GraphData, KnowledgeDocument, NoteListResponse, ReviewListData } from '../types/api'
 import '../styles/dashboard.css'
 
@@ -138,7 +139,7 @@ export default function Dashboard() {
         <button className="dashboard-search" onClick={() => window.dispatchEvent(new Event('open-command-palette'))}>
           <Search size={18} /><span>{text('搜索笔记，或快速前往你的知识空间…', 'Search notes or jump to your workspace…')}</span><kbd>⌘ K</kbd>
         </button>
-        <div className="dashboard-top-actions"><Link to="/notifications" className="dashboard-icon-button" aria-label={text('通知', 'Notifications')}><Bell size={21} /></Link><Link to="/profile" className="dashboard-profile" aria-label={text('个人信息', 'Profile')}>{user?.username?.slice(0, 1) || <CloudAvatar />}</Link></div>
+        <div className="dashboard-top-actions"><Link to="/notifications" className="dashboard-icon-button" aria-label={text('通知', 'Notifications')}><Bell size={21} /></Link><Link to="/profile" className="dashboard-profile" aria-label={text('个人信息', 'Profile')}>{user?.avatar ? <AuthImage src={user.avatar} alt={user.username || ''} className="w-full h-full object-cover" /> : (user?.username?.slice(0, 1) || <CloudAvatar />)}</Link></div>
       </header>
 
       {failed && <div className="dashboard-error" role="alert">{failed === 'rate' ? text('请求过于频繁，请稍后再试。', 'Too many requests, please try again later.') : text('部分数据暂时未能加载，其他功能可以正常使用。', 'Some data could not be loaded. Your other tools are still available.')}<button disabled={loading} onClick={() => { setLoading(true); setReload((value) => value + 1) }}><RefreshCw size={14} />{text('重试', 'Retry')}</button></div>}
