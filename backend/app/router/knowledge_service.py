@@ -46,6 +46,27 @@ CLIP_USER_AGENT = (
 _magic_mime = None
 
 
+def _init_magic_with_ascii_path():
+    """
+    libmagic 的 fopen 在 Windows 上用 ANSI 编码解释路径，
+    项目路径含中文（如 D:\\项目\\...）时打不开 magic.mgc。
+    将数据库复制到纯英文系统临时目录后重新初始化。
+    """
+    import shutil
+    import tempfile
+    try:
+        mgc = os.path.join(os.path.dirname(magic.__file__), 'libmagic', 'magic.mgc')
+        if not os.path.exists(mgc):
+            return None
+        dst = os.path.join(tempfile.gettempdir(), 'cloud-notebook-magic.mgc')
+        if not os.path.exists(dst):
+            shutil.copyfile(mgc, dst)
+        return magic.Magic(mime=True, magic_file=dst)
+    except Exception as e:
+        logger.warning(f"libmagic 中文路径降级初始化失败: {type(e).__name__}: {e}")
+        return None
+
+
 def _get_magic_mime():
     """获取 libmagic 实例；不可用时返回 None（调用方降级为扩展名校验）。"""
     global _magic_mime
@@ -53,8 +74,10 @@ def _get_magic_mime():
         try:
             _magic_mime = magic.Magic(mime=True)
         except Exception as e:
-            logger.warning(f"libmagic 初始化失败，MIME 内容检测降级为扩展名校验: {type(e).__name__}: {e}")
-            _magic_mime = False
+            # 常见原因：中文/非 ASCII 项目路径导致 fopen 失败；复制 mgc 到英文路径重试
+            _magic_mime = _init_magic_with_ascii_path() or False
+            if not _magic_mime:
+                logger.warning(f"libmagic 初始化失败，MIME 内容检测降级为扩展名校验: {type(e).__name__}: {e}")
     return _magic_mime if _magic_mime else None
 
 
