@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Bell, UserPlus, UserCheck, Heart, MessageCircle, CheckCheck, Loader2, Inbox } from 'lucide-react'
+import { Bell, UserPlus, UserCheck, Heart, MessageCircle, CheckCheck, Loader2, Inbox, ChevronRight } from 'lucide-react'
 import { socialApi } from '../api/social'
 import type { NotificationItem } from '../types/api'
 import SocialLayout, { SocialAvatar, SocialHeader, SocialPetCard } from '../components/social/SocialLayout'
@@ -10,6 +11,7 @@ export default function NotificationsPage() {
   const { t, i18n } = useTranslation()
   const english = i18n.resolvedLanguage?.startsWith('en')
   const text = (zh: string, en: string) => english ? en : zh
+  const navigate = useNavigate()
   const [items, setItems] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -50,6 +52,33 @@ export default function NotificationsPage() {
       toast.error(t('common.error'))
     } finally {
       setMarking(false)
+    }
+  }
+
+  /** 点击通知：单条标记已读 + 跳转对应页面（QQ/微信式快捷跳转） */
+  const handleOpen = async (item: NotificationItem) => {
+    if (!item.read) {
+      setItems((prev) => prev.map((n) => n.id === item.id ? { ...n, read: true } : n))
+      try {
+        await socialApi.markRead([item.id])
+      } catch {
+        // 已读标记失败不影响跳转
+      }
+    }
+    switch (item.type) {
+      case 'friend_request':
+        navigate('/friends')  // 好友申请区：可看到申请人头像/昵称/资料并同意或拒绝
+        break
+      case 'friend_accepted':
+        if (item.actor?.user_id) navigate(`/user/${item.actor.user_id}`)
+        else navigate('/friends')
+        break
+      case 'like':
+      case 'comment':
+        navigate('/social')  // 动态流（精确定位留待动态锚点功能）
+        break
+      default:
+        break
     }
   }
 
@@ -97,13 +126,14 @@ export default function NotificationsPage() {
       comment: { icon: <MessageCircle size={17} />, tone: 'blue' },
     }[item.type]
     return (
-      <article key={item.id} className={`social-notification-row${item.read ? '' : ' is-unread'}`}>
+      <button key={item.id} type="button" onClick={() => void handleOpen(item)} className={`social-notification-row${item.read ? '' : ' is-unread'}`}>
         <SocialAvatar username={item.actor?.username || text('用户', 'User')} avatar={item.actor?.avatar || null} size={42} />
         <span className={`social-type-icon ${meta?.tone || 'violet'}`}>{meta?.icon || <Bell size={17} />}</span>
         <p className="social-notification-copy">{renderText(item)}</p>
         <time>{formatTime(item.created_at)}</time>
         {!item.read && <span className="social-unread-dot" aria-label={text('未读', 'Unread')} />}
-      </article>
+        <ChevronRight size={14} className="social-notification-arrow" />
+      </button>
     )
   }
 

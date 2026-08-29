@@ -166,8 +166,10 @@ export default function FriendsPage() {
             <div className="social-card-heading"><h2>{t('friends.requests')}</h2>{requests.length > 0 && <span className="social-request-count">{requests.length}</span>}</div>
             {loading ? <div className="social-loading"><Loader2 size={20} /></div> : requests.length === 0 ? <div className="social-empty"><Inbox size={24} /><p>{t('friends.noRequests')}</p></div> : requests.map((request) => (
               <div key={request.request_id} className="social-request-row">
-                <SocialAvatar username={request.username} avatar={request.avatar} size={40} />
-                <div className="social-user-copy"><strong>{request.username}</strong><small>{t('friends.wantsToAdd')}</small></div>
+                <button onClick={() => navigate(`/user/${request.user_id}`)} className="social-request-user" title={text('查看资料', 'View profile')}>
+                  <SocialAvatar username={request.username} avatar={request.avatar} size={40} />
+                  <div className="social-user-copy"><strong>{request.username}</strong><small>{request.bio || t('friends.wantsToAdd')}</small></div>
+                </button>
                 <div className="social-request-actions">
                   <button onClick={() => handleRespond(request.request_id, true)} disabled={busyId === request.request_id} title={t('friends.accept')} aria-label={t('friends.accept')}>{busyId === request.request_id ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}</button>
                   <button onClick={() => handleRespond(request.request_id, false)} disabled={busyId === request.request_id} title={t('friends.reject')} aria-label={t('friends.reject')}><X size={14} /></button>

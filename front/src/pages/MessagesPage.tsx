@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Loader2, MessageSquare, Send, Users } from 'lucide-react'
-import { messagesApi, type ChatConversation, type ChatMessage } from '../api/messages'
+import { messagesApi, type ChatConversation, type ChatMessage, type ChatPeer } from '../api/messages'
+import { socialApi } from '../api/social'
 import { useChatSocket } from '../hooks/useChatSocket'
 import { useChatStore } from '../stores/useChatStore'
 import { useUserStore } from '../stores/useUserStore'
@@ -41,6 +42,8 @@ export default function MessagesPage() {
   const [loadingList, setLoadingList] = useState(true)
   const [listFailed, setListFailed] = useState(false)
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null)
+  /** 无会话时的直聊对象（?with= 进入但从未私聊过 → 从好友列表取信息） */
+  const [directPeer, setDirectPeer] = useState<ChatPeer | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -53,7 +56,7 @@ export default function MessagesPage() {
     selectedPeerRef.current = selectedPeerId
   }, [selectedPeerId])
 
-  const selectedPeer = conversations.find((c) => c.peer.user_id === selectedPeerId)?.peer ?? null
+  const selectedPeer = conversations.find((c) => c.peer.user_id === selectedPeerId)?.peer ?? directPeer
 
   const loadConversations = useCallback(async () => {
     try {
@@ -86,11 +89,25 @@ export default function MessagesPage() {
     setSelectedPeerId(peerId)
     setMessages([])
     setHasMore(false)
+    // 从未私聊过：会话列表里没有该好友 → 从好友列表取对方信息（聊天窗头部展示）
+    const known = conversations.find((c) => c.peer.user_id === peerId)?.peer
+    if (!known) {
+      try {
+        const res = await socialApi.friendsList()
+        const found = (res.data ?? []).find((f) => f.user_id === peerId)
+        setDirectPeer(found ? { user_id: found.user_id, username: found.username, avatar: found.avatar } : null)
+        if (!found) setSendError(text('仅好友之间可以私聊，先去添加好友吧', 'Only friends can chat. Add them as a friend first.'))
+      } catch {
+        // 好友列表加载失败不影响打开
+      }
+    } else {
+      setDirectPeer(null)
+    }
     await loadHistory(peerId)
     await messagesApi.markRead(peerId).then(setUnread).catch(() => {})
     // 本地会话未读清零
     setConversations((prev) => prev.map((c) => c.peer.user_id === peerId ? { ...c, unread: 0 } : c))
-  }, [loadHistory, setUnread])
+  }, [conversations, loadHistory, setUnread, text])
 
   // 初始加载
   useEffect(() => {
@@ -145,9 +162,15 @@ export default function MessagesPage() {
       const msg = await messagesApi.send(selectedPeerId, content)
       if (msg) {
         setMessages((prev) => [...prev, msg])
-        setConversations((prev) => prev.map((c) => c.peer.user_id === selectedPeerId
-          ? { ...c, last_message: msg.content, last_message_at: msg.created_at, last_sender_id: msg.sender_id }
-          : c))
+        // 会话列表同步：已有会话更新预览；首聊（无会话）插入新会话项
+        setConversations((prev) => {
+          const exists = prev.some((c) => c.peer.user_id === selectedPeerId)
+          const updated = prev.map((c) => c.peer.user_id === selectedPeerId
+            ? { ...c, last_message: msg.content, last_message_at: msg.created_at, last_sender_id: msg.sender_id }
+            : c)
+          if (exists || !directPeer) return updated
+          return [{ conversation_id: msg.conversation_id, peer: directPeer, last_message: msg.content, last_sender_id: msg.sender_id, last_message_at: msg.created_at, unread: 0 }, ...updated]
+        })
         setInput('')
       }
     } catch (err) {
@@ -167,6 +190,7 @@ export default function MessagesPage() {
 
   const closeChat = () => {
     setSelectedPeerId(null)
+    setDirectPeer(null)
     setSearchParams({}, { replace: true })
   }
 

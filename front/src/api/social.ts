@@ -89,6 +89,11 @@ export const socialApi = {
     const res = await client.post<ApiResponse<null>>(endpoints.notificationsRead)
     return res.data
   },
+  /** 标记指定通知已读（点击通知时单条标记） */
+  markRead: async (ids: string[]) => {
+    const res = await client.post<ApiResponse<null>>(endpoints.notificationsRead, { ids })
+    return res.data
+  },
 
   // 知识广场
   plaza: async (page: number, pageSize = 10) => {

@@ -241,6 +241,7 @@ export interface FriendRequestItem {
   user_id: string
   username: string
   avatar: string | null
+  bio?: string | null
   created_at: string | null
 }
 

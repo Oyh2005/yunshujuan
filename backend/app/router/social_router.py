@@ -11,7 +11,7 @@ import json
 import uuid
 from datetime import datetime
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Body, Depends, HTTPException, Query
 from fastapi.routing import APIRouter
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, delete, func, or_, select, update
@@ -376,9 +376,9 @@ async def friend_requests(
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """我收到的待处理好友申请。"""
+    """我收到的待处理好友申请（含申请人 bio，前端详情展示）。"""
     stmt = (
-        select(FriendRequest, User.username, User.avatar)
+        select(FriendRequest, User.username, User.avatar, User.bio)
         .join(User, User.uuid == FriendRequest.user_id)
         .where(FriendRequest.friend_id == user_id, FriendRequest.status == "pending")
         .order_by(FriendRequest.created_at.desc())
@@ -390,6 +390,7 @@ async def friend_requests(
             "user_id": r[0].user_id,
             "username": r[1],
             "avatar": r[2],
+            "bio": r[3],
             "created_at": str(r[0].created_at) if r[0].created_at else None,
         }
         for r in rows
@@ -747,18 +748,23 @@ async def unread_count(
 
 
 @social_router.post("/notifications/read")
-async def mark_all_read(
+async def mark_notifications_read(
+    payload: dict | None = Body(default=None),
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """全部标记为已读。"""
-    await db.execute(
-        update(Notification)
-        .where(Notification.user_id == user_id, Notification.read.is_(False))
-        .values(read=True)
-    )
+    """
+    标记通知已读：body {ids: [...]} 指定单条/多条；不传 body 则全部已读。
+    （前端点击通知时单条已读 + 跳转对应页面）
+    """
+    stmt = update(Notification).where(
+        Notification.user_id == user_id, Notification.read.is_(False)
+    ).values(read=True)
+    if payload and payload.get("ids"):
+        stmt = stmt.where(Notification.id.in_(payload["ids"]))
+    await db.execute(stmt)
     await db.commit()
-    return success_response(message="已全部标记为已读")
+    return success_response(message="已标记为已读")
 
 
 # ═══════════════════════════════════════════════════════════
