@@ -1,42 +1,60 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Timer, Play, Pause, RotateCcw, Coffee, Brain } from 'lucide-react'
-import { FadeIn } from '../components/common/motion'
+import {
+  BellOff,
+  Brain,
+  Check,
+  Coffee,
+  Eye,
+  Focus,
+  Pause,
+  Play,
+  RotateCcw,
+  Sparkles,
+  Star,
+  Target,
+  Timer,
+} from 'lucide-react'
+import LearningLayout, { LearningHeader } from '../components/learning/LearningLayout'
 import { usePetStore } from '../stores/usePetStore'
 
 const WORK_SECONDS = 25 * 60
 const REST_SECONDS = 5 * 60
-const R = 90
+const R = 118
 const CIRCUMFERENCE = 2 * Math.PI * R
+const cloudArt = '/illustrations/study-cloud.png'
 
-/** 简单提示音（Web Audio） */
 function beep() {
   try {
-    const ctx = new AudioContext()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.frequency.value = 880
-    gain.gain.setValueAtTime(0.12, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
-    osc.start()
-    osc.stop(ctx.currentTime + 0.5)
-  } catch { /* ignore */ }
+    const context = new AudioContext()
+    const oscillator = context.createOscillator()
+    const gain = context.createGain()
+    oscillator.connect(gain)
+    gain.connect(context.destination)
+    oscillator.frequency.value = 880
+    gain.gain.setValueAtTime(0.12, context.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.5)
+    oscillator.start()
+    oscillator.stop(context.currentTime + 0.5)
+  } catch { /* browsers may block audio until interaction */ }
 }
 
 function formatTime(total: number): string {
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
 export default function PomodoroPage() {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const english = i18n.resolvedLanguage?.startsWith('en')
+  const text = (zh: string, en: string) => english ? en : zh
+  const nickname = usePetStore((state) => state.nickname)
   const [mode, setMode] = useState<'work' | 'rest'>('work')
   const [remaining, setRemaining] = useState(WORK_SECONDS)
   const [running, setRunning] = useState(false)
   const [sessions, setSessions] = useState(0)
+  const [sessionTimes, setSessionTimes] = useState<string[]>([])
 
   const remainingRef = useRef(remaining)
   useEffect(() => {
@@ -47,8 +65,8 @@ export default function PomodoroPage() {
     setRunning(false)
     beep()
     if (mode === 'work') {
-      setSessions((s) => s + 1)
-      // 页宠联动：完成一个番茄
+      setSessions((count) => count + 1)
+      setSessionTimes((times) => [...times, new Date().toLocaleTimeString(english ? 'en-US' : 'zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })])
       usePetStore.getState().trigger('pomodoro_done')
       setMode('rest')
       setRemaining(REST_SECONDS)
@@ -56,42 +74,42 @@ export default function PomodoroPage() {
       setMode('work')
       setRemaining(WORK_SECONDS)
     }
-  }, [mode])
+  }, [english, mode])
 
   const completeRef = useRef(handleComplete)
   useEffect(() => {
     completeRef.current = handleComplete
   }, [handleComplete])
 
-  // 计时器（interval 回调中读写 ref，setState 在异步回调中）
   useEffect(() => {
     if (!running) return
-    const timer = setInterval(() => {
+    const timer = window.setInterval(() => {
       const next = Math.max(0, remainingRef.current - 1)
       remainingRef.current = next
       setRemaining(next)
       if (next <= 0) {
-        clearInterval(timer)
+        window.clearInterval(timer)
         completeRef.current()
       }
     }, 1000)
-    return () => clearInterval(timer)
+    return () => window.clearInterval(timer)
   }, [running])
 
-  // 标题栏显示剩余时间
   useEffect(() => {
     const previous = document.title
     document.title = `${formatTime(remaining)} · ${mode === 'work' ? t('pomodoro.work') : t('pomodoro.rest')} · 云舒卷`
-    return () => {
-      document.title = previous
-    }
+    return () => { document.title = previous }
   }, [remaining, mode, t])
 
+  const switchMode = (nextMode: 'work' | 'rest') => {
+    setRunning(false)
+    setMode(nextMode)
+    setRemaining(nextMode === 'work' ? WORK_SECONDS : REST_SECONDS)
+  }
+
   const handleToggle = () => {
-    if (!running && remaining <= 0) {
-      setRemaining(mode === 'work' ? WORK_SECONDS : REST_SECONDS)
-    }
-    setRunning((v) => !v)
+    if (!running && remaining <= 0) setRemaining(mode === 'work' ? WORK_SECONDS : REST_SECONDS)
+    setRunning((value) => !value)
   }
 
   const handleReset = () => {
@@ -99,108 +117,81 @@ export default function PomodoroPage() {
     setRemaining(mode === 'work' ? WORK_SECONDS : REST_SECONDS)
   }
 
-  const progress = mode === 'work'
-    ? (WORK_SECONDS - remaining) / WORK_SECONDS
-    : (REST_SECONDS - remaining) / REST_SECONDS
+  const totalSeconds = mode === 'work' ? WORK_SECONDS : REST_SECONDS
+  const progress = (totalSeconds - remaining) / totalSeconds
+  const circumferenceOffset = CIRCUMFERENCE * (1 - progress)
 
   return (
-    <div className="max-w-xl mx-auto py-8 px-6">
-      <FadeIn>
-        <h1 className="font-heading text-xl font-semibold text-[var(--color-text)] flex items-center gap-2 mb-6">
-          <Timer size={22} className="text-[var(--color-accent)]" />
-          {t('pomodoro.title')}
-        </h1>
+    <LearningLayout className="pomodoro-page">
+      <LearningHeader
+        title={text('番茄专注', 'Focus timer')}
+        subtitle={text('把注意力留给当下，把成长交给时间', 'Give your attention to the present and let time grow the rest')}
+        actions={running ? <span className="focus-status"><i />{text('专注中 · 请勿打扰', 'Focusing · Do not disturb')}</span> : undefined}
+      />
 
-        <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-8 flex flex-col items-center">
-          {/* 模式切换标签 */}
-          <div className="flex items-center gap-2 mb-6">
-            <span className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-colors ${
-              mode === 'work'
-                ? 'bg-[var(--color-accent)] text-[var(--color-accent-foreground)]'
-                : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)]'
-            }`}>
-              <Brain size={13} />
-              {t('pomodoro.work')}
-            </span>
-            <span className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-colors ${
-              mode === 'rest'
-                ? 'bg-[var(--color-success)] text-white'
-                : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-tertiary)]'
-            }`}>
-              <Coffee size={13} />
-              {t('pomodoro.rest')}
-            </span>
-          </div>
-
-          {/* 环形进度 */}
-          <div className="relative mb-6">
-            <svg width={220} height={220} viewBox="0 0 220 220">
-              <circle cx={110} cy={110} r={R} fill="none" stroke="var(--color-bg-tertiary)" strokeWidth={10} />
-              <circle
-                cx={110}
-                cy={110}
-                r={R}
-                fill="none"
-                stroke={mode === 'work' ? 'var(--color-accent)' : 'var(--color-success)'}
-                strokeWidth={10}
-                strokeLinecap="round"
-                strokeDasharray={CIRCUMFERENCE}
-                strokeDashoffset={CIRCUMFERENCE * (1 - progress)}
-                transform="rotate(-90 110 110)"
-                style={{ transition: 'stroke-dashoffset 1s linear' }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className={`text-5xl font-bold tabular-nums ${mode === 'work' ? 'text-[var(--color-text)]' : 'text-[var(--color-success)]'}`}>
-                {formatTime(remaining)}
-              </span>
-              <span className="text-xs text-[var(--color-text-tertiary)] mt-2">
-                {running
-                  ? (mode === 'work' ? t('pomodoro.focusing') : t('pomodoro.resting'))
-                  : (mode === 'work' ? t('pomodoro.ready') : t('pomodoro.restReady'))}
-              </span>
+      <div className="pomodoro-layout">
+        <main className="pomodoro-main-column">
+          <section className={`learning-card focus-card${running ? ' is-running' : ''}`}>
+            <div className="focus-mode-tabs" role="tablist" aria-label={text('计时模式', 'Timer mode')}>
+              <button type="button" role="tab" aria-selected={mode === 'work'} className={mode === 'work' ? 'is-active' : ''} onClick={() => switchMode('work')}><Brain size={17} />{text('专注 25 分钟', 'Focus · 25 min')}</button>
+              <button type="button" role="tab" aria-selected={mode === 'rest'} className={mode === 'rest' ? 'is-active' : ''} onClick={() => switchMode('rest')}><Coffee size={17} />{text('休息 5 分钟', 'Break · 5 min')}</button>
             </div>
-          </div>
 
-          {/* 操作 */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleToggle}
-              className={`flex items-center gap-2 px-6 h-11 text-sm font-medium rounded-full transition-all ${
-                running
-                  ? 'border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'
-                  : 'bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:opacity-90'
-              }`}
-            >
-              {running ? <Pause size={15} /> : <Play size={15} />}
-              {running ? t('pomodoro.pause') : t('pomodoro.start')}
-            </button>
-            <button
-              onClick={handleReset}
-              className="secondary-button"
-            >
-              <RotateCcw size={14} />
-              {t('pomodoro.reset')}
-            </button>
-          </div>
-
-          {/* 会话计数 */}
-          <div className="mt-6 text-center">
-            <p className="text-xs text-[var(--color-text-tertiary)] mb-1.5">{t('pomodoro.sessionsToday')}</p>
-            <div className="text-xl tracking-wider">
-              {Array.from({ length: Math.min(sessions, 8) }).map((_, i) => (
-                <span key={i} className="mx-0.5">🍅</span>
-              ))}
-              {sessions === 0 && <span className="text-[var(--color-text-tertiary)] text-sm">{t('pomodoro.noSession')}</span>}
+            <div className="focus-card-body">
+              <div className="focus-timer-column">
+                <div className="focus-ring">
+                  <svg viewBox="0 0 270 270" role="img" aria-label={`${formatTime(remaining)} ${mode === 'work' ? t('pomodoro.work') : t('pomodoro.rest')}`}>
+                    <defs>
+                      <linearGradient id="focusRingGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#8253FF" /><stop offset="1" stopColor="#6235ED" /></linearGradient>
+                      <linearGradient id="restRingGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#64CFAE" /><stop offset="1" stopColor="#279A77" /></linearGradient>
+                    </defs>
+                    <circle cx="135" cy="135" r={R} fill="none" className="focus-ring-track" strokeWidth="11" />
+                    <circle cx="135" cy="135" r={R} fill="none" stroke={mode === 'work' ? 'url(#focusRingGradient)' : 'url(#restRingGradient)'} strokeWidth="11" strokeLinecap="round" strokeDasharray={CIRCUMFERENCE} strokeDashoffset={circumferenceOffset} transform="rotate(-90 135 135)" />
+                  </svg>
+                  <div className="focus-ring-copy"><span>{mode === 'work' ? text('专注时间', 'Focus time') : text('休息时间', 'Break time')}</span><strong>{formatTime(remaining)}</strong><small>{running ? (mode === 'work' ? text('保持专注，你做得很好', 'Stay focused — you are doing great') : text('放松一下，给大脑充充电', 'Relax and let your mind recharge')) : (mode === 'work' ? t('pomodoro.ready') : t('pomodoro.restReady'))}</small></div>
+                </div>
+                <div className="focus-actions">
+                  <button type="button" className="primary-button focus-toggle" onClick={handleToggle}>{running ? <Pause size={18} /> : <Play size={18} />}{running ? t('pomodoro.pause') : t('pomodoro.start')}</button>
+                  <button type="button" className="secondary-button" onClick={handleReset}><RotateCcw size={16} />{t('pomodoro.reset')}</button>
+                </div>
+                <p className="focus-reward"><Star size={14} />{t('pomodoro.tip')}</p>
+              </div>
+              <div className="focus-companion-scene" aria-hidden="true"><span className="focus-spark one">✦</span><span className="focus-spark two">✧</span><img src={cloudArt} alt="" /></div>
             </div>
-            {sessions > 8 && <p className="text-xs text-[var(--color-accent)] mt-1">+{sessions - 8}</p>}
-          </div>
-        </div>
+          </section>
 
-        <p className="text-center text-xs text-[var(--color-text-tertiary)] mt-4">
-          {t('pomodoro.tip')}
-        </p>
-      </FadeIn>
-    </div>
+          <section className="learning-card focus-timeline-card">
+            <div className="learning-card-heading"><div><span>{text('专注记录', 'Focus record')}</span><h2>{text('今日节奏', 'Today’s rhythm')}</h2></div><Timer size={18} /></div>
+            <div className="focus-timeline">
+              {sessionTimes.slice(-4).map((time, index) => <div key={`${time}-${index}`} className="is-complete"><span>{time}</span><i><Check size={13} /></i><small>{text('专注 25m', 'Focus 25m')}</small></div>)}
+              <div className={running ? 'is-current' : ''}><span>{running ? text('当前', 'Now') : text('下一次', 'Next')}</span><i>{running ? <Focus size={13} /> : <Play size={12} />}</i><small>{running ? formatTime(remaining) : text('准备开始', 'Ready')}</small></div>
+            </div>
+          </section>
+        </main>
+
+        <aside className="pomodoro-side-column">
+          <section className="learning-card focus-today-card">
+            <div className="learning-card-heading"><div><span>{text('完成情况', 'Completed')}</span><h2>{text('今日专注', 'Focus today')}</h2></div><span className="learning-icon tone-rose">🍅</span></div>
+            <strong>{sessions} <small>{text('个番茄', 'pomodoros')}</small></strong>
+            <p>{text('累计', 'Total')} {sessions * 25} {text('分钟', 'minutes')}</p>
+            <div className="tomato-markers">{Array.from({ length: 5 }).map((_, index) => <span key={index} className={index < sessions ? 'is-filled' : ''}>🍅</span>)}</div>
+          </section>
+
+          <section className="learning-card focus-pet-card">
+            <div className="learning-card-heading"><div><span>{text('安静陪伴', 'Quiet company')}</span><h2>{nickname}{text('陪你', ' is with you')}</h2></div><Sparkles size={16} /></div>
+            <div><p>{text('我会安静陪你，专注结束再一起庆祝～', 'I’ll stay quiet. We can celebrate when focus time ends!')}</p><img src={cloudArt} alt="" /></div>
+          </section>
+
+          <section className="learning-card focus-tips-card">
+            <div className="learning-card-heading"><div><span>{text('保持沉浸', 'Stay immersed')}</span><h2>{text('专注小贴士', 'Focus tips')}</h2></div><Target size={17} /></div>
+            <ul>
+              <li><span className="learning-icon tone-mint"><BellOff size={17} /></span>{text('关闭无关通知', 'Mute unrelated notifications')}</li>
+              <li><span className="learning-icon tone-amber"><Target size={17} /></span>{text('只做当前这一件事', 'Do only the task in front of you')}</li>
+              <li><span className="learning-icon tone-blue"><Eye size={17} /></span>{text('休息时记得看看远处', 'Look into the distance during breaks')}</li>
+            </ul>
+          </section>
+        </aside>
+      </div>
+    </LearningLayout>
   )
 }

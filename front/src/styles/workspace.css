@@ -1,5 +1,7 @@
 /* Shared workspace surfaces. The editor's typography and behaviour stay independent. */
 .app-shell {
+  --workspace-sidebar-width: 206px;
+  --workspace-sidebar-collapsed-width: 68px;
   display: flex;
   position: relative;
   isolation: isolate;
@@ -17,8 +19,8 @@
   box-shadow: 0 4px 24px var(--color-shadow);
 }
 .app-workspace { position: relative; flex: 1; min-width: 0; overflow-y: auto; }
-.app-sidebar { display: flex; flex-direction: column; flex-shrink: 0; width: 232px; transition: width .2s ease; }
-.app-sidebar.is-collapsed { width: 68px; }
+.app-sidebar { display: flex; flex-direction: column; flex-shrink: 0; width: var(--workspace-sidebar-width); transition: width .2s ease; }
+.app-sidebar.is-collapsed { width: var(--workspace-sidebar-collapsed-width); }
 .sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 24px 18px 20px; min-height: 84px; }
 .sidebar-logo { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--color-accent); }
 .sidebar-logo span { white-space: nowrap; color: var(--color-text); font-size: 21px; font-weight: 750; letter-spacing: .02em; }

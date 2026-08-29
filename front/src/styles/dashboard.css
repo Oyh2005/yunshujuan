@@ -1,6 +1,6 @@
 .app-shell.is-dashboard { padding: 0; gap: 0; background: var(--color-bg); }
-.is-dashboard > .app-sidebar { border-width: 0 1px 0 0; border-radius: 0; width: 206px; box-shadow: none; }
-.is-dashboard > .app-sidebar.is-collapsed { width: 68px; }
+.is-dashboard > .app-sidebar { border-width: 0 1px 0 0; border-radius: 0; width: var(--workspace-sidebar-width); box-shadow: none; }
+.is-dashboard > .app-sidebar.is-collapsed { width: var(--workspace-sidebar-collapsed-width); }
 .is-dashboard > .app-workspace { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
 .is-dashboard .sidebar-brand { padding-top: 28px; padding-bottom: 28px; }
 .is-dashboard .sidebar-group-toggle { font-size: 15px; font-weight: 600; padding-top: 16px; }

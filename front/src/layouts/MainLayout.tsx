@@ -6,11 +6,21 @@ import CommandPalette from '../components/common/CommandPalette'
 import { useUserStore } from '../stores/useUserStore'
 import { useSettingsSync } from '../hooks/useSettingsSync'
 import '../styles/knowledge-pages.css'
+import '../styles/learning-pages.css'
 
 export default function MainLayout() {
   const isLogin = useUserStore((s) => s.isLogin)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const location = useLocation()
+  const shellVariant = location.pathname === '/'
+    ? ' is-dashboard'
+    : ['/notes', '/knowledge', '/graph', '/stats', '/plaza'].includes(location.pathname)
+      ? ' is-knowledge'
+      : location.pathname === '/sessions' || location.pathname === '/chat' || location.pathname.startsWith('/chat/')
+        ? ' is-ai'
+        : ['/review', '/habit', '/pomodoro'].includes(location.pathname)
+          ? ' is-learning'
+        : ''
 
   // 养成数据上云同步（小卷 + 打卡；登录后拉取，变更防抖上传）
   useSettingsSync(isLogin)
@@ -23,7 +33,7 @@ export default function MainLayout() {
     <>
     {/* 全局弹层位于工作区层叠上下文之外，确保覆盖悬浮页宠。 */}
     <div className="global-command-palette"><CommandPalette /></div>
-    <div className={`app-shell${location.pathname === '/' ? ' is-dashboard' : ['/notes', '/knowledge', '/graph', '/stats', '/plaza'].includes(location.pathname) ? ' is-knowledge' : ''}`}>
+    <div className={`app-shell${shellVariant}`}>
       {/* 氛围光晕背景 */}
       <div className="aurora-bg" aria-hidden>
         <div className="aurora-blob aurora-blob-1" />

@@ -1,7 +1,7 @@
 /* Knowledge workspace: shared homepage language, scoped away from the editor. */
 .app-shell.is-knowledge { padding: 0; gap: 0; }
-.is-knowledge > .app-sidebar { width: 206px; border-radius: 0; border-width: 0 1px 0 0; box-shadow: none; }
-.is-knowledge > .app-sidebar.is-collapsed { width: 68px; }
+.is-knowledge > .app-sidebar { width: var(--workspace-sidebar-width); border-radius: 0; border-width: 0 1px 0 0; box-shadow: none; }
+.is-knowledge > .app-sidebar.is-collapsed { width: var(--workspace-sidebar-collapsed-width); }
 .is-knowledge > .app-workspace { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
 .is-knowledge .sidebar-group-toggle { font-size: 15px; font-weight: 600; padding-top: 16px; }
 .is-knowledge .sidebar-link { padding-left: 26px; }
