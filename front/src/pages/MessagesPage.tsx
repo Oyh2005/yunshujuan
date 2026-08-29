@@ -1,12 +1,14 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ArrowLeft, Copy, ImagePlus, Loader2, MessageSquare, Pin, Quote, Search, Send, Smile, Trash2, Undo2, Users, X } from 'lucide-react'
+import { ArrowLeft, Check, Copy, Forward, ImagePlus, Loader2, MessageSquare, Pin, Quote, Search, Send, Smile, Trash2, Undo2, Users, X } from 'lucide-react'
 import { messagesApi, type ChatConversation, type ChatMessage, type ChatPeer } from '../api/messages'
 import { socialApi } from '../api/social'
+import type { SocialUser } from '../types/api'
 import { useChatSocket } from '../hooks/useChatSocket'
 import { useChatStore } from '../stores/useChatStore'
+import { useChatFontStore } from '../stores/useChatFontStore'
 import { useUserStore } from '../stores/useUserStore'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import SocialLayout, { SocialAvatar, SocialHeader } from '../components/social/SocialLayout'
@@ -21,30 +23,52 @@ function validTime(value?: string | null): number {
   return Number.isFinite(t) ? t : 0
 }
 
+/** 微信式会话列表时间：今天 → 下午2:30；昨天 → 昨天；一周内 → 星期三；同年 → 8月27日；跨年 → 2022年8月27日 */
 function formatTime(value: string | null, english: boolean): string {
   const t = validTime(value)
   if (!t) return ''
   const date = new Date(t)
   const now = new Date()
-  const sameDay = date.toDateString() === now.toDateString()
-  if (sameDay) return date.toLocaleTimeString(english ? 'en-US' : 'zh-CN', { hour: '2-digit', minute: '2-digit' })
-  const yesterday = new Date(now)
-  yesterday.setDate(now.getDate() - 1)
-  if (date.toDateString() === yesterday.toDateString()) return english ? 'Yesterday' : '昨天'
-  return date.toLocaleDateString(english ? 'en-US' : 'zh-CN', { month: 'short', day: 'numeric' })
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const dayDiff = Math.round((startOfDay(now) - startOfDay(date)) / 86400000)
+  if (dayDiff <= 0) return formatClock(date, english)
+  if (dayDiff === 1) return english ? 'Yesterday' : '昨天'
+  if (dayDiff < 7) return date.toLocaleDateString(english ? 'en-US' : 'zh-CN', { weekday: 'long' })
+  return date.toLocaleDateString(
+    english ? 'en-US' : 'zh-CN',
+    date.getFullYear() === now.getFullYear() ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short', day: 'numeric' },
+  )
 }
 
-/** 时间分组标题：今天 / 昨天 / 具体日期 */
+/** 微信式时刻：下午2:30（中文）/ 2:30 PM（英文） */
+function formatClock(date: Date, english: boolean): string {
+  return date.toLocaleTimeString(english ? 'en-US' : 'zh-CN', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+/**
+ * 微信式时间分组标题（仿微信聊天时间显示规则）：
+ * 今天 → 下午2:30；昨天 → 昨天 下午3:20；一周内 → 星期三 上午10:00；
+ * 同年更早 → 8月27日 上午10:00；跨年 → 2022年8月27日 下午4:00
+ */
 function groupTitle(value: string | null, english: boolean): string {
   const t = validTime(value)
   if (!t) return ''
   const date = new Date(t)
   const now = new Date()
-  if (date.toDateString() === now.toDateString()) return english ? 'Today' : '今天'
-  const yesterday = new Date(now)
-  yesterday.setDate(now.getDate() - 1)
-  if (date.toDateString() === yesterday.toDateString()) return english ? 'Yesterday' : '昨天'
-  return date.toLocaleDateString(english ? 'en-US' : 'zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+  const clock = formatClock(date, english)
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const dayDiff = Math.round((startOfDay(now) - startOfDay(date)) / 86400000)
+  if (dayDiff <= 0) return clock
+  if (dayDiff === 1) return `${english ? 'Yesterday' : '昨天'} ${clock}`
+  if (dayDiff < 7) {
+    const weekday = date.toLocaleDateString(english ? 'en-US' : 'zh-CN', { weekday: 'long' })
+    return `${weekday} ${clock}`
+  }
+  const datePart = date.toLocaleDateString(
+    english ? 'en-US' : 'zh-CN',
+    date.getFullYear() === now.getFullYear() ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short', day: 'numeric' },
+  )
+  return `${datePart} ${clock}`
 }
 
 /** 相邻消息超过该分钟数则单独显示时间（微信约 5 分钟） */
@@ -54,6 +78,14 @@ interface MessageView {
   msg: ChatMessage
   showTime: boolean
   groupKey: string
+}
+
+/** 消息右键/长按菜单状态（canRecall 在打开瞬间计算，比挂载时快照更准） */
+interface MenuState {
+  msg: ChatMessage
+  x: number
+  y: number
+  canRecall: boolean
 }
 
 /** 为消息序列标注分组与是否显示时间 */
@@ -74,6 +106,7 @@ export default function MessagesPage() {
   const userId = useUserStore((s) => s.userInfo?.uuid || s.userInfo?.user_id || s.userInfo?.id || '')
   const user = useUserStore((s) => s.userInfo)
   const setUnread = useChatStore((s) => s.setUnread)
+  const chatFontSize = useChatFontStore((s) => s.size)
   const [searchParams, setSearchParams] = useSearchParams()
   const withId = searchParams.get('with')
 
@@ -98,13 +131,31 @@ export default function MessagesPage() {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(() => new Set())
   const [peerTyping, setPeerTyping] = useState(false)
-  // 渲染期不可调 Date.now()（purity 规则）：撤回按钮的 2 分钟窗口用挂载时快照近似，
-  // 超时后后端仍会校验（提示"发送超过 2 分钟"）
-  const [referenceNow] = useState(() => Date.now())
+  // 消息右键/长按菜单（WeChat 式：菜单项在打开瞬间计算，含 2 分钟撤回窗口）
+  const [menu, setMenu] = useState<MenuState | null>(null)
+  // 转发弹窗
+  const [forwardMsg, setForwardMsg] = useState<ChatMessage | null>(null)
+  const [forwardFriends, setForwardFriends] = useState<SocialUser[]>([])
+  const [forwardSelected, setForwardSelected] = useState<Set<string>>(() => new Set())
+  const [forwardSearch, setForwardSearch] = useState('')
+  const [forwardLoading, setForwardLoading] = useState(false)
+  const [forwardBusy, setForwardBusy] = useState(false)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const typingTimerRef = useRef<number | null>(null)
   const lastTypingAtRef = useRef(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  /** 移动端长按计时器（450ms 后弹出菜单） */
+  const longPressTimerRef = useRef<number | null>(null)
+  /** 长按后抑制随后的 click（否则长按图片会同时打开预览） */
+  const suppressClickRef = useRef(false)
+  // 渲染期不可调 Date.now()（purity 规则）：「重新编辑」的 2 分钟窗口用定时刷新的 nowTick 判断
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowTick(Date.now()), 30000)
+    return () => window.clearInterval(timer)
+  }, [])
   const selectedPeerRef = useRef<string | null>(null)
   useEffect(() => {
     selectedPeerRef.current = selectedPeerId
@@ -119,6 +170,8 @@ export default function MessagesPage() {
   const openedWithRef = useRef<string | null>(null)
 
   const selectedPeer = conversations.find((c) => c.peer.user_id === selectedPeerId)?.peer ?? directPeer
+  // 消息 id → 消息（引用条联动用：被引用消息撤回后，引用显示「消息已撤回」）
+  const msgById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages])
 
   const loadConversations = useCallback(async () => {
     try {
@@ -151,6 +204,8 @@ export default function MessagesPage() {
     setSelectedPeerId(peerId)
     setMessages([])
     setHasMore(false)
+    setMenu(null)
+    setForwardMsg(null)
     // 从未私聊过：会话列表里没有该好友 → 从好友列表取对方信息（聊天窗头部展示）
     const known = conversationsRef.current.find((c) => c.peer.user_id === peerId)?.peer
     if (!known) {
@@ -196,6 +251,46 @@ export default function MessagesPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [messages.length, selectedPeerId])
+
+  // 卸载时清理长按计时器
+  useEffect(() => () => {
+    if (longPressTimerRef.current !== null) window.clearTimeout(longPressTimerRef.current)
+  }, [])
+
+  // 菜单打开期间：点击外部 / Esc / 滚动 / 窗口变化 → 关闭（scroll 用捕获阶段监听所有滚动容器）
+  useEffect(() => {
+    if (!menu) return
+    const closeMenu = (e: Event) => {
+      if (menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) return
+      setMenu(null)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null) }
+    window.addEventListener('mousedown', closeMenu)
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('resize', closeMenu)
+    window.addEventListener('scroll', closeMenu, true)
+    return () => {
+      window.removeEventListener('mousedown', closeMenu)
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', closeMenu)
+      window.removeEventListener('scroll', closeMenu, true)
+    }
+  }, [menu])
+
+  // 菜单越界修正：渲染后测量尺寸，超出视口则移回（setState 放 setTimeout 内，遵守 set-state-in-effect 规则）
+  useLayoutEffect(() => {
+    if (!menu || !menuRef.current) return
+    const rect = menuRef.current.getBoundingClientRect()
+    const pad = 8
+    let x = menu.x
+    let y = menu.y
+    if (x + rect.width > window.innerWidth - pad) x = Math.max(pad, window.innerWidth - rect.width - pad)
+    if (y + rect.height > window.innerHeight - pad) y = Math.max(pad, window.innerHeight - rect.height - pad)
+    if (x !== menu.x || y !== menu.y) {
+      const timer = window.setTimeout(() => setMenu({ ...menu, x, y }), 0)
+      return () => window.clearTimeout(timer)
+    }
+  }, [menu])
 
   // WS 实时事件
   const { sendTyping } = useChatSocket({
@@ -321,9 +416,10 @@ export default function MessagesPage() {
   }
 
   /** 复制消息内容 */
+  /** 复制消息内容（仅文本消息，图片消息菜单不提供复制） */
   const copyMessage = async (msg: ChatMessage) => {
     try {
-      await navigator.clipboard.writeText(msg.message_type === 'image' ? msg.content : msg.content)
+      await navigator.clipboard.writeText(msg.content)
       toast.success(text('已复制', 'Copied'))
     } catch {
       toast.error(text('复制失败', 'Copy failed'))
@@ -342,6 +438,38 @@ export default function MessagesPage() {
     }
   }
 
+  /** 撤回后 2 分钟内可重新编辑（微信规则；图片消息不支持） */
+  const canReedit = (msg: ChatMessage) =>
+    msg.recalled && msg.sender_id === userId && msg.message_type !== 'image' && (nowTick - validTime(msg.created_at)) <= 2 * 60 * 1000
+
+  /** 重新编辑：把撤回的文本放回输入框（微信「重新编辑」，发送后是全新消息） */
+  const reeditMessage = (msg: ChatMessage) => {
+    setInput(msg.content)
+    setReplyTo(null)
+    setShowEmoji(false)
+    setSendError('')
+    window.setTimeout(() => {
+      const el = chatInputRef.current
+      if (el) {
+        el.focus()
+        const len = el.value.length
+        el.setSelectionRange(len, len)
+      }
+    }, 0)
+  }
+
+  /** 跳转到指定消息在聊天中的位置（滚动居中 + 闪烁高亮，供引用缩略图跳转） */
+  const jumpToMessage = (messageId: number) => {
+    const el = document.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`)
+    if (!el) {
+      toast.info(text('原消息不在已加载范围内', 'The original message is not loaded yet'))
+      return
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.add('messages-target-flash')
+    window.setTimeout(() => el.classList.remove('messages-target-flash'), 1600)
+  }
+
   /** 失败消息重发 */
   const resendMessage = async (msg: ChatMessage) => {
     if (!selectedPeerId) return
@@ -354,6 +482,83 @@ export default function MessagesPage() {
     } else {
       setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: 'failed' } : m))
     }
+  }
+
+  /**
+   * 打开消息操作菜单（WeChat 式：桌面右键 / 移动端长按）。
+   * 撤回窗口在打开瞬间计算（now 由事件回调传入），后端撤回接口仍严格校验兜底。
+   */
+  const openMessageMenu = (msg: ChatMessage, x: number, y: number, now: number) => {
+    if (msg.recalled || msg.status === 'sending') return
+    setMenu({
+      msg,
+      x,
+      y,
+      canRecall: msg.sender_id === userId && now - validTime(msg.created_at) <= 2 * 60 * 1000,
+    })
+  }
+
+  const cancelBubbleLongPress = () => {
+    if (longPressTimerRef.current !== null) window.clearTimeout(longPressTimerRef.current)
+    longPressTimerRef.current = null
+  }
+
+  const onBubbleTouchStart = (e: React.TouchEvent, msg: ChatMessage) => {
+    cancelBubbleLongPress()
+    if (msg.recalled || msg.status === 'sending') return
+    const touch = e.touches[0]
+    if (!touch) return
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null
+      // 长按后抑制紧随的 click（长按图片会同时触发点击预览）
+      suppressClickRef.current = true
+      window.setTimeout(() => { suppressClickRef.current = false }, 800)
+      openMessageMenu(msg, touch.clientX, touch.clientY, Date.now())
+    }, 450)
+  }
+
+  /** 打开转发弹窗（好友多选，文本/图片均可转发） */
+  const openForward = async (msg: ChatMessage) => {
+    setMenu(null)
+    setForwardMsg(msg)
+    setForwardSelected(new Set())
+    setForwardSearch('')
+    setForwardLoading(true)
+    try {
+      const res = await socialApi.friendsList()
+      setForwardFriends((res.data ?? []).filter((f) => f.user_id !== userId))
+    } catch {
+      setForwardFriends([])
+    } finally {
+      setForwardLoading(false)
+    }
+  }
+
+  const toggleForwardSelect = (peerId: string) => {
+    setForwardSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(peerId)) next.delete(peerId)
+      else next.add(peerId)
+      return next
+    })
+  }
+
+  const filteredForwardFriends = forwardFriends.filter((f) => {
+    const q = forwardSearch.trim().toLocaleLowerCase()
+    return !q || f.username.toLocaleLowerCase().includes(q)
+  })
+
+  /** 执行转发：给每位选中好友发送一份内容副本（图片转发复用 /media URL） */
+  const doForward = async () => {
+    if (!forwardMsg || forwardSelected.size === 0 || forwardBusy) return
+    setForwardBusy(true)
+    const type = forwardMsg.message_type === 'image' ? 'image' : 'text'
+    const results = await Promise.allSettled([...forwardSelected].map((peerId) => messagesApi.send(peerId, forwardMsg.content, type)))
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    if (ok > 0) toast.success(ok === results.length ? text(`已转发给 ${ok} 位好友`, `Forwarded to ${ok} friends`) : text(`转发完成（${ok}/${results.length} 成功）`, `Forwarded ${ok}/${results.length}`))
+    if (ok < results.length) toast.error(text('部分好友转发失败，请重试', 'Failed to forward to some friends'))
+    setForwardBusy(false)
+    setForwardMsg(null)
   }
 
   /** 选中图片 → 上传 → 发送图片消息 */
@@ -424,6 +629,8 @@ export default function MessagesPage() {
   const closeChat = () => {
     setSelectedPeerId(null)
     setDirectPeer(null)
+    setMenu(null)
+    setForwardMsg(null)
     // 重置直达守卫：关闭后再点同一好友需能重新打开
     openedWithRef.current = null
     setSearchParams({}, { replace: true })
@@ -436,7 +643,7 @@ export default function MessagesPage() {
         subtitle={text('和好友聊聊，让想法流动起来', 'Chat with friends and let ideas flow')}
         badge={<span className="social-title-badge">{conversations.filter((c) => c.unread > 0).length} {text('个未读会话', 'unread')}</span>}
       />
-      <div className={`messages-layout${selectedPeerId ? ' has-chat' : ''}`}>
+      <div className={`messages-layout${selectedPeerId ? ' has-chat' : ''}`} style={{ '--chat-font-size': `${chatFontSize}px` } as React.CSSProperties}>
         <aside className="messages-list" aria-label={text('会话列表', 'Conversations')}>
           {loadingList ? (
             <div className="messages-loading"><Loader2 size={18} className="animate-spin" />{text('加载会话…', 'Loading…')}</div>
@@ -523,27 +730,57 @@ export default function MessagesPage() {
                   return (
                     <Fragment key={msg.id}>
                       {showTime && <div className="messages-group-title">{groupKey}</div>}
-                      <div className={`messages-bubble ${mine ? 'mine' : 'theirs'}`}>
+                      <div
+                        className={`messages-bubble ${mine ? 'mine' : 'theirs'}`}
+                        data-message-id={msg.id}
+                        onContextMenu={(e) => { e.preventDefault(); if (menu?.msg.id !== msg.id) openMessageMenu(msg, e.clientX, e.clientY, Date.now()) }}
+                        onTouchStart={(e) => onBubbleTouchStart(e, msg)}
+                        onTouchMove={cancelBubbleLongPress}
+                        onTouchEnd={cancelBubbleLongPress}
+                        onTouchCancel={cancelBubbleLongPress}
+                      >
                         {!mine && <SocialAvatar username={selectedPeer.username} avatar={selectedPeer.avatar} size={30} />}
                         <div className="messages-bubble-main">
-                          {showTime && <time className="messages-bubble-time">{formatTime(msg.created_at, english)}</time>}
                           <div className="messages-bubble-content">
                             {msg.recalled ? (
-                              <p className="messages-recalled">{mine ? text('你撤回了一条消息', 'You recalled a message') : text('对方撤回了一条消息', 'Message recalled')}</p>
+                              <p className="messages-recalled">
+                                {mine ? text('你撤回了一条消息', 'You recalled a message') : text('对方撤回了一条消息', 'Message recalled')}
+                                {canReedit(msg) && (
+                                  <button className="messages-reedit" onClick={() => reeditMessage(msg)}>{text('重新编辑', 'Edit')}</button>
+                                )}
+                              </p>
                             ) : msg.status === 'failed' ? (
                               <>
                                 {msg.message_type === 'image'
-                                  ? <img className="messages-image failed" src={msg.content} alt="" onClick={() => setPreviewImage(msg.content)} />
+                                  ? <img className="messages-image failed" src={msg.content} alt="" onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
                                   : <p className="messages-failed-text">{msg.content}</p>}
                                 <button className="messages-resend" onClick={() => void resendMessage(msg)}>{text('发送失败，点击重发', 'Failed, tap to resend')}</button>
                               </>
                             ) : msg.message_type === 'image' ? (
-                              <img className="messages-image" src={msg.content} alt={text('聊天图片', 'Chat image')} loading="lazy" onClick={() => setPreviewImage(msg.content)} />
+                              <img className="messages-image" src={msg.content} alt={text('聊天图片', 'Chat image')} loading="lazy" onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
                             ) : (
                               <>
                                 {msg.reply_content && (
-                                  <div className="messages-quote" title={text('引用消息', 'Quoted message')}>
-                                    <span>{msg.reply_content}</span>
+                                  <div className={`messages-quote${msgById.get(msg.reply_to_id ?? -1)?.recalled ? ' is-recalled' : ''}`} title={text('引用消息', 'Quoted message')}>
+                                    {(() => {
+                                      const ref = msg.reply_to_id != null ? msgById.get(msg.reply_to_id) : undefined
+                                      if (ref?.recalled) return <span>{text('消息已撤回', 'Message recalled')}</span>
+                                      if (ref?.message_type === 'image' && ref.content) {
+                                        // 被引用的是图片：显示缩略图，左键查看大图，右键跳转到原消息位置
+                                        return (
+                                          <img
+                                            className="messages-quote-image"
+                                            src={ref.content}
+                                            alt={text('[图片]', '[Image]')}
+                                            title={text('点击查看大图，右键跳转到原消息', 'Click to view full image, right-click to jump to the original message')}
+                                            loading="lazy"
+                                            onClick={(e) => { e.stopPropagation(); setPreviewImage(ref.content) }}
+                                            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); jumpToMessage(ref.id) }}
+                                          />
+                                        )
+                                      }
+                                      return <span>{msg.reply_content}</span>
+                                    })()}
                                   </div>
                                 )}
                                 <p>{msg.content}</p>
@@ -557,15 +794,6 @@ export default function MessagesPage() {
                           )}
                         </div>
                         {mine && <SocialAvatar username={user?.username || ''} avatar={user?.avatar || null} size={30} />}
-                        {!msg.recalled && msg.status !== 'sending' && (
-                          <div className="messages-msg-actions">
-                            <button onClick={() => void copyMessage(msg)} title={text('复制', 'Copy')} aria-label={text('复制', 'Copy')}><Copy size={13} /></button>
-                            <button onClick={() => setReplyTo(msg)} title={text('引用回复', 'Reply')} aria-label={text('引用回复', 'Reply')}><Quote size={13} /></button>
-                            {mine && !msg.recalled && (referenceNow - validTime(msg.created_at)) <= 2 * 60 * 1000 && (
-                              <button onClick={() => void recallMessage(msg)} title={text('撤回', 'Recall')} aria-label={text('撤回', 'Recall')}><Undo2 size={13} /></button>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </Fragment>
                   )
@@ -577,7 +805,7 @@ export default function MessagesPage() {
                 {replyTo && (
                   <div className="messages-reply-bar">
                     <Quote size={13} />
-                    <span className="messages-reply-copy">{replyTo.reply_content || replyTo.content}</span>
+                    <span className="messages-reply-copy">{replyTo.message_type === 'image' ? text('[图片]', '[Image]') : replyTo.reply_content || replyTo.content}</span>
                     <button onClick={() => setReplyTo(null)} aria-label={text('取消引用', 'Cancel reply')}><X size={13} /></button>
                   </div>
                 )}
@@ -595,6 +823,7 @@ export default function MessagesPage() {
                     </div>
                   )}
                   <textarea
+                    ref={chatInputRef}
                     value={input}
                     onChange={(event) => { setInput(event.target.value); if (sendError) setSendError(''); notifyTyping() }}
                     onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSend() } }}
@@ -624,6 +853,66 @@ export default function MessagesPage() {
         <div className="messages-image-preview" role="dialog" aria-modal="true" onClick={() => setPreviewImage(null)}>
           <button className="messages-image-preview-close" aria-label={text('关闭预览', 'Close preview')}><X size={20} /></button>
           <img src={previewImage} alt="" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+      {menu && (
+        <div ref={menuRef} className="workspace-menu messages-context-menu" style={{ left: menu.x, top: menu.y }} role="menu">
+          {menu.msg.message_type !== 'image' && (
+            <button className="workspace-menu-item" role="menuitem" onClick={() => { void copyMessage(menu.msg); setMenu(null) }}>
+              <Copy size={14} />{text('复制', 'Copy')}
+            </button>
+          )}
+          <button className="workspace-menu-item" role="menuitem" onClick={() => { setReplyTo(menu.msg); setMenu(null) }}>
+            <Quote size={14} />{text('引用', 'Reply')}
+          </button>
+          <button className="workspace-menu-item" role="menuitem" onClick={() => void openForward(menu.msg)}>
+            <Forward size={14} />{text('转发', 'Forward')}
+          </button>
+          {menu.canRecall && (
+            <button className="workspace-menu-item workspace-menu-danger" role="menuitem" onClick={() => { setMenu(null); void recallMessage(menu.msg) }}>
+              <Undo2 size={14} />{text('撤回', 'Recall')}
+            </button>
+          )}
+        </div>
+      )}
+      {forwardMsg && (
+        <div className="messages-forward-modal" onClick={(e) => { if (e.target === e.currentTarget) setForwardMsg(null) }}>
+          <div className="messages-forward-card" role="dialog" aria-modal="true">
+            <div className="messages-forward-head">
+              <strong>{text('转发给', 'Forward to')}</strong>
+              <button className="workspace-icon-button" onClick={() => setForwardMsg(null)} aria-label={text('关闭', 'Close')}><X size={16} /></button>
+            </div>
+            <div className="messages-forward-body">
+              {forwardMsg.message_type === 'image'
+                ? <img className="messages-forward-preview" src={forwardMsg.content} alt="" />
+                : <p className="messages-forward-preview">{forwardMsg.content}</p>}
+              <label className="messages-forward-search">
+                <Search size={13} />
+                <input value={forwardSearch} onChange={(e) => setForwardSearch(e.target.value)} placeholder={text('搜索好友…', 'Search friends…')} aria-label={text('搜索好友', 'Search friends')} />
+              </label>
+              <div className="messages-forward-list">
+                {forwardLoading ? (
+                  <div className="messages-forward-empty"><Loader2 size={16} className="animate-spin" />{text('加载好友…', 'Loading…')}</div>
+                ) : filteredForwardFriends.length === 0 ? (
+                  <div className="messages-forward-empty">{text('没有可选的好友', 'No friends available')}</div>
+                ) : (
+                  filteredForwardFriends.map((f) => (
+                    <button key={f.user_id} className={`messages-forward-item${forwardSelected.has(f.user_id) ? ' is-selected' : ''}`} onClick={() => toggleForwardSelect(f.user_id)}>
+                      <SocialAvatar username={f.username} avatar={f.avatar} size={34} />
+                      <span className="messages-forward-name">{f.username}</span>
+                      <span className="messages-forward-check">{forwardSelected.has(f.user_id) ? <Check size={12} /> : null}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="messages-forward-foot">
+              <button className="secondary-button" onClick={() => setForwardMsg(null)}>{text('取消', 'Cancel')}</button>
+              <button className="primary-button" disabled={forwardSelected.size === 0 || forwardBusy} onClick={() => void doForward()}>
+                {forwardBusy ? <Loader2 size={13} className="animate-spin" /> : null}{text('发送', 'Send')}{forwardSelected.size > 0 ? ` (${forwardSelected.size})` : ''}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </SocialLayout>

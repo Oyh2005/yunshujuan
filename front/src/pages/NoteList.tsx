@@ -200,6 +200,28 @@ export default function NoteList() {
     }
   }
 
+  /** 公开/私有切换（列表页快速入口，与编辑页分享弹窗同一接口） */
+  const handleTogglePublic = async (note: Note) => {
+    if (pinPending.has(note.id)) return
+    setPinPending(new Set([...pinPending, note.id]))
+    try {
+      const next = !note.is_public
+      const result = await notesApi.update(note.id, { is_public: next })
+      setNotes((prev) => {
+        const updated = prev.map((item) => item.id === note.id
+          ? { ...item, ...result.data, is_public: result.data?.is_public ?? next } : item)
+        return query ? updated : sortNotes(updated, sortBy)
+      })
+      toast.success(next ? t('share.publicOn') : t('share.publicOff'))
+    } catch { toast.error(t('note.ui.actionError')) } finally {
+      setPinPending((prev) => {
+        const nextSet = new Set(prev)
+        nextSet.delete(note.id)
+        return nextSet
+      })
+    }
+  }
+
   const runBatch = async (action: () => Promise<void>) => {
     if (batchInFlight.current || selectedIds.size === 0) return
     batchInFlight.current = true
@@ -329,7 +351,7 @@ export default function NoteList() {
           </div>
         ) : (
           <div className={collectionClass}>
-            {notes.map((note) => <NoteCard key={note.id} note={note} selected={selectedIds.has(note.id)} selectMode={selectMode} pinPending={busy || pinPending.has(note.id)} onOpen={() => navigate('/notes/' + note.id)} onSelect={() => { if (!busy) selectNote(note.id) }} onPin={() => { if (!busy) void handlePin(note) }} />)}
+            {notes.map((note) => <NoteCard key={note.id} note={note} selected={selectedIds.has(note.id)} selectMode={selectMode} pinPending={busy || pinPending.has(note.id)} onOpen={() => navigate('/notes/' + note.id)} onSelect={() => { if (!busy) selectNote(note.id) }} onPin={() => { if (!busy) void handlePin(note) }} onTogglePublic={() => { if (!busy) void handleTogglePublic(note) }} />)}
           </div>
         )}
       </div>

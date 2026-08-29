@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { CheckSquare, FileText, MoreHorizontal, Pencil, Pin, Square } from 'lucide-react'
+import { CheckSquare, FileText, Globe, MoreHorizontal, Pencil, Pin, Square } from 'lucide-react'
 import type { Note } from '../../types/api'
 import { categoryTone, notePreview, predefinedCategories } from './notePresentation'
 
@@ -13,9 +13,10 @@ interface NoteCardProps {
   onOpen: () => void
   onSelect: () => void
   onPin: () => void
+  onTogglePublic: () => void
 }
 
-export default function NoteCard({ note, selected, selectMode, pinPending, onOpen, onSelect, onPin }: NoteCardProps) {
+export default function NoteCard({ note, selected, selectMode, pinPending, onOpen, onSelect, onPin, onTogglePublic }: NoteCardProps) {
   const { t, i18n } = useTranslation()
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pointerStart = useRef({ x: 0, y: 0 })
@@ -73,6 +74,7 @@ export default function NoteCard({ note, selected, selectMode, pinPending, onOpe
               <DropdownMenu.Content className="workspace-menu" sideOffset={6} align="end" collisionPadding={12}>
                 <DropdownMenu.Item className="workspace-menu-item" onSelect={onOpen}><Pencil size={15} />{t('note.ui.edit')}</DropdownMenu.Item>
                 <DropdownMenu.Item className="workspace-menu-item" onSelect={onPin} disabled={pinPending}><Pin size={15} />{t(note.is_pinned ? 'note.ui.unpin' : 'note.ui.pin')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="workspace-menu-item" onSelect={onTogglePublic}><Globe size={15} />{note.is_public ? t('share.closePublic') : t('note.ui.makePublic')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="workspace-menu-separator" />
                 <DropdownMenu.Item className="workspace-menu-item" onSelect={onSelect}><CheckSquare size={15} />{t(selected ? 'note.ui.deselect' : 'note.ui.select')}</DropdownMenu.Item>
               </DropdownMenu.Content>
@@ -90,6 +92,7 @@ export default function NoteCard({ note, selected, selectMode, pinPending, onOpe
       </div>
       <div className="note-card-footer">
         <span className="note-category">{category}</span>
+        {note.is_public && <span className="note-public-badge" title={t('share.publicHint')}><Globe size={10} />{t('note.ui.publicBadge')}</span>}
         <time dateTime={validDate ? date.toISOString() : undefined} title={validDate ? date.toLocaleString(locale) : undefined}>
           {validDate ? date.toLocaleDateString(locale, { month: 'short', day: 'numeric' }) : '—'}
         </time>

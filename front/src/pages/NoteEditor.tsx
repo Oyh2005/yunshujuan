@@ -62,6 +62,7 @@ export default function NoteEditor() {
   const [category, setCategory] = useState(() => draftField<string>(id, 'category', ''))
   const [tags, setTags] = useState<string[]>(() => draftField<string[]>(id, 'tags', []))
   const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'unsaved' | 'saved'>('unsaved')
   const [showDelete, setShowDelete] = useState(false)
@@ -119,9 +120,14 @@ export default function NoteEditor() {
       setCategory(note.category || '')
       setTags(note.tags || [])
       setIsPublic(!!note.is_public)
+      setLoadFailed(false)
       setLoading(false)
     }).catch(() => {
-      if (!cancelled) setLoading(false)
+      if (!cancelled) {
+        // 笔记不存在 / 他人私有笔记（用户隔离 404）：显示错误页而非空白编辑器
+        setLoadFailed(true)
+        setLoading(false)
+      }
     })
     return () => { cancelled = true }
   }, [id, isNew])
@@ -479,6 +485,19 @@ ${body}
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
+  if (loadFailed) {
+    return (
+      <div className="note-authoring-page h-full flex flex-col items-center justify-center gap-3 bg-[var(--color-bg)] text-center px-6">
+        <FileText size={34} className="text-[var(--color-text-tertiary)]" />
+        <p className="text-base font-medium text-[var(--color-text)]">{t('note.notFound')}</p>
+        <p className="text-sm text-[var(--color-text-tertiary)] max-w-sm">{t('note.notFoundHint')}</p>
+        <button onClick={() => navigate('/notes')} className="secondary-button mt-2">
+          {t('note.notFoundBack')}
+        </button>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -777,7 +796,7 @@ ${body}
                   ? 'text-[var(--color-accent)] bg-[var(--color-accent-bg)]'
                   : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-bg)]'
               }`}
-              title={t('share.button')}
+              title={isPublic ? t('share.publicHint') : t('share.privateHint')}
             >
               <ExternalLink size={16} />
             </button>

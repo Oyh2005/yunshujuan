@@ -427,11 +427,11 @@ export default function SocialFeed() {
 
                   {post.note_id && post.note_title && (
                     <button
-                      onClick={() => navigate(`/notes/${post.note_id}`)}
+                      onClick={() => navigate(post.author.user_id === myUserId ? `/notes/${post.note_id}` : `/share/${post.note_id}`)}
                       className="social-note-reference"
                     >
                       <span><FileText size={17} /></span>
-                      <span><strong>{post.note_title}</strong><small>{text('引用笔记', 'Quoted note')}</small></span>
+                      <span><strong>{post.note_title}</strong><small>{post.author.user_id === myUserId ? text('引用笔记', 'Quoted note') : text('TA 引用的笔记', 'Quoted note')}</small></span>
                       <ChevronRight size={16} />
                     </button>
                   )}

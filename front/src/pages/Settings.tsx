@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next'
-import { Sun, Moon, Languages, Cloud } from 'lucide-react'
+import { Sun, Moon, Languages, Cloud, Type } from 'lucide-react'
 import { useThemeStore } from '../stores/useThemeStore'
 import { useLanguageStore } from '../stores/useLanguageStore'
 import { usePetStore } from '../stores/usePetStore'
+import { useChatFontStore, CHAT_FONT_MIN, CHAT_FONT_MAX } from '../stores/useChatFontStore'
 import i18n from '../i18n'
 
 export default function Settings() {
@@ -11,6 +12,8 @@ export default function Settings() {
   const { lang, setLang } = useLanguageStore()
   const petVisible = usePetStore((s) => s.visible)
   const setPetVisible = usePetStore((s) => s.setVisible)
+  const chatFontSize = useChatFontStore((s) => s.size)
+  const setChatFontSize = useChatFontStore((s) => s.setSize)
 
   const handleLangChange = (newLang: 'zh-CN' | 'en-US') => {
     setLang(newLang)
@@ -61,6 +64,50 @@ export default function Settings() {
             >
               <div style={{ backgroundColor: petVisible ? 'var(--color-accent-foreground)' : 'var(--color-card)' }} className={`absolute top-0.5 w-5 h-5 rounded-full shadow-sm transition-transform ${petVisible ? 'translate-x-6' : 'translate-x-0.5'}`} />
             </button>
+          </div>
+        </div>
+
+        <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <Type size={18} className="text-[var(--color-text-secondary)]" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-[var(--color-text)]">{t('settings.chatFont')}</p>
+              <p className="text-xs text-[var(--color-text-tertiary)]">{t('settings.chatFontDesc')}</p>
+            </div>
+            <span className="text-sm font-semibold text-[var(--color-accent)]">{chatFontSize}px</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-[var(--color-text-tertiary)]">{t('settings.chatFontSmall')}</span>
+            <input
+              type="range"
+              min={CHAT_FONT_MIN}
+              max={CHAT_FONT_MAX}
+              step={1}
+              value={chatFontSize}
+              onChange={(e) => setChatFontSize(Number(e.target.value))}
+              className="flex-1 accent-[var(--color-accent)]"
+              aria-label={t('settings.chatFont')}
+            />
+            <span className="text-xs text-[var(--color-text-tertiary)]">{t('settings.chatFontLarge')}</span>
+          </div>
+          {/* 实时预览：仿私聊界面，滑块拖动时字号即时变化 */}
+          <div
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4 space-y-2.5"
+            style={{ fontSize: `${chatFontSize}px` } as React.CSSProperties}
+          >
+            <div className="flex justify-start">
+              <div className="max-w-[80%] rounded-2xl rounded-bl-md border border-[var(--color-border-light)] bg-[var(--color-card)] px-3.5 py-2.5 leading-relaxed">
+                {t('settings.chatFontPreviewTheirs')}
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <div className="max-w-[80%] rounded-2xl rounded-br-md px-3.5 py-2.5 leading-relaxed text-white" style={{ background: 'var(--gradient-brand)' }}>
+                {t('settings.chatFontPreviewMine')}
+              </div>
+            </div>
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-2 text-[var(--color-text-tertiary)]">
+              {t('settings.chatFontPreviewInput')}
+            </div>
           </div>
         </div>
 
