@@ -1,8 +1,9 @@
 # 云舒卷（RAG Notebook）开发交接文档（给下一个 Agent）
 
-> 更新：2026-08-29（最新一轮：体验打磨四项——笔记导出增强 + AI 对话细节 + 首页周报/月报 + 移动端响应式；上一轮：AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
+> 更新：2026-08-29（最新一轮：稳定性三件套 + PWA 化——备份脚本/错误监控/日志巡检/vite-plugin-pwa；上两轮：体验打磨四项、AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
 > - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
+> - `plan/records/2026-08-29-stability-pwa-delivery.md` —— 稳定性三件套 + PWA 交付（备份/错误监控/日志巡检/Service Worker，含验证）
 > - `plan/records/2026-08-29-experience-polish-delivery.md` —— 体验打磨交付（导出增强/AI 对话细节/首页周报月报/移动端抽屉，含验证）
 > - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
 > - `plan/records/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
@@ -42,6 +43,8 @@
 | 社交 | 好友/关注、动态流（图文/点赞评论）、通知红点、知识广场、个人主页成就墙 | `pages/SocialFeed/FriendsPage/NotificationsPage/PlazaPage/UserProfilePage.tsx`、`backend/app/router/social_router.py` |
 | 分享 | 免登录分享页 `/share/:id` + 浏览计数 | `PublicSharePage.tsx`、`share_router.py`（含 `/public` API） |
 | 页宠「小卷」 | 9 情绪、拖拽、好感度等级、形象切换、**养成数据云端同步** | `components/pet/`、`stores/usePetStore.ts`、`hooks/useSettingsSync.ts` |
+| 稳定性三件套 | **备份脚本**（MySQL dump + media + data 打包，`deploy/backup.ps1`）；**前端错误监控**（`POST /telemetry/error` 匿名可上报 + ErrorBoundary/全局 error 监听，30s 节流）；**日志巡检**（`deploy/check-logs.ps1`，ERROR/慢查询统计 + 计划任务告警） | `models/error_report.py`、`router/telemetry_router.py`、`api/telemetry.ts` |
+| PWA | vite-plugin-pwa：Service Worker + manifest（离线壳/可安装）；SW 只缓存构建产物与 /media，**API 一律不缓存**（与 ETag/304 协同） | `vite.config.ts`（⚠️ 需本机 `npm run build` 验证，沙箱跑不了） |
 | 全局 | 主题、i18n 中英、错误边界、⌘K 命令面板、Ctrl+N、侧边栏分组折叠动画、底部账号菜单 | `Sidebar.tsx`、`CommandPalette.tsx` |
 
 **页面布局体系**（2026-08-28/29 建立）：`knowledge-pages.css`（知识库/广场/统计/图谱）+ `ai-pages.css`（AI 对话/会话）+ `learning-pages.css`（回顾/习惯/番茄钟）+ `dashboard.css`（首页），对应 `KnowledgeLayout`/`AiWorkspace`/`LearningLayout` 布局组件（含统一顶栏/搜索/页宠开关）。
@@ -93,6 +96,13 @@
 31. **移动端抽屉 CSS 特异性**：`.app-shell > .app-sidebar.is-mobile-open`（0,3,0）必须覆盖各域 `> .app-sidebar` 的宽度强制（`.is-ai > .app-sidebar`、`.is-knowledge > .app-sidebar`、`.is-note-authoring > .app-sidebar` 均 0,2,0，同特异性后加载者胜——曾被压成 56px）
 32. **onDone 侧栏刷新时机**：MainLayout key 归一化后页面**不重挂载**，「延到下次挂载」不可行——必须主动刷新；实现 = 乐观更新（新会话即时插入）+ 800ms 延迟校准（原 250ms 会先闪旧列表）
 33. **`counter(pages)` Chrome 不支持**：打印页码只用 `counter(page)`，勿写「共 N 页」（会显示残缺）
+
+### 稳定性/PWA 踩坑（08-29 晚）
+34. **⚠️ .ps1 脚本必须 UTF-8 BOM**：无 BOM 的 UTF-8 脚本被 PowerShell 解析器按 ANSI 读——中文注释乱码 + 语法错乱（行号偏移、`$` 变量消失）。`deploy/*.ps1` 已带 BOM（edit 工具重写会丢 BOM，改后需重新加）；Windows PowerShell 5.1 计划任务尤其依赖
+35. **日志巡检读文件要 `FileShare.ReadWrite`**：后端 FileHandler 占用 agent_*.log，`ReadAllLines` 直接 IOException——用 `[System.IO.File]::Open(..., ReadWrite)` + StreamReader 逐行
+36. **可选鉴权用 `HTTPBearer(auto_error=False)`**：`get_optional_user_id`（错误上报等匿名接口）不能用默认 `security`（无 token 直接 403）
+37. **错误上报独立 axios 实例**：不走全局拦截器——401 跳登录、429 toast 都不适合监控上报场景；前端 30s 同类节流 + 后端 30/60 限流双保险
+38. **PWA 缓存边界**：SW 只预缓存构建产物 + /media（CacheFirst 1 天）；**API 一律不缓存**（浏览器 HTTP 缓存 + ETag/304 已保证新鲜度，SW 缓存会污染数据）；`navigateFallback` 只影响 navigate 请求，API fetch 不受影响
 
 ## 4. 剩余任务（按优先级）
 
@@ -149,6 +159,12 @@
 - **首页仪表盘**：`GET /stats/period` 周/月聚合（探针 8018 验证）；「最近积累」周报/月报卡片（笔记/字数/回顾 + 环比 badge）；周报订阅提醒（localStorage 跨周检测，无定时任务）
 - **移动端响应式**：Sidebar 小屏抽屉（菜单按钮 + 遮罩 + 覆盖式 fixed，踩坑 31）；note-authoring 600px 断点；图谱 600px 节点字号/图例紧凑
 
+**⑨ 稳定性三件套 + PWA（08-29 晚，全部验证）**：详见 `plan/records/2026-08-29-stability-pwa-delivery.md`
+- **备份**：`deploy/backup.ps1`（MySQL dump + media/data tar.gz + 保留天数清理 + 计划任务示例；实测 3 文件生成）
+- **错误监控**：`POST /telemetry/error`（匿名可上报 + 限流 + 入库降级）+ 前端 ErrorBoundary/全局 error/unhandledrejection 上报（独立 axios 实例 + 30s 节流）；`error_reports` 表自动创建
+- **日志巡检**：`deploy/check-logs.ps1`（ERROR/WARN/慢查询统计 + 最慢 5 条 + 错误样例 + -FailOnErrors 告警退出码；实测 24h 178 ERROR/498 WARN）
+- **PWA**：vite-plugin-pwa 1.3.0（manifest + SW + /media CacheFirst；API 不缓存与 ETag 协同）；⚠️ build 需本机验证（沙箱 spawn EPERM）
+
 ### 🔜 待办（按触发条件）
 | 项 | 触发条件 | 参考 |
 | --- | --- | --- |
@@ -156,9 +172,12 @@
 | 方向 D 阶段三：大规模架构 | 几千用户 | `plan/roadmap/2026-08-27-scale-up-plan.md` |
 | 路由判断偶发 2~3.8s 待定位（Chroma/Ollama 侧） | 有空 | 交接文档 §4 ② |
 | 微信小程序版（Taro + 微信登录） | 用户决定开工 | `plan/roadmap/2026-08-27-wechat-mini-program-plan.md` |
-| PWA 化（Service Worker，承接缓存方案 3）/ 年度报告页 | 有空 | `plan/records/2026-08-29-client-cache-plan.md`、`plan/roadmap/2026-08-29-next-steps-plan.md` |
+| 年度报告页 | 数据积累（建议 2026 年底前） | `plan/roadmap/2026-08-29-next-steps-plan.md` |
 | 游标分页（笔记/动态深翻页）、社交列表缓存、静态资源 gzip 上线 | 有空 | `plan/roadmap/2026-08-29-next-steps-plan.md` |
+| **线上化部署**（nginx 落地/HTTPS/gzip、公测账号策略、Redis 部署方式确认） | 用户决定公测 | `plan/roadmap/2026-08-29-next-steps-plan.md`、`deploy/nginx.conf.example` |
 | ~~导出增强 / AI 对话细节 / 移动端响应式~~（**已完成 08-29**） | — | `plan/records/2026-08-29-experience-polish-delivery.md` |
+| ~~稳定性三项（备份/错误监控/日志巡检）~~（**已完成 08-29**，备份与巡检脚本在 `deploy/`，建议挂计划任务） | — | `plan/records/2026-08-29-stability-pwa-delivery.md` |
+| ~~PWA 化~~（**已完成 08-29**，⚠️ 待本机 `npm run build` 验证 SW） | — | `plan/records/2026-08-29-stability-pwa-delivery.md` |
 
 ## 5. 设计约定（新体系）
 
