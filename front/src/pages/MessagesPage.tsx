@@ -125,14 +125,16 @@ export default function MessagesPage() {
     return () => window.clearTimeout(timer)
   }, [loadConversations])
 
-  // ?with= 直达会话（openedWithRef 防重复打开：openConversation 内部
-  // setConversations 会重建自身引用，若无守卫 effect 会无限重跑导致
-  // 消息清空/历史重载循环闪烁）
+  // ?with= 直达会话。守卫放在 timer 回调内：① StrictMode 双挂载时第一次挂载
+  // 只设 timer 不置 ref，cleanup 清 timer 后 ref 保持空 → 第二次挂载正常打开；
+  // ② openConversation 因内部 setState 重建时，effect 重跑会被守卫拦截，防循环
   useEffect(() => {
     if (!withId) return
-    if (openedWithRef.current === withId) return
-    openedWithRef.current = withId
-    const timer = window.setTimeout(() => void openConversation(withId), 0)
+    const timer = window.setTimeout(() => {
+      if (openedWithRef.current === withId) return
+      openedWithRef.current = withId
+      void openConversation(withId)
+    }, 0)
     return () => window.clearTimeout(timer)
   }, [withId, openConversation])
 
@@ -205,6 +207,8 @@ export default function MessagesPage() {
   const closeChat = () => {
     setSelectedPeerId(null)
     setDirectPeer(null)
+    // 重置直达守卫：关闭后再点同一好友需能重新打开
+    openedWithRef.current = null
     setSearchParams({}, { replace: true })
   }
 
@@ -234,8 +238,10 @@ export default function MessagesPage() {
                   <button
                     className={`messages-conv${conv.peer.user_id === selectedPeerId ? ' is-active' : ''}`}
                     onClick={() => {
-                      setSearchParams(conv.peer.user_id === withId ? {} : { with: conv.peer.user_id }, { replace: true })
-                      if (conv.peer.user_id !== selectedPeerId) void openConversation(conv.peer.user_id)
+                      // 统一走 ?with= effect 打开（守卫防重复），避免 onClick 与 effect 双开
+                      if (conv.peer.user_id !== withId) {
+                        setSearchParams({ with: conv.peer.user_id }, { replace: true })
+                      }
                     }}
                   >
                     <SocialAvatar username={conv.peer.username} avatar={conv.peer.avatar} size={42} />
