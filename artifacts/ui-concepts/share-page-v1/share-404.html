@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>云舒卷 · 分享页 未公开 / 失效 效果图</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --font-heading:'Noto Serif SC','Songti SC',serif;
+  --font-body:'Noto Sans SC','PingFang SC','Helvetica Neue',sans-serif;
+  --color-bg:#F7F7FB; --color-bg-secondary:#F2F1F7;
+  --color-card:#FFFFFF;
+  --color-text:#252238; --color-text-secondary:#6B6478; --color-text-tertiary:#7C708A;
+  --color-border:#E7E3ED; --color-border-light:#F0EDF5;
+  --color-accent:#7C3AED; --color-accent-bg:#EFE9FD; --color-accent-border:#D7C7FC;
+  --gradient-brand:linear-gradient(135deg,#7C3AED,#6D28D9);
+  --color-shadow:rgba(72,35,130,.06);
+}
+.dark{
+  --color-bg:#1B1723; --color-bg-secondary:#2B2436;
+  --color-card:#24202E;
+  --color-text:#F0EDF7; --color-text-secondary:#B3ABBE; --color-text-tertiary:#9D93AD;
+  --color-border:#3D344B; --color-border-light:#30293C;
+  --color-accent:#B49AF5; --color-accent-bg:#39284F; --color-accent-border:#64488F;
+  --color-shadow:rgba(0,0,0,.2);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font-body);background:var(--color-bg);color:var(--color-text);-webkit-font-smoothing:antialiased;min-height:100vh;display:flex;flex-direction:column}
+svg{display:block}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+a{color:inherit;text-decoration:none}
+
+.share-topbar{position:sticky;top:0;z-index:20;height:64px;display:flex;align-items:center;gap:16px;padding:0 28px;background:rgba(255,255,255,.82);backdrop-filter:blur(10px);border-bottom:1px solid var(--color-border-light)}
+.dark .share-topbar{background:rgba(36,32,46,.82)}
+.share-brand{display:flex;align-items:center;gap:9px;color:var(--color-accent);font-size:16px;font-weight:750;letter-spacing:.02em}
+.share-brand span{color:var(--color-text)}
+.share-topbar-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:8px 15px;border-radius:10px;font-family:inherit;font-size:13px;font-weight:550;white-space:nowrap;cursor:pointer;transition:background .16s,border-color .16s,color .16s}
+.btn-primary{color:#fff;background:var(--gradient-brand);border:1px solid transparent}
+.btn-ghost{color:var(--color-text-secondary);background:transparent;border:1px solid var(--color-border)}
+.btn-ghost:hover{border-color:var(--color-accent-border);color:var(--color-accent)}
+
+/* 空状态：整页垂直居中，不套横幅，避免"像是有内容"的误导 */
+.share-empty{flex:1;display:grid;place-items:center;padding:56px 28px 72px}
+.share-empty-inner{max-width:440px;text-align:center}
+.share-empty-art{position:relative;display:grid;place-items:center;width:190px;height:170px;margin:0 auto 26px}
+.share-empty-halo{position:absolute;inset:16px 8px;border-radius:45% 55% 55% 45%;background:var(--color-accent-bg);transform:rotate(-12deg)}
+.share-empty-art img{position:relative;width:150px;height:150px;object-fit:contain;opacity:.92}
+.share-empty-spark{position:absolute;top:6px;right:18px;font-size:19px;color:var(--color-accent-border)}
+.share-empty h1{font-family:var(--font-heading);font-size:24px;font-weight:700;letter-spacing:-.01em}
+.share-empty p{margin-top:12px;font-size:14px;line-height:1.9;color:var(--color-text-secondary)}
+.share-empty-actions{margin-top:26px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.share-empty-hint{margin-top:26px;padding:13px 16px;border:1px dashed var(--color-border);border-radius:12px;font-size:12px;line-height:1.8;color:var(--color-text-tertiary);background:var(--color-bg-secondary)}
+
+.share-footer{padding:20px 28px 32px;text-align:center;font-size:12px;color:var(--color-text-tertiary)}
+.share-footer a{color:var(--color-accent)}
+
+@media (max-width:767px){
+  .share-topbar{padding:0 16px;height:58px}
+  .share-empty{padding:34px 18px 48px}
+  .share-empty h1{font-size:20px}
+  .share-empty-art{width:160px;height:145px}
+  .share-empty-art img{width:126px;height:126px}
+}
+</style>
+</head>
+<body>
+<h1 class="sr-only">云舒卷分享页未公开或链接失效状态的效果图</h1>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .3-9 6.5 6.5 0 0 0-12.6 2A4 4 0 0 0 6 19Z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .71-1.53l7-6a2 2 0 0 1 2.58 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+</svg>
+
+<script>if(location.search.indexOf('dark')>=0)document.documentElement.classList.add('dark')</script>
+
+<header class="share-topbar">
+  <a class="share-brand" href="#"><svg width="24" height="24"><use href="#i-cloud"/></svg><span>云舒卷</span></a>
+  <div class="share-topbar-actions">
+    <button class="btn btn-ghost">回到首页</button>
+    <button class="btn btn-primary">免费开始记录</button>
+  </div>
+</header>
+
+<main class="share-empty">
+  <div class="share-empty-inner">
+    <div class="share-empty-art">
+      <span class="share-empty-halo"></span>
+      <img src="study-cloud.png" alt="">
+      <span class="share-empty-spark">✧</span>
+    </div>
+    <h1>笔记不存在或未公开</h1>
+    <p>链接可能已失效，或作者关闭了公开分享。<br />如果你就是作者，登录后可以在笔记里重新开启公开。</p>
+    <div class="share-empty-actions">
+      <button class="btn btn-primary"><svg width="14" height="14"><use href="#i-home"/></svg>回到首页</button>
+      <button class="btn btn-ghost">免费开始记录</button>
+    </div>
+    <div class="share-empty-hint">
+      出于隐私考虑，未公开的笔记与不存在的笔记返回同样的提示，不会泄露内容是否存在。
+    </div>
+  </div>
+</main>
+
+<footer class="share-footer">本页面由 <a href="#">云舒卷</a> 生成</footer>
+</body>
+</html>

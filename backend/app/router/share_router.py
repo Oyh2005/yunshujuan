@@ -10,11 +10,12 @@
 
 from fastapi import Depends, HTTPException
 from fastapi.routing import APIRouter
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.db_config import get_db
 from app.models.note import Note
+from app.models.user_model import User
 
 share_router = APIRouter(prefix="/share", tags=["share"])
 public_router = APIRouter(prefix="/public", tags=["share"])
@@ -39,6 +40,27 @@ async def _fetch_public_note(db: AsyncSession, note_id: str) -> dict:
     )
     await db.refresh(note)
 
+    # 作者信息：笔记已主动公开，展示作者昵称/头像/简介属于预期公开范围。
+    # 只取展示字段，绝不返回 email / 手机号等敏感信息。
+    author = None
+    public_note_count = 0
+    user_result = await db.execute(select(User).where(User.uuid == note.user_id))
+    user = user_result.scalar_one_or_none()
+    if user:
+        count_result = await db.execute(
+            select(func.count())
+            .select_from(Note)
+            .where(Note.user_id == note.user_id, Note.is_public.is_(True))
+        )
+        public_note_count = int(count_result.scalar_one() or 0)
+        author = {
+            "id": user.uuid,
+            "username": user.username,
+            "avatar": user.avatar,
+            "bio": user.bio,
+            "public_note_count": public_note_count,
+        }
+
     return {
         "title": note.title,
         "content": note.content,
@@ -47,6 +69,7 @@ async def _fetch_public_note(db: AsyncSession, note_id: str) -> dict:
         "created_at": str(note.created_at) if note.created_at else None,
         "updated_at": str(note.updated_at) if note.updated_at else None,
         "view_count": note.view_count or 0,
+        "author": author,
     }
 
 
