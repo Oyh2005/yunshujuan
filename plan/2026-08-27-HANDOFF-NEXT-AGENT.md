@@ -100,7 +100,8 @@
 - 限流：开启 + 按路径/端口计数 + Redis 降级 + 配额 300/120/30/10/6
 - 数据库：tag 过滤下沉 SQL、复合索引 `(user_id, is_pinned, updated_at)`、asyncmy 驱动、pool_pre_ping/recycle、慢查询日志（`SLOW_QUERY_THRESHOLD_MS`）
 - 缓存：笔记列表 30s + 详情 300s（写操作失效）、重排序结果 10min、`/user/detail/` Redis 容错
-- **HTTP 客户端缓存（08-29）**：`app/core/http_cache.py`——`note_version:{user_id}` ETag 版本化（写操作 INCR，与 `_invalidate_note_caches` 同点）+ `Cache-Control: private, max-age`（列表 30/详情 300/stats 60）+ If-None-Match 304 短路（查数据前判断）；media 静态文件 86400。实测：304/写后失效全通过。**新笔记读接口沿用此模式；会话列表未做（需会话写操作版本化）**
+- **HTTP 客户端缓存（08-29）**：`app/core/http_cache.py`（域通用 note/chat）——`{domain}_version:{user_id}` ETag 版本化（写操作 INCR）+ `Cache-Control: private, max-age`（笔记列表 30/详情 300/stats 60/会话列表 30）+ If-None-Match 304 短路（查数据前判断）；media 静态文件 86400。实测 304/写后失效全通过。**新读接口沿用此模式**
+- **AI 路由启发式（08-29）**：`chat.py _should_skip_rag`——≤4 字符短查询 + 自我认知正则（"你是谁/介绍一下你…"）跳过 RAG 前置（向量分数对闲聊与知识问题无区分度，实测 0.54~0.59 重叠）；合并 compute_route_score 与 Top-1 检索为一次 similarity_search（省一次 embedding）。实测闲聊 20.5s→2.8s
 - 修复：N+1（好友/粉丝/关注批量查询）、Redis 配置漂移（load_dotenv）、localhost→127.0.0.1、libmagic 中文路径（上传降级）
 
 **③ AI/学习页布局（08-29）**：`AiWorkspace`/`LearningLayout` + `ai-pages.css`/`learning-pages.css`（AIChat/Sessions/DailyReview/HabitPage/PomodoroPage）

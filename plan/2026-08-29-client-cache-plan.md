@@ -8,16 +8,18 @@
 ## 实施记录（方案 1：HTTP 缓存头 + ETag 版本化 ✅）
 
 **已落地改动**：
-- `backend/app/core/http_cache.py`（新增）：`get_note_etag` / `bump_note_version` / `apply_note_http_cache` / `is_not_modified`（Redis 不可用自动降级为无缓存）
+- `backend/app/core/http_cache.py`（新增，域通用）：`get_domain_etag` / `bump_domain_version` / `is_not_modified` / `apply_http_cache`（域：note / chat；Redis 不可用自动降级为无缓存）
 - `note_service._invalidate_note_caches`：写操作统一 INCR `note_version:{user_id}`（与现有缓存失效同点）
 - `GET /note/list` → `private, max-age=30` + ETag（304 短路在查数据前）
 - `GET /note/{id}` → `private, max-age=300` + ETag
 - `GET /note/stats` → `private, max-age=60` + ETag
 - `main.py` 媒体静态文件：自定义 StaticFiles 加 `private, max-age=86400`
+- **会话列表（08-29 追加）**：`GET /chat/sessions/{user_id}` → `private, max-age=30` + ETag；`database_session_manager` 写操作（add_message/重命名/置顶/删除）统一 INCR `chat_version:{user_id}`
+- **路由启发式（08-29 追加）**：闲聊/自我认知类问题跳过 RAG（`chat.py _should_skip_rag`：≤4 字符短查询 + 自我认知正则——向量分数对闲聊与知识问题无区分度，实测 0.54~0.59 重叠，启发式更可靠）；合并 `compute_route_score` 与 Top-1 检索为一次 `similarity_search`（省一次 embedding + 一次 Chroma 查询）
 
-**实测验证（08-29）**：首次 200 + ETag `"v0"` → If-None-Match 匹配 304 空响应 → 创建笔记后旧 ETag 失效（200 + `"v1"`）→ 新 ETag 304 ✓；详情/stats 同理 ✓
+**实测验证（08-29）**：首次 200 + ETag → If-None-Match 匹配 304 空响应 → 写操作后旧 ETag 失效（200 + 新版本）→ 新 ETag 304 ✓；闲聊"你好/介绍一下你自己"跳过 RAG（20.5s→2.8s，无 retrieval/hyde/reorder 阶段），知识问题"总结我的知识库"仍走 RAG ✓；会话列表同上 ✓；笔记缓存回归 ✓
 
-**未做（后续）**：会话列表（`/chat/sessions`）——需要会话写操作版本化（add_message/rename/pin/delete 四处 INCR），且注意无 ETag 的 max-age 会导致「对话完成刷新列表拿到缓存旧数据」，实施时务必带 ETag；方案 2（前端 SWR）/方案 3（PWA）。
+**未做（后续）**：方案 2（前端 SWR）/方案 3（PWA）。
 
 ---
 

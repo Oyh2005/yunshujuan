@@ -145,6 +145,9 @@ class DatabaseSessionManager:
 
             await db.commit()
             logger.info(f"【数据库会话管理】添加消息到会话: {session_id} 属于用户: {user_id}")
+            # 会话列表 HTTP 缓存版本号递增（新会话/新消息都算列表变化）
+            from app.core.http_cache import bump_domain_version
+            await bump_domain_version("chat", user_id)
 
     async def get_history(self, session_id: str, user_id: str) -> list[tuple[str, str]]:
         """获取会话历史"""
@@ -164,6 +167,8 @@ class DatabaseSessionManager:
                 await db.delete(session)
                 await db.commit()
                 logger.info(f"【数据库会话管理】会话 {session_id} 已清除，属于用户: {user_id}")
+                from app.core.http_cache import bump_domain_version
+                await bump_domain_version("chat", user_id)
 
     async def get_all_session_ids(self, user_id: str | None = None) -> list[str]:
         """获取所有会话 ID，如果提供了 user_id，则只返回该用户的会话"""
@@ -220,6 +225,8 @@ class DatabaseSessionManager:
             session.custom_title = (title or "").strip()[:255] or None
             await db.commit()
             logger.info(f"【数据库会话管理】重命名会话: {session_id} 属于用户: {user_id} -> {session.custom_title!r}")
+            from app.core.http_cache import bump_domain_version
+            await bump_domain_version("chat", user_id)
             return {
                 "custom_title": session.custom_title,
                 "title": session.custom_title or session.title,
@@ -239,6 +246,8 @@ class DatabaseSessionManager:
             await db.commit()
             await db.refresh(session)
             logger.info(f"【数据库会话管理】置顶状态: {session_id} 属于用户: {user_id} -> {is_pinned}")
+            from app.core.http_cache import bump_domain_version
+            await bump_domain_version("chat", user_id)
             return {
                 "id": session.id,
                 "is_pinned": session.is_pinned,

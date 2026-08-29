@@ -273,8 +273,8 @@ class NoteService:
         if note_id:
             await RedisCache.delete(f"note_detail:{user_id}:{note_id}")
         # 客户端 HTTP 缓存版本号递增：让所有用户的浏览器缓存立即失效（ETag 机制）
-        from app.core.http_cache import bump_note_version
-        await bump_note_version(user_id)
+        from app.core.http_cache import bump_domain_version
+        await bump_domain_version("note", user_id)
 
     async def list_notes(
         self,

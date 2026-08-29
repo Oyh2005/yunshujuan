@@ -68,13 +68,13 @@ async def list_notes(
     笔记列表：分页查询，支持按分类筛选和排序。tag 筛选在内存层完成。
     客户端缓存：private 30s + ETag 版本化（304 短路），写操作自动失效。
     """
-    from app.core.http_cache import apply_note_http_cache, is_not_modified
-    if await is_not_modified(request, user_id):
+    from app.core.http_cache import apply_http_cache, is_not_modified
+    if await is_not_modified(request, "note", user_id):
         return Response(status_code=304)
 
     notes, total = await init_manager.note_service.list_notes(db, user_id, page, page_size, category, tag, sort_by)
     response = success_response(data=NoteListResponse(notes=notes, total_count=total))
-    return await apply_note_http_cache(request, response, user_id, max_age=30)
+    return await apply_http_cache(request, response, "note", user_id, max_age=30)
 
 
 @note_router.get("/search")
@@ -169,13 +169,13 @@ async def get_stats(
     返回各分类下的笔记数量及总数。
     客户端缓存：private 60s + ETag 版本化。
     """
-    from app.core.http_cache import apply_note_http_cache, is_not_modified
-    if await is_not_modified(request, user_id):
+    from app.core.http_cache import apply_http_cache, is_not_modified
+    if await is_not_modified(request, "note", user_id):
         return Response(status_code=304)
 
     stats = await init_manager.note_service.get_category_stats(db, user_id)
     response = success_response(data=stats)
-    return await apply_note_http_cache(request, response, user_id, max_age=60)
+    return await apply_http_cache(request, response, "note", user_id, max_age=60)
 
 
 @note_router.get("/graph")
@@ -383,8 +383,8 @@ async def get_note(
     获取笔记详情（5 分钟客户端缓存 + ETag 版本化，写操作自动失效；Redis 不可用时直查数据库）。
     """
     from app.cache.redis_decorator import RedisCache
-    from app.core.http_cache import apply_note_http_cache, is_not_modified
-    if await is_not_modified(request, user_id):
+    from app.core.http_cache import apply_http_cache, is_not_modified
+    if await is_not_modified(request, "note", user_id):
         return Response(status_code=304)
 
     note = await RedisCache.get_or_set(
@@ -398,7 +398,7 @@ async def get_note(
     if not note:
         return success_response(message="笔记不存在")
     response = success_response(data=note)
-    return await apply_note_http_cache(request, response, user_id, max_age=300)
+    return await apply_http_cache(request, response, "note", user_id, max_age=300)
 
 
 @note_router.post("/{note_id}/auto-tag")

@@ -1,8 +1,9 @@
 import asyncio
 import json
+import re
 import uuid
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRouter
 
@@ -14,6 +15,22 @@ from app.schemas.models import QueryRequest, RAGRequest, RAGResponse, ReorderReq
 from app.utils.auth_utils import get_current_user_id
 
 chat_router = APIRouter(prefix="/chat", tags=["chat"])
+
+# 自我认知/闲聊类查询：向量分数对闲聊与知识问题无区分度（实测 0.54~0.59 重叠），
+# 这类问题没有知识库检索价值，直接跳过 RAG 前置管线
+_SELF_INTRO_RE = re.compile(r"(你是谁|介绍一下你(自己)?|你能(做|干)什么|你的(功能|名字|能力)|自我(介绍)?)")
+
+
+def _should_skip_rag(query: str) -> str | None:
+    """启发式判断是否跳过 RAG 前置管线；返回跳过原因，不跳过返回 None"""
+    q = (query or "").strip()
+    if not q:
+        return "空查询"
+    if len(q) <= 4:
+        return "查询过短"
+    if _SELF_INTRO_RE.search(q):
+        return "自我认知类问题"
+    return None
 
 
 @chat_router.post("/agent/query/stream")
@@ -31,15 +48,21 @@ async def query_stream(
     vector_store = VectorStoreService()
 
     # ---- 路由判断（快速，~50ms）----
-    score = await vector_store.compute_route_score(
-        request.query, user_id
-    )
+    # 一次 similarity_search 同时产出路由分数与 Top-1 日志信息
+    # （原实现 compute_route_score + top1 检索 = 两次 embedding + 两次 Chroma 查询）
+    try:
+        top1_docs = await asyncio.to_thread(
+            vector_store.vectors_store.similarity_search_with_score,
+            request.query, k=1, filter={"user_id": user_id}
+        )
+    except Exception as e:
+        logger.error(f"【路由判断】检索失败: {e}")
+        top1_docs = []
 
-    # 查询 Top-1 文档详情，用于日志输出
-    top1_docs = await asyncio.to_thread(
-        vector_store.vectors_store.similarity_search_with_score,
-        request.query, k=1, filter={"user_id": user_id}
-    )
+    score = 1 / (1 + top1_docs[0][1]) if top1_docs else 0.0
+    skip_reason = _should_skip_rag(request.query)
+    use_rag = score > 0.5 and not skip_reason
+
     if top1_docs:
         top1_doc, top1_distance = top1_docs[0]
         source_type = "笔记库" if top1_doc.metadata.get("source_type") == "note" else "知识库"
@@ -50,7 +73,7 @@ async def query_stream(
             f"score: {score:.4f} (距离: {top1_distance:.4f}) | "
             f"Top-1来源: {source_type}《{source_name}》 | "
             f"预览: {preview}... | "
-            f"决策: {'→ RAG 前置管线' if score > 0.5 else '→ 跳过 RAG'}"
+            f"决策: {'→ RAG 前置管线' if use_rag else '→ 跳过 RAG' + (f'（{skip_reason}）' if skip_reason else '')}"
         )
     else:
         logger.info(
@@ -71,7 +94,7 @@ async def query_stream(
             try:
                 rag_context = ""
 
-                if score > 0.5:
+                if use_rag:
                     try:
                         from app.rag.rag_service import RagService
 
@@ -200,13 +223,23 @@ async def get_all_sessions(
 
 @chat_router.get("/sessions/{user_id}")
 async def get_user_sessions(
+    request: Request,
     user_id: str,
     current_user_id: str = Depends(get_current_user_id),
     router_service: ChatService = Depends(get_router_service),
 ):
-    """获取用户所有会话ID"""
+    """
+    获取用户所有会话（客户端缓存：private 30s + ETag 版本化，
+    会话写操作 add_message/重命名/置顶/删除 自动失效）。
+    """
+    from app.core.http_cache import apply_http_cache, is_not_modified
+    if await is_not_modified(request, "chat", current_user_id):
+        from fastapi.responses import Response
+        return Response(status_code=304)
+
     session_ids = await router_service.handle_get_user_sessions(user_id, current_user_id)
-    return success_response(data={"sessions": session_ids})
+    response = success_response(data={"sessions": session_ids})
+    return await apply_http_cache(request, response, "chat", current_user_id, max_age=30)
 
 
 @chat_router.post("/reorder", response_model=ReorderResponse)
