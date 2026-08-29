@@ -1,6 +1,6 @@
 # 云舒卷（RAG Notebook）开发交接文档（给下一个 Agent）
 
-> 更新：2026-08-29（最新一轮：私聊微信化五阶段——视觉/输入增强/消息操作/会话管理/实时状态；上几轮：社交私聊 P0、稳定性三件套 + PWA、体验打磨四项、AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
+> 更新：2026-08-29（最新一轮：私聊微信化五阶段 + 气泡布局修复；上几轮：社交私聊 P0、稳定性三件套 + PWA、体验打磨四项、AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
 > - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
 > - `plan/records/2026-08-29-wechat-chat-delivery.md` —— 私聊微信化五阶段交付（视觉/图片/引用撤回/会话管理/实时状态，含验证）
@@ -26,7 +26,7 @@
 - 后端：FastAPI + LangChain + ChromaDB + MySQL + Redis（`backend/`）
 - 前端：React 19 + TypeScript + Vite 8 + **Tailwind CSS 4**（CSS-first）+ **React Router 7** + Zustand + framer-motion + **vite-plugin-pwa**（Service Worker/manifest，`front/`）
 - **✅ 已是 git 仓库**（2026-08-28 初始化）：远程 `origin → https://github.com/Oyh2005/yunshujuan.git`（分支 `main`）
-- **⚠️ 本地领先 origin/main 4 个提交待推送**（08-29 晚：`3299709` 错误监控、`ae11b7e` 运维脚本、`09fc9f5` PWA、`195ea07` docs）——开新会话提醒用户 `git push`（凭据/PAT 由用户本机操作，沙箱无凭据）；此前体验打磨 5 个提交用户已确认推送
+- **⚠️ 本地领先 origin/main 16 个提交待推送**（08-29 晚：私聊微信化 6 个 + 布局修复 + 文档同步等；最早的一批尚未推送）——开新会话**第一件事提醒用户 `git push`**（凭据/PAT 由用户本机操作，沙箱无凭据）；此前体验打磨 5 个提交用户已确认推送
 - 用户会手动改代码，开工前先 `git status` 核对最近改动
 
 ## 2. 当前已完成功能总览（勿重复开发）
@@ -62,7 +62,7 @@
 7. **PWA/错误监控（08-29 晚）**：`vite-plugin-pwa` 只随 `npm run build` 产物生效（dev 模式不注册 SW，不影响开发）；`POST /telemetry/error` 允许匿名（登录页也上报），`error_reports` 表启动自动创建；备份/巡检脚本在 `deploy/`（**.ps1 已带 UTF-8 BOM，编辑后勿丢**，见踩坑 34）
 
 ### 沙箱验证方式
-5. **pytest 沙箱跑不了**（tmp_path PermissionError）→ 后端验证用 **py_compile + 临时 uvicorn 801x 实测**（探针脚本断言，测后 kill + 清理数据）。可复用探针：`.probe_export_zip.py`（zip 导出，8017）、`.probe_period_stats.py`（周月聚合，8018）、`.probe_telemetry.py`（错误上报，8019）、`.probe_ai_perf.py`（SSE 时间线）、`.probe_verify*.py`（DeepSeek 对照）
+5. **pytest 沙箱跑不了**（tmp_path PermissionError）→ 后端验证用 **py_compile + 临时 uvicorn 801x/802x 实测**（探针脚本断言，测后 kill + 清理数据）。可复用探针：`.probe_chat.py`（私聊 REST+WS 全流程）、`.probe_conv_settings.py`（会话设置）、`.probe_chat_image.py`（图片上传）、`.probe_recall.py`（引用/撤回）、`.probe_ws_status.py`（在线/typing）、`.probe_export_zip.py`（zip 导出）、`.probe_period_stats.py`（周月聚合）、`.probe_telemetry.py`（错误上报）、`.probe_ai_perf.py`（SSE 时间线）、`.probe_verify*.py`（DeepSeek 对照）
 6. **vite build/dev 沙箱跑不了**（spawn EPERM）→ 前端用 `npx tsc -b --noEmit` + `npx eslint src --ext .ts,.tsx`；CSS 可用 Node 直接调 `@tailwindcss/postcss` 编译验证（见历史做法）
 7. **npm install 需指定缓存**：`--cache "D:\项目\RAGNotebook-master\.npm-cache" --no-audit --no-fund`
 8. PowerShell 传中文 body 会编码损坏，后端断言必须用 Python/UTF-8 客户端
@@ -128,8 +128,12 @@
 ## 4. 剩余任务（按优先级）
 
 ### ⚠️ 立即事项
-- **本地 4 个提交未推送 `origin/main`**（`3299709` 错误监控 / `ae11b7e` 运维脚本 / `09fc9f5` PWA / `195ea07` docs）——提醒用户 `git push`（凭据/PAT 由用户本机操作）
-- **用户待办（08-29 晚）**：① 重启后端 8000（`error_reports` 表自动创建 + `/telemetry/error` 路由）；② 本机 `cd front && npm run build` 验证 PWA（沙箱跑不了 vite build——检查 `dist/sw.js`、manifest、DevTools Application 面板 SW 注册与离线缓存）；③ 可选：备份/巡检脚本挂计划任务（`deploy/backup.ps1` 与 `deploy/check-logs.ps1` 头部有注册示例）
+- **本地 16 个提交未推送 `origin/main`**（私聊微信化五阶段 + 气泡布局修复 + 各项 docs）——开新会话第一件事提醒用户 `git push`（凭据/PAT 由用户本机操作）
+- **用户待办（08-29 晚，开新窗口时确认是否已完成）**：
+  ① **重启后端 8000**（`private_messages` 自动加 4 列：message_type/reply_to_id/reply_content/recalled + `chat_conversation_settings` 新表 + 图片上传/撤回/会话设置接口 + WS 在线/typing 协议）
+  ② **本机 `cd front && npm run build` 验证 PWA**（沙箱跑不了 vite build——检查 `dist/sw.js`、manifest、SW 注册与离线缓存）
+  ③ **双账号（admin/admin2）实测私聊全功能**：气泡左右分区/头像/时间分组/发送状态、emoji/图片互发+预览、引用回复、2 分钟内撤回、置顶/删除/搜索、在线绿点、"正在输入"
+  ④ 可选：备份/巡检脚本挂计划任务（`deploy/backup.ps1` 与 `deploy/check-logs.ps1` 头部有注册示例）
 
 ### ✅ 全部里程碑已完成（M2/M3/M4、方向 A/B/C1/C2/C3、数据上云、D 阶段一、备选精选、UI 改版、lint 清零、风格统一）
 
@@ -200,6 +204,7 @@
 - **会话管理**：个人置顶/删除会话（个人设置表）/搜索
 - **实时状态**：WS 在线/离线广播（排除自己）+ typing 正在输入 + 在线绿点
 - **验证**：四组探针 ALL PASS（图片 6 项/撤回 7 项/会话设置 8 项/WS 状态 4 项）+ tsc/eslint 全绿；⚠️ 双账号全功能实测需本机验证
+- **布局修复（`68cfec9`）**：气泡左右分区曾失效——`.messages-chat-body` 缺 `display:flex; flex-direction:column`，`align-self:flex-end`（自己消息靠右）不生效，全部消息挤左侧+右侧留白；已修复 + 消息间距 16px
 
 ### 🔜 待办（按触发条件）
 | 项 | 触发条件 | 参考 |
