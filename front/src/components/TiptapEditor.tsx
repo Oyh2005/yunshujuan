@@ -18,6 +18,7 @@ import remarkGfm from 'remark-gfm'
 import { marked } from 'marked'
 import TurndownService from 'turndown'
 import ReactMarkdown from 'react-markdown'
+import { Bold, Italic, Strikethrough, Code2, List, ListOrdered, ListChecks, Quote, Braces, Table2, Minus, Undo2, Redo2 } from 'lucide-react'
 
 // ── Turndown: HTML → Markdown ──
 
@@ -110,25 +111,25 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleBold().run()}
           active={editor.isActive('bold')}
-          label={<strong>B</strong>}
+          label={<><Bold size={15} /><span>加粗</span></>}
           title="加粗"
         />
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleItalic().run()}
           active={editor.isActive('italic')}
-          label={<em>I</em>}
+          label={<><Italic size={15} /><span>斜体</span></>}
           title="斜体"
         />
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleStrike().run()}
           active={editor.isActive('strike')}
-          label={<span style={{textDecoration:'line-through'}}>S</span>}
+          label={<><Strikethrough size={15} /><span>删除线</span></>}
           title="删除线"
         />
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleCode().run()}
           active={editor.isActive('code')}
-          label="<>"
+          label={<><Code2 size={15} /><span>行内代码</span></>}
           title="行内代码"
         />
         <span className="toolbar-divider" />
@@ -156,19 +157,19 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           active={editor.isActive('bulletList')}
-          label="UL"
+          label={<><List size={15} /><span>列表</span></>}
           title="无序列表"
         />
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           active={editor.isActive('orderedList')}
-          label="OL"
+          label={<><ListOrdered size={15} /><span>编号</span></>}
           title="有序列表"
         />
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleTaskList().run()}
           active={editor.isActive('taskList')}
-          label="☑"
+          label={<><ListChecks size={15} /><span>任务</span></>}
           title="任务列表"
         />
         <span className="toolbar-divider" />
@@ -176,13 +177,13 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
           active={editor.isActive('blockquote')}
-          label={'"'}
+          label={<><Quote size={15} /><span>引用</span></>}
           title="引用"
         />
         <ToolbarBtn
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
           active={editor.isActive('codeBlock')}
-          label="</>"
+          label={<><Braces size={15} /><span>代码块</span></>}
           title="代码块"
         />
         {editor.isActive('codeBlock') && (
@@ -222,7 +223,7 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
           <ToolbarBtn
             onClick={() => { if (inTable) return; setShowTableGrid((v) => !v) }}
             active={inTable}
-            label="⊞"
+            label={<><Table2 size={15} /><span>表格</span></>}
             title={inTable ? '表格操作' : '插入表格'}
           />
           {showTableGrid && !inTable && (
@@ -294,19 +295,19 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
         )}
         <ToolbarBtn
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
-          label="—"
+          label={<><Minus size={15} /><span>分割线</span></>}
           title="分割线"
         />
         <span className="toolbar-divider" />
 
         <ToolbarBtn
           onClick={() => editor.chain().focus().undo().run()}
-          label="↩"
+          label={<><Undo2 size={15} /><span>撤销</span></>}
           title="撤销"
         />
         <ToolbarBtn
           onClick={() => editor.chain().focus().redo().run()}
-          label="↪"
+          label={<><Redo2 size={15} /><span>重做</span></>}
           title="重做"
         />
       </div>

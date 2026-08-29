@@ -24,7 +24,7 @@ export default function MainLayout() {
         ? ' is-ai'
         : ['/review', '/habit', '/pomodoro'].includes(location.pathname)
           ? ' is-learning'
-          : ['/social', '/friends', '/notifications'].includes(location.pathname)
+          : ['/social', '/friends', '/messages', '/notifications'].includes(location.pathname)
             ? ' is-social'
         : ''
 

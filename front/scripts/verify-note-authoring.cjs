@@ -84,6 +84,7 @@ async function run() {
     if (pathname === '/note/list') return reply({ notes: [], total_count: 0 })
     if (pathname === '/note/stats') return reply({ total: 0, categories: [], uncategorized: 0 })
     if (pathname === '/social/notifications/unread-count') return reply({ count: 0 })
+    if (pathname === '/social/chat/unread-count') return reply({ count: 0 })
     if (pathname === '/user/settings/') return reply({ pet_config: null, habit_config: null })
     if (pathname === '/user/detail/') return reply(user)
     if (pathname === '/note/autocomplete') return reply({ completion: null })
@@ -110,6 +111,26 @@ async function run() {
     const box = await pet.boundingBox()
     assert(box && box.width > 0 && box.height > 0, 'The global companion must remain visible')
   }
+  const expectFullScreenShell = async (sidebarWidth) => {
+    const metrics = await page.locator('.app-shell').evaluate((element) => {
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      const workspace = element.querySelector('.app-workspace')
+      return {
+        variant: element.classList.contains('is-note-authoring'),
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        viewport: innerWidth,
+        padding: style.padding,
+        gap: style.gap,
+        workspaceRadius: getComputedStyle(workspace).borderRadius,
+      }
+    })
+    const viewportWidth = page.viewportSize().width
+    assert.deepEqual(metrics, { variant: true, left: 0, top: 0, width: viewportWidth, viewport: viewportWidth, padding: '0px', gap: '0px', workspaceRadius: '0px' })
+    assert.equal(Math.round(await page.locator('.app-sidebar').evaluate((element) => element.getBoundingClientRect().width)), sidebarWidth)
+  }
   const openNewMeetingNote = async () => {
     await page.goto(`${baseURL}/notes/new`)
     await page.getByRole('button', { name: '使用模板：会议纪要', exact: true }).click()
@@ -124,19 +145,26 @@ async function run() {
         await page.locator('.note-writing-page .ProseMirror h2').allTextContents(),
         [...meetingTemplate.content.matchAll(/^## (.+)$/gm)].map((match) => match[1]),
       )
-      assert.equal(Math.round(await page.locator('.app-sidebar').evaluate((element) => element.getBoundingClientRect().width)), 206)
+      await expectFullScreenShell(206)
       assert.equal(await page.locator('.note-writing-document').count(), 1)
-      assert.equal(await page.getByRole('button', { name: '保存', exact: true }).count(), 1)
+      assert.equal(await page.getByRole('button', { name: '保存笔记', exact: true }).count(), 1)
+      assert.equal(await page.locator('.note-writing-body > .w-60').isVisible(), true)
+      assert.equal(await page.locator('.note-writing-inspector').isVisible(), true)
+      const toolbarText = await page.locator('.tiptap-toolbar').innerText()
+      for (const label of ['正文', '加粗', '任务', '代码块', '表格']) assert(toolbarText.includes(label), label)
       await expectPet()
       await noOverflow()
       await page.screenshot({ path: path.join(output, 'editor-desktop.png'), fullPage: true })
     })
 
     await check('outline panel remains reachable and aligned with the writing surface', async () => {
-      await page.getByTitle('目录', { exact: true }).click()
       const firstHeading = meetingTemplate.content.match(/^## (.+)$/m)?.[1]
       assert(firstHeading, 'The meeting template must include an outline heading')
       assert.equal(await page.getByText(firstHeading, { exact: true }).count() > 0, true)
+      await page.getByTitle('目录', { exact: true }).click()
+      assert.equal(await page.locator('.note-writing-body > .w-60').count(), 0)
+      await page.getByTitle('目录', { exact: true }).click()
+      assert.equal(await page.locator('.note-writing-body > .w-60').isVisible(), true)
       await noOverflow()
       await page.screenshot({ path: path.join(output, 'editor-outline.png'), fullPage: true })
     })
@@ -150,11 +178,12 @@ async function run() {
       await page.getByTitle('反向链接', { exact: true }).click()
       assert.equal(await page.locator('.note-writing-body > .w-80 h2').filter({ hasText: '反向链接' }).count() > 0, true)
 
-      await page.getByTitle('分享', { exact: true }).click()
+      await page.getByRole('button', { name: '分享', exact: true }).click()
       await page.getByRole('heading', { name: '分享笔记', exact: true }).waitFor()
       await page.getByRole('button', { name: '取消', exact: true }).click()
 
-      await page.getByTitle('存为模板', { exact: true }).click()
+      await page.getByRole('button', { name: '更多', exact: true }).click()
+      await page.getByRole('menuitem', { name: '存为模板', exact: true }).click()
       await page.getByRole('heading', { name: '保存为模板', exact: true }).waitFor()
       await page.getByRole('button', { name: '取消', exact: true }).click()
       await expectPet()
@@ -175,8 +204,9 @@ async function run() {
       await page.setViewportSize({ width: 390, height: 844 })
       await page.goto(`${baseURL}/notes/editor-preview`)
       await page.locator('.note-writing-page .ProseMirror').waitFor()
-      assert.equal(Math.round(await page.locator('.app-sidebar').evaluate((element) => element.getBoundingClientRect().width)), 56)
-      assert.equal(await page.getByRole('button', { name: '保存', exact: true }).count(), 1)
+      await expectFullScreenShell(56)
+      assert.equal(await page.getByRole('button', { name: '保存笔记', exact: true }).count(), 1)
+      assert.equal(await page.locator('.note-writing-body > .w-60').count(), 0)
       await expectPet()
       await noOverflow()
       await page.screenshot({ path: path.join(output, 'editor-mobile.png'), fullPage: true })

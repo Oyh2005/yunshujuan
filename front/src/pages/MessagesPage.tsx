@@ -2,7 +2,8 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ArrowLeft, Check, Copy, Forward, ImagePlus, Loader2, MessageSquare, Pin, Quote, Search, Send, Smile, Trash2, Undo2, Users, X } from 'lucide-react'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { ArrowLeft, Check, Copy, Forward, ImagePlus, Loader2, MessageSquare, MoreHorizontal, Pin, Plus, Quote, Search, Send, Smile, Trash2, Undo2, Users, X } from 'lucide-react'
 import { messagesApi, type ChatConversation, type ChatMessage, type ChatPeer } from '../api/messages'
 import { socialApi } from '../api/social'
 import type { SocialUser } from '../types/api'
@@ -104,7 +105,6 @@ export default function MessagesPage() {
   const english = i18n.resolvedLanguage?.startsWith('en') ?? false
   const text = useCallback((zh: string, en: string) => english ? en : zh, [english])
   const userId = useUserStore((s) => s.userInfo?.uuid || s.userInfo?.user_id || s.userInfo?.id || '')
-  const user = useUserStore((s) => s.userInfo)
   const setUnread = useChatStore((s) => s.setUnread)
   const chatFontSize = useChatFontStore((s) => s.size)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -169,7 +169,8 @@ export default function MessagesPage() {
   // 防重复打开同一 with 会话（配合上面的依赖稳定，双保险）
   const openedWithRef = useRef<string | null>(null)
 
-  const selectedPeer = conversations.find((c) => c.peer.user_id === selectedPeerId)?.peer ?? directPeer
+  const selectedConversation = conversations.find((c) => c.peer.user_id === selectedPeerId)
+  const selectedPeer = selectedConversation?.peer ?? directPeer
   // 消息 id → 消息（引用条联动用：被引用消息撤回后，引用显示「消息已撤回」）
   const msgById = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages])
 
@@ -645,6 +646,21 @@ export default function MessagesPage() {
       />
       <div className={`messages-layout${selectedPeerId ? ' has-chat' : ''}`} style={{ '--chat-font-size': `${chatFontSize}px` } as React.CSSProperties}>
         <aside className="messages-list" aria-label={text('会话列表', 'Conversations')}>
+          <div className="messages-list-head">
+            <div>
+              <strong>{text('消息', 'Messages')}</strong>
+              <small>{conversations.length} {text('个会话', 'conversations')}</small>
+            </div>
+            <Link className="messages-new-chat" to="/friends" title={text('从好友中发起私信', 'Start a chat with a friend')} aria-label={text('发起私信', 'Start a chat')}>
+              <Plus size={17} />
+            </Link>
+          </div>
+          {!loadingList && conversations.length > 0 && (
+            <label className="messages-search">
+              <Search size={14} />
+              <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={text('搜索会话…', 'Search conversations…')} aria-label={text('搜索会话', 'Search conversations')} />
+            </label>
+          )}
           {loadingList ? (
             <div className="messages-loading"><Loader2 size={18} className="animate-spin" />{text('加载会话…', 'Loading…')}</div>
           ) : listFailed ? (
@@ -657,10 +673,6 @@ export default function MessagesPage() {
             </div>
           ) : (
             <>
-              <label className="messages-search">
-                <Search size={14} />
-                <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={text('搜索会话…', 'Search conversations…')} aria-label={text('搜索会话', 'Search conversations')} />
-              </label>
               {filteredConversations.length === 0 ? (
                 <div className="messages-empty"><MessageSquare size={22} /><p>{text('没有匹配的会话', 'No matching conversations')}</p></div>
               ) : (
@@ -681,7 +693,13 @@ export default function MessagesPage() {
                           {onlineUsers.has(conv.peer.user_id) && <i className="messages-online-dot" title={text('在线', 'Online')} />}
                         </span>
                         <span className="messages-conv-copy">
-                          <span className="messages-conv-top"><strong>{conv.peer.username}</strong><time>{formatTime(conv.last_message_at, english)}</time></span>
+                          <span className="messages-conv-top">
+                            <strong>{conv.peer.username}</strong>
+                            <span className="messages-conv-meta">
+                              {conv.is_pinned && <Pin size={10} aria-label={text('已置顶', 'Pinned')} />}
+                              <time>{formatTime(conv.last_message_at, english)}</time>
+                            </span>
+                          </span>
                           <span className="messages-conv-bottom">
                             <small>{conv.last_sender_id === userId ? `${text('我：', 'You: ')}${conv.last_message.startsWith('/media/') ? text('[图片]', '[Image]') : conv.last_message}` : conv.last_message.startsWith('/media/') ? text('[图片]', '[Image]') : conv.last_message}</small>
                             {conv.unread > 0 && <b>{conv.unread > 99 ? '99+' : conv.unread}</b>}
@@ -710,11 +728,45 @@ export default function MessagesPage() {
             <>
               <header className="messages-chat-head">
                 <button className="messages-chat-back" onClick={closeChat} aria-label={text('返回会话列表', 'Back')}><ArrowLeft size={17} /></button>
-                <SocialAvatar username={selectedPeer.username} avatar={selectedPeer.avatar} size={34} />
+                <span className="messages-peer-avatar messages-chat-avatar">
+                  <SocialAvatar username={selectedPeer.username} avatar={selectedPeer.avatar} size={38} />
+                  {onlineUsers.has(selectedPeer.user_id) && <i className="messages-online-dot" title={text('在线', 'Online')} />}
+                </span>
                 <span className="messages-chat-peer">
                   <strong>{selectedPeer.username}</strong>
-                  {peerTyping && <small className="messages-typing">{text('正在输入…', 'Typing…')}</small>}
+                  {peerTyping ? (
+                    <small className="messages-typing">{text('正在输入…', 'Typing…')}</small>
+                  ) : (
+                    <small className={`messages-presence${onlineUsers.has(selectedPeer.user_id) ? ' is-online' : ''}`}>
+                      <i />{onlineUsers.has(selectedPeer.user_id) ? text('在线', 'Online') : text('离线', 'Offline')}
+                    </small>
+                  )}
                 </span>
+                {selectedConversation && (
+                  <div className="messages-chat-actions">
+                    <button
+                      className={`messages-chat-action${selectedConversation.is_pinned ? ' is-active' : ''}`}
+                      onClick={() => void togglePin(selectedConversation)}
+                      disabled={settingBusy === selectedConversation.peer.user_id}
+                      title={selectedConversation.is_pinned ? text('取消置顶', 'Unpin') : text('置顶会话', 'Pin conversation')}
+                      aria-label={selectedConversation.is_pinned ? text('取消置顶', 'Unpin') : text('置顶会话', 'Pin conversation')}
+                    >
+                      {settingBusy === selectedConversation.peer.user_id ? <Loader2 size={17} className="animate-spin" /> : <Pin size={17} />}
+                    </button>
+                    <DropdownMenu.Root>
+                      <DropdownMenu.Trigger asChild>
+                        <button className="messages-chat-action" aria-label={text('会话操作', 'Conversation actions')}><MoreHorizontal size={19} /></button>
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.Content className="workspace-menu messages-chat-menu" sideOffset={7} align="end" collisionPadding={12}>
+                          <DropdownMenu.Item className="workspace-menu-item workspace-menu-danger" onSelect={() => setDeleteTarget(selectedConversation)}>
+                            <Trash2 size={15} />{text('删除会话', 'Delete conversation')}
+                          </DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
+                  </div>
+                )}
               </header>
               <div className="messages-chat-body">
                 {hasMore && (
@@ -759,7 +811,7 @@ export default function MessagesPage() {
                             ) : msg.message_type === 'image' ? (
                               <img className="messages-image" src={msg.content} alt={text('聊天图片', 'Chat image')} loading="lazy" onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
                             ) : (
-                              <>
+                              <div className="messages-text-bubble">
                                 {msg.reply_content && (
                                   <div className={`messages-quote${msgById.get(msg.reply_to_id ?? -1)?.recalled ? ' is-recalled' : ''}`} title={text('引用消息', 'Quoted message')}>
                                     {(() => {
@@ -784,7 +836,7 @@ export default function MessagesPage() {
                                   </div>
                                 )}
                                 <p>{msg.content}</p>
-                              </>
+                              </div>
                             )}
                           </div>
                           {mine && (
@@ -793,7 +845,6 @@ export default function MessagesPage() {
                             </span>
                           )}
                         </div>
-                        {mine && <SocialAvatar username={user?.username || ''} avatar={user?.avatar || null} size={30} />}
                       </div>
                     </Fragment>
                   )
@@ -805,6 +856,9 @@ export default function MessagesPage() {
                 {replyTo && (
                   <div className="messages-reply-bar">
                     <Quote size={13} />
+                    <span className="messages-reply-label">
+                      {text('正在回复', 'Replying to')} <strong>{replyTo.sender_id === userId ? text('自己', 'yourself') : selectedPeer.username}</strong>
+                    </span>
                     <span className="messages-reply-copy">{replyTo.message_type === 'image' ? text('[图片]', '[Image]') : replyTo.reply_content || replyTo.content}</span>
                     <button onClick={() => setReplyTo(null)} aria-label={text('取消引用', 'Cancel reply')}><X size={13} /></button>
                   </div>
@@ -827,12 +881,13 @@ export default function MessagesPage() {
                     value={input}
                     onChange={(event) => { setInput(event.target.value); if (sendError) setSendError(''); notifyTyping() }}
                     onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSend() } }}
-                    placeholder={text('输入消息，Enter 发送…', 'Type a message, Enter to send…')}
+                    placeholder={text('输入消息，Enter 发送，Shift + Enter 换行', 'Type a message, Enter to send, Shift + Enter for a new line')}
                     rows={1}
                     aria-label={text('消息内容', 'Message')}
                   />
                   <button className="messages-send" onClick={() => void handleSend()} disabled={!input.trim() || sending} aria-label={text('发送', 'Send')}>
                     {sending ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
+                    <span>{text('发送', 'Send')}</span>
                   </button>
                 </div>
               </footer>

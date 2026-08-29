@@ -57,6 +57,19 @@ const notifications = [
   { id: 'notification-4', type: 'friend_accepted', post_id: null, content: null, read: true, actor: people.lin, created_at: new Date(Date.now() - 172800000).toISOString() },
 ]
 
+const conversations = [
+  { conversation_id: 'chat-lin', peer: people.lin, last_message: '好呀，我正想补充知识图谱那一节。', last_sender_id: people.self.user_id, last_message_at: now, unread: 2, is_pinned: true },
+  { conversation_id: 'chat-zhou', peer: people.zhou, last_message: '我把文档发你啦，看看这部分。', last_sender_id: people.zhou.user_id, last_message_at: new Date(Date.now() - 3600000).toISOString(), unread: 0, is_pinned: false },
+  { conversation_id: 'chat-su', peer: people.su, last_message: '/media/chat/sample.webp', last_sender_id: people.su.user_id, last_message_at: new Date(Date.now() - 86400000).toISOString(), unread: 0, is_pinned: false },
+]
+
+const chatMessages = [
+  { id: 201, conversation_id: 'chat-lin', sender_id: people.lin.user_id, message_type: 'text', content: '刚刚整理完 RAG 笔记，你要不要一起看看？', reply_to_id: null, reply_content: null, recalled: false, read: true, created_at: new Date(Date.now() - 600000).toISOString() },
+  { id: 202, conversation_id: 'chat-lin', sender_id: people.self.user_id, message_type: 'text', content: '好呀，我正想补充知识图谱那一节。', reply_to_id: null, reply_content: null, recalled: false, read: true, created_at: new Date(Date.now() - 480000).toISOString() },
+  { id: 203, conversation_id: 'chat-lin', sender_id: people.lin.user_id, message_type: 'image', content: '/illustrations/study-cloud.png', reply_to_id: null, reply_content: null, recalled: false, read: true, created_at: new Date(Date.now() - 360000).toISOString() },
+  { id: 204, conversation_id: 'chat-lin', sender_id: people.self.user_id, message_type: 'text', content: '我把这部分的关联补上了，你看看这样会不会更清楚？', reply_to_id: 201, reply_content: '知识图谱那一节', recalled: false, read: true, created_at: new Date(Date.now() - 240000).toISOString() },
+]
+
 async function run() {
   fs.mkdirSync(output, { recursive: true })
   const browser = await chromium.launch({ channel: 'msedge', headless: true })
@@ -92,6 +105,10 @@ async function run() {
 
     if (pathname === '/user/settings/') return reply({ pet_config: null, habit_config: null })
     if (pathname === '/social/notifications/unread-count') return reply({ count: notifications.filter((item) => !item.read).length })
+    if (pathname === '/social/chat/unread-count') return reply({ count: conversations.reduce((sum, item) => sum + item.unread, 0) })
+    if (pathname === '/social/chat/conversations' && request.method() === 'GET') return reply({ conversations })
+    if (pathname === '/social/chat/conversations/friend-lin/messages' && request.method() === 'GET') return reply({ messages: chatMessages, has_more: false, conversation_id: 'chat-lin' })
+    if (pathname === '/social/chat/conversations/friend-lin/read' && request.method() === 'POST') { writes.push('POST ' + pathname); return reply({ unread: 0 }) }
     if (pathname === '/social/posts/feed') return reply({ posts, next_cursor: null })
     if (pathname === '/social/friends/list') return reply([people.lin, people.zhou])
     if (pathname === '/social/friends/requests') return reply(requests)
@@ -105,13 +122,22 @@ async function run() {
     return reply(null)
   })
 
-  const assertHealthy = async () => {
+  const assertHealthy = async ({ petCard = true } = {}) => {
     assert.equal(await page.getByText('页面出错了', { exact: true }).count(), 0)
+    const shell = page.locator('.app-shell')
+    assert.equal(await shell.evaluate((element) => element.classList.contains('is-social')), true)
+    const shellBox = await shell.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      return { left: Math.round(rect.left), top: Math.round(rect.top), width: Math.round(rect.width), viewport: innerWidth }
+    })
+    assert.deepEqual(shellBox, { left: 0, top: 0, width: shellBox.viewport, viewport: shellBox.viewport })
     const dims = await page.locator('main.app-workspace').evaluate((element) => ({ client: element.clientWidth, scroll: element.scrollWidth, doc: document.documentElement.scrollWidth, viewport: innerWidth }))
     assert(dims.scroll <= dims.client + 1 && dims.doc <= dims.viewport + 1, JSON.stringify(dims))
+    const workspaceRadius = await page.locator('main.app-workspace').evaluate((element) => getComputedStyle(element).borderRadius)
+    assert.equal(workspaceRadius, '0px')
     const sidebarWidth = await page.locator('.app-sidebar').evaluate((element) => Math.round(element.getBoundingClientRect().width))
     assert.equal(sidebarWidth, page.viewportSize().width <= 700 ? 56 : 206)
-    assert.equal(await page.locator('.social-pet-card').count(), 1)
+    if (petCard) assert.equal(await page.locator('.social-pet-card').count(), 1)
   }
 
   try {
@@ -129,8 +155,8 @@ async function run() {
     const searchInput = page.locator('.social-search-field input')
     await searchInput.fill('苏木')
     await searchInput.press('Enter')
-    await page.getByRole('button', { name: /添加|加好友/ }).waitFor()
-    await page.getByRole('button', { name: /添加|加好友/ }).click()
+    await page.getByRole('button', { name: '加好友', exact: true }).waitFor()
+    await page.getByRole('button', { name: '加好友', exact: true }).click()
     await assertHealthy()
     await page.screenshot({ path: path.join(output, 'friends-desktop.png'), fullPage: true, animations: 'disabled' })
 
@@ -141,6 +167,17 @@ async function run() {
     await assertHealthy()
     await page.screenshot({ path: path.join(output, 'notifications-desktop.png'), fullPage: true, animations: 'disabled' })
 
+    await page.goto(base + '/messages?with=friend-lin')
+    await page.getByRole('heading', { name: '私信', exact: true }).waitFor()
+    await page.locator('.messages-chat-head').waitFor()
+    assert.equal(await page.locator('.messages-conv').count(), conversations.length)
+    assert.equal(await page.locator('.messages-bubble').count(), chatMessages.length)
+    await page.getByRole('button', { name: '会话操作' }).click()
+    await page.getByRole('menuitem', { name: '删除会话' }).waitFor()
+    await page.keyboard.press('Escape')
+    await assertHealthy({ petCard: false })
+    await page.screenshot({ path: path.join(output, 'messages-desktop.png'), fullPage: true, animations: 'disabled' })
+
     await page.setViewportSize({ width: 390, height: 844 })
     for (const pageName of ['social', 'friends', 'notifications']) {
       await page.goto(base + '/' + pageName)
@@ -149,6 +186,16 @@ async function run() {
       await page.screenshot({ path: path.join(output, pageName + '-mobile.png'), fullPage: true, animations: 'disabled' })
     }
 
+    await page.goto(base + '/messages?with=friend-lin')
+    await page.locator('.messages-chat-head').waitFor()
+    await assertHealthy({ petCard: false })
+    await page.screenshot({ path: path.join(output, 'messages-mobile.png'), fullPage: true, animations: 'disabled' })
+    await page.getByRole('button', { name: '返回会话列表' }).click()
+    await page.locator('.messages-list').waitFor()
+    assert.equal(await page.locator('.messages-conv').count(), conversations.length)
+    await assertHealthy({ petCard: false })
+    await page.screenshot({ path: path.join(output, 'messages-list-mobile.png'), fullPage: true, animations: 'disabled' })
+
     await page.setViewportSize({ width: 1536, height: 1080 })
     await page.goto(base + '/social')
     await page.getByRole('heading', { name: '知识动态', exact: true }).waitFor()
@@ -156,13 +203,20 @@ async function run() {
     await assertHealthy()
     await page.screenshot({ path: path.join(output, 'feed-dark.png'), fullPage: true, animations: 'disabled' })
 
+    await page.goto(base + '/messages?with=friend-lin')
+    await page.locator('.messages-chat-head').waitFor()
+    await page.locator('html').evaluate((element) => element.classList.add('dark'))
+    await assertHealthy({ petCard: false })
+    await page.screenshot({ path: path.join(output, 'messages-dark.png'), fullPage: true, animations: 'disabled' })
+
     assert.deepEqual(errors, [])
     assert.deepEqual(unexpected, [])
     assert(writes.includes('POST /social/posts/101/like'))
     assert(writes.includes('POST /social/friends/request'))
     assert(writes.includes('POST /social/notifications/read'))
-    fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ checks: 7, errors, unexpected, writes, isolatedFixtures: true }, null, 2))
-    console.log('7 social-page checks passed')
+    assert(writes.includes('POST /social/chat/conversations/friend-lin/read'))
+    fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ checks: 11, errors, unexpected, writes, isolatedFixtures: true }, null, 2))
+    console.log('11 social-page checks passed')
   } catch (error) {
     await page.screenshot({ path: path.join(output, 'failure.png'), fullPage: true }).catch(() => {})
     console.error({ errors, unexpected })

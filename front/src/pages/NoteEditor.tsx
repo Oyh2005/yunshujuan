@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ArrowLeft, Save, Trash2, Download, Link2, ListTree, FileText, Users, GraduationCap, BookOpen, ListTodo, BookMarked, Plus, GripVertical, Share2, GitBranch, ExternalLink, X, FileCode2, Printer } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Download, Link2, ListTree, FileText, Users, GraduationCap, BookOpen, ListTodo, BookMarked, Plus, GripVertical, Share2, GitBranch, ExternalLink, X, FileCode2, Printer, Sparkles, ChevronRight, MoreHorizontal } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { marked } from 'marked'
 import TiptapEditor, { type TiptapEditorHandle } from '../components/TiptapEditor'
@@ -68,7 +68,7 @@ export default function NoteEditor() {
   const [showDelete, setShowDelete] = useState(false)
   const [templateDeleteTarget, setTemplateDeleteTarget] = useState<NoteTemplate | null>(null)
   const [showRelated, setShowRelated] = useState(false)
-  const [showOutline, setShowOutline] = useState(false)
+  const [showOutline, setShowOutline] = useState(() => window.matchMedia('(min-width: 981px)').matches)
   const [showCard, setShowCard] = useState(false)
   const [showBacklinks, setShowBacklinks] = useState(false)
   const [isPublic, setIsPublic] = useState(false)
@@ -89,6 +89,16 @@ export default function NoteEditor() {
   const editorRef = useRef<TiptapEditorHandle>(null)
   const dragItem = useRef<number | null>(null)
   const isNew = !id || id === 'new'
+  const wordCount = useMemo(() => content.replace(/\s/g, '').length, [content])
+
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 981px)')
+    const handleBreakpoint = (event: MediaQueryListEvent) => {
+      if (!event.matches) setShowOutline(false)
+    }
+    desktop.addEventListener('change', handleBreakpoint)
+    return () => desktop.removeEventListener('change', handleBreakpoint)
+  }, [])
 
   const loadTemplateOrder = (): string[] => {
     try {
@@ -120,6 +130,7 @@ export default function NoteEditor() {
       setCategory(note.category || '')
       setTags(note.tags || [])
       setIsPublic(!!note.is_public)
+      setSaveStatus('saved')
       setLoadFailed(false)
       setLoading(false)
     }).catch(() => {
@@ -157,6 +168,7 @@ export default function NoteEditor() {
         await notesApi.update(id, { title, content, category, tags })
         toast.success('保存成功')
       }
+      setSaveStatus('saved')
       // 页宠联动：保存笔记成功
       usePetStore.getState().trigger('note_saved')
     } catch {
@@ -707,23 +719,27 @@ ${body}
   return (
     <div className="note-authoring-page note-writing-page h-full flex flex-col bg-[var(--color-bg)]">
       {/* ====== Top bar ====== */}
-      <header className="note-authoring-topbar note-writing-topbar flex items-center justify-between flex-shrink-0 h-11 px-6 border-b border-[var(--color-border-light)]">
-        <button
-          onClick={() => navigate('/notes')}
-          className="note-authoring-back flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] rounded-lg transition-colors"
-          title="返回"
-        >
-          <ArrowLeft size={18} />
-        </button>
+      <header className="note-authoring-topbar note-writing-topbar flex items-center justify-between flex-shrink-0 border-b border-[var(--color-border-light)]">
+        <div className="note-writing-topbar-start">
+          <button
+            onClick={() => navigate('/notes')}
+            className="note-authoring-back flex items-center justify-center text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] transition-colors"
+            title="返回笔记列表"
+            aria-label="返回笔记列表"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <span className="note-writing-back-label">返回笔记</span>
+          <span className={`note-writing-save-state ${saveStatus === 'saved' ? 'is-saved' : ''}`}>
+            <span className="note-writing-save-dot" />
+            {saving ? '正在保存' : saveStatus === 'saved' ? (isNew ? '草稿已保存' : '已保存') : '有未保存更改'}
+          </span>
+        </div>
 
-        {isNew && saveStatus === 'saved' && (
-          <span className="text-xs text-[var(--color-text-tertiary)] ml-3 select-none">草稿已保存</span>
-        )}
-
-        <div className="note-writing-actions flex items-center gap-1">
+        <div className="note-writing-actions flex items-center">
           <button
             onClick={() => setShowOutline((v) => !v)}
-            className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
+            className={`note-writing-action ${
               showOutline
                 ? 'text-[var(--color-accent)] bg-[var(--color-accent-bg)]'
                 : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]'
@@ -731,12 +747,12 @@ ${body}
             title="目录"
           >
             <ListTree size={16} />
+            <span>目录</span>
           </button>
-          <span className="w-px h-5 bg-[var(--color-border-light)] mx-0.5" />
           {!isNew && (
             <button
-              onClick={() => setShowRelated((v) => !v)}
-              className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
+              onClick={() => { setShowRelated((v) => !v); setShowBacklinks(false) }}
+              className={`note-writing-action ${
                 showRelated
                   ? 'text-[var(--color-accent)] bg-[var(--color-accent-bg)]'
                   : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]'
@@ -744,12 +760,13 @@ ${body}
               title="关联片段"
             >
               <Link2 size={16} />
+              <span>关联片段</span>
             </button>
           )}
           {!isNew && (
             <button
-              onClick={() => setShowBacklinks((v) => !v)}
-              className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
+              onClick={() => { setShowBacklinks((v) => !v); setShowRelated(false) }}
+              className={`note-writing-action ${
                 showBacklinks
                   ? 'text-[var(--color-accent)] bg-[var(--color-accent-bg)]'
                   : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]'
@@ -757,16 +774,18 @@ ${body}
               title={t('backlinks.title')}
             >
               <GitBranch size={16} />
+              <span>反向链接</span>
             </button>
           )}
           {!isNew && (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button
-                  className="flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] rounded-lg transition-colors"
+                  className="note-writing-action text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]"
                   title={t('note.export')}
                 >
                   <Download size={16} />
+                  <span>导出</span>
                 </button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
@@ -782,16 +801,17 @@ ${body}
           {!isNew && (
             <button
               onClick={() => setShowCard(true)}
-              className="flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-bg)] rounded-lg transition-colors"
+              className="note-writing-action text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-bg)]"
               title={t('card.generate')}
             >
               <Share2 size={16} />
+              <span>笔记卡片</span>
             </button>
           )}
           {!isNew && (
             <button
               onClick={() => setShareOpen(true)}
-              className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
+              className={`note-writing-action ${
                 isPublic
                   ? 'text-[var(--color-accent)] bg-[var(--color-accent-bg)]'
                   : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-bg)]'
@@ -799,25 +819,25 @@ ${body}
               title={isPublic ? t('share.publicHint') : t('share.privateHint')}
             >
               <ExternalLink size={16} />
+              <span>分享</span>
             </button>
           )}
           {!isNew && (
-            <button
-              onClick={() => setShowDelete(true)}
-              className="flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)] rounded-lg transition-colors"
-              title={t('note.delete')}
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
-          {!isNew && (
-            <button
-              onClick={() => setShowSaveAsTemplate(true)}
-              className="flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-bg)] rounded-lg transition-colors"
-              title="存为模板"
-            >
-              <Plus size={16} />
-            </button>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button className="note-writing-action text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)]" title="更多操作">
+                  <MoreHorizontal size={16} />
+                  <span>更多</span>
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="workspace-menu" sideOffset={6} align="end" collisionPadding={12}>
+                  <DropdownMenu.Item className="workspace-menu-item" onSelect={() => setShowSaveAsTemplate(true)}><Plus size={15} />存为模板</DropdownMenu.Item>
+                  <DropdownMenu.Separator className="workspace-menu-separator" />
+                  <DropdownMenu.Item className="workspace-menu-item" onSelect={() => setShowDelete(true)}><Trash2 size={15} />{t('note.delete')}</DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           )}
           <button
             onClick={handleSave}
@@ -825,7 +845,7 @@ ${body}
             className="note-writing-save primary-button"
           >
             <Save size={15} />
-            {saving ? '保存中' : t('note.save')}
+            {saving ? '保存中' : '保存笔记'}
           </button>
         </div>
       </header>
@@ -837,61 +857,109 @@ ${body}
           onClose={() => setShowOutline(false)}
           onHeadingClick={(text, level) => editorRef.current?.scrollToHeading(text, level)}
         />
-        <div className="note-writing-document flex flex-col flex-1 min-w-0">
-          {/* ====== Title ====== */}
-          <div className="note-writing-title flex-shrink-0 px-10 pt-10 pb-4">
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="未命名笔记"
-              className="note-writing-title-input w-full text-[30px] font-bold font-heading leading-tight tracking-tight text-[var(--color-text)] bg-transparent border-none outline-none placeholder:text-[var(--color-text-placeholder)]"
-            />
-          </div>
+        <div className="note-writing-document flex flex-1 min-w-0">
+          <div className="note-writing-paper">
+            {/* ====== Title ====== */}
+            <div className="note-writing-title flex-shrink-0">
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => { setTitle(e.target.value); setSaveStatus('unsaved') }}
+                placeholder="未命名笔记"
+                className="note-writing-title-input w-full font-bold font-heading leading-tight tracking-tight text-[var(--color-text)] bg-transparent border-none outline-none placeholder:text-[var(--color-text-placeholder)]"
+              />
+            </div>
 
-          {/* ====== Category pills + Tags ====== */}
-          <div className="note-writing-meta flex-shrink-0 px-10 pb-6">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="note-writing-categories flex items-center gap-1">
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.value}
-                    onClick={() => setCategory(category === cat.value ? '' : cat.value)}
-                    className={`note-writing-category px-3 py-1 text-xs rounded-full font-medium transition-all ${
-                      category === cat.value
-                        ? 'is-active bg-[var(--color-accent)] text-[var(--color-accent-foreground)] shadow-sm'
-                        : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-              <div className="note-writing-tags flex-1 min-w-[180px]">
-                <TagInput tags={tags} onChange={setTags} placeholder="添加标签..." />
+            {/* ====== Category pills + Tags ====== */}
+            <div className="note-writing-meta flex-shrink-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="note-writing-categories flex items-center gap-1">
+                  {CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.value}
+                      onClick={() => { setCategory(category === cat.value ? '' : cat.value); setSaveStatus('unsaved') }}
+                      className={`note-writing-category px-3 py-1 text-xs rounded-full font-medium transition-all ${
+                        category === cat.value
+                          ? 'is-active bg-[var(--color-accent)] text-[var(--color-accent-foreground)] shadow-sm'
+                          : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="note-writing-tags flex-1 min-w-[180px]">
+                  <TagInput tags={tags} onChange={(next) => { setTags(next); setSaveStatus('unsaved') }} placeholder="添加标签..." />
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* ====== Crepe WYSIWYG Editor ====== */}
-          <div className="note-writing-editor flex-1 min-h-0">
-            <TiptapEditor
-              ref={editorRef}
-              key={id || 'new'}
-              value={content}
-              onChange={setContent}
-              placeholder="开始写作..."
-              onAutocomplete={async (context) => {
-                try {
-                  const res = await notesApi.autocomplete(context)
-                  return (res.data as { completion?: string })?.completion || null
-                } catch {
-                  return null
-                }
-              }}
-            />
+            {/* ====== Tiptap WYSIWYG Editor ====== */}
+            <div className="note-writing-editor flex-1 min-h-0">
+              <TiptapEditor
+                ref={editorRef}
+                key={id || 'new'}
+                value={content}
+                onChange={(next) => { setContent(next); setSaveStatus('unsaved') }}
+                placeholder="开始写作..."
+                onAutocomplete={async (context) => {
+                  try {
+                    const res = await notesApi.autocomplete(context)
+                    return (res.data as { completion?: string })?.completion || null
+                  } catch {
+                    return null
+                  }
+                }}
+              />
+            </div>
+            <div className="note-writing-statusbar">
+              <span>{wordCount} 字</span>
+              <span>{saveStatus === 'saved' ? '内容已保存' : '等待保存'}</span>
+              <span>Tab 接受智能续写</span>
+            </div>
           </div>
         </div>
+
+        {!showRelated && !showBacklinks && (
+          <aside className="note-writing-inspector" aria-label="写作辅助信息">
+            <section className="note-writing-inspector-card">
+              <div className="note-writing-inspector-heading">
+                <h2>写作助手</h2>
+                <Sparkles size={17} />
+              </div>
+              <div className="note-writing-assistant-status">
+                <div><kbd>Tab</kbd><strong>智能续写已开启</strong></div>
+                <p>停顿片刻获取续写建议，按 Tab 接受。</p>
+              </div>
+            </section>
+            <section className="note-writing-inspector-card">
+              <div className="note-writing-inspector-heading">
+                <h2>笔记信息</h2>
+              </div>
+              <dl className="note-writing-summary">
+                <div>
+                  <dt>分类</dt>
+                  <dd><span className="note-writing-summary-pill">{CATEGORY_LABEL_MAP[category] || '未分类'}</span></dd>
+                </div>
+                <div>
+                  <dt>标签</dt>
+                  <dd className="note-writing-summary-tags">
+                    {tags.length > 0 ? tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>) : <span className="is-empty">暂未添加</span>}
+                  </dd>
+                </div>
+              </dl>
+              <div className="note-writing-inspector-links">
+                <button type="button" disabled={isNew} onClick={() => setShowRelated(true)}>
+                  <span><Link2 size={15} />关联片段</span><ChevronRight size={15} />
+                </button>
+                <button type="button" disabled={isNew} onClick={() => setShowBacklinks(true)}>
+                  <span><GitBranch size={15} />反向链接</span><ChevronRight size={15} />
+                </button>
+              </div>
+              {isNew && <p className="note-writing-inspector-hint">保存笔记后即可查看知识关联。</p>}
+            </section>
+          </aside>
+        )}
 
         {id && (
           <RelatedFragments
