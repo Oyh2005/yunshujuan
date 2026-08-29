@@ -2,15 +2,24 @@ version = 1
 revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
-    "python_full_version >= '3.14' and platform_machine != 's390x'",
-    "python_full_version >= '3.14' and platform_machine == 's390x'",
-    "python_full_version == '3.13.*' and platform_machine != 's390x'",
-    "python_full_version == '3.13.*' and platform_machine == 's390x'",
-    "python_full_version < '3.13' and platform_machine != 's390x' and sys_platform != 'win32'",
-    "python_full_version < '3.13' and platform_machine == 's390x' and sys_platform != 'win32'",
+    "(python_full_version >= '3.14' and platform_machine != 's390x' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine != 's390x' and sys_platform == 'win32')",
+    "python_full_version >= '3.14' and platform_machine != 's390x' and sys_platform != 'darwin' and sys_platform != 'win32'",
+    "(python_full_version >= '3.14' and platform_machine == 's390x' and sys_platform == 'darwin') or (python_full_version >= '3.14' and platform_machine == 's390x' and sys_platform == 'win32')",
+    "python_full_version >= '3.14' and platform_machine == 's390x' and sys_platform != 'darwin' and sys_platform != 'win32'",
+    "(python_full_version == '3.13.*' and platform_machine != 's390x' and sys_platform == 'darwin') or (python_full_version == '3.13.*' and platform_machine != 's390x' and sys_platform == 'win32')",
+    "python_full_version == '3.13.*' and platform_machine != 's390x' and sys_platform != 'darwin' and sys_platform != 'win32'",
+    "(python_full_version == '3.13.*' and platform_machine == 's390x' and sys_platform == 'darwin') or (python_full_version == '3.13.*' and platform_machine == 's390x' and sys_platform == 'win32')",
+    "python_full_version == '3.13.*' and platform_machine == 's390x' and sys_platform != 'darwin' and sys_platform != 'win32'",
+    "python_full_version < '3.13' and platform_machine != 's390x' and sys_platform == 'darwin'",
+    "python_full_version < '3.13' and platform_machine != 's390x' and sys_platform != 'darwin' and sys_platform != 'win32'",
+    "python_full_version < '3.13' and platform_machine == 's390x' and sys_platform == 'darwin'",
+    "python_full_version < '3.13' and platform_machine == 's390x' and sys_platform != 'darwin' and sys_platform != 'win32'",
     "python_full_version < '3.13' and platform_machine != 's390x' and sys_platform == 'win32'",
     "python_full_version < '3.13' and platform_machine == 's390x' and sys_platform == 'win32'",
 ]
+
+[manifest]
+overrides = [{ name = "python-magic", marker = "sys_platform == 'linux'", specifier = "==0.4.27" }]
 
 [[package]]
 name = "accelerate"
@@ -286,7 +295,6 @@ dependencies = [
     { name = "pypdf" },
     { name = "python-dotenv" },
     { name = "python-jose" },
-    { name = "python-magic" },
     { name = "python-magic-bin", marker = "sys_platform == 'darwin' or sys_platform == 'win32'" },
     { name = "python-multipart" },
     { name = "pyyaml" },
@@ -346,7 +354,6 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==6.0.0" },
     { name = "python-dotenv", specifier = "==1.2.2" },
     { name = "python-jose", specifier = "==3.5.0" },
-    { name = "python-magic", specifier = "==0.4.27" },
     { name = "python-magic-bin", marker = "sys_platform == 'darwin' or sys_platform == 'win32'", specifier = "==0.4.14" },
     { name = "python-multipart", specifier = "==0.0.22" },
     { name = "pyyaml", specifier = "==6.0.3" },
@@ -490,7 +497,7 @@ name = "build"
 version = "1.4.0"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 dependencies = [
-    { name = "colorama", marker = "os_name == 'nt'" },
+    { name = "colorama", marker = "(python_full_version >= '3.13' and os_name == 'nt') or (os_name == 'nt' and sys_platform != 'darwin')" },
     { name = "packaging" },
     { name = "pyproject-hooks" },
 ]
@@ -5464,7 +5471,7 @@ dependencies = [
     { name = "numpy" },
     { name = "psutil" },
     { name = "python-iso639" },
-    { name = "python-magic" },
+    { name = "python-magic", marker = "sys_platform == 'linux'" },
     { name = "python-oxmsg" },
     { name = "rapidfuzz" },
     { name = "regex" },

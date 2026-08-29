@@ -28,7 +28,6 @@ dependencies = [
     "langchain-chroma==1.1.0",
     "python-multipart==0.0.22",
     "pypdf==6.9.2",
-    "python-magic==0.4.27",
     "python-magic-bin==0.4.14; sys_platform == 'win32' or sys_platform == 'darwin'",
     "sentence-transformers==5.3.0",
     "modelscope==1.35.3",
@@ -101,3 +100,7 @@ torchaudio = { index = "pytorch-cu126" }
 
 [tool.uv]
 index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+# python-magic（纯 Python，依赖系统 libmagic）是 unstructured 的传递依赖；
+# Windows/macOS 上用自带二进制的 python-magic-bin，两者都提供 magic 模块且冲突。
+# 通过 override 把 python-magic 限制在 Linux（Linux 部署需自行安装系统 libmagic）。
+override-dependencies = ["python-magic==0.4.27; sys_platform == 'linux'"]
