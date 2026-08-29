@@ -22,17 +22,24 @@ class WSConnectionManager:
         async with self._lock:
             self._conns.setdefault(user_id, set()).add(websocket)
 
-    async def disconnect(self, user_id: str, websocket: WebSocket) -> None:
+    async def disconnect(self, user_id: str, websocket: WebSocket) -> bool:
+        """断开连接；返回该用户是否还有剩余连接（False = 完全下线）。"""
         async with self._lock:
             conns = self._conns.get(user_id)
             if not conns:
-                return
+                return False
             conns.discard(websocket)
             if not conns:
                 self._conns.pop(user_id, None)
+                return False
+            return True
 
     def is_online(self, user_id: str) -> bool:
         return bool(self._conns.get(user_id))
+
+    def online_users(self) -> list[str]:
+        """当前所有在线用户 id（多标签页去重）。"""
+        return list(self._conns.keys())
 
     async def send_to_user(self, user_id: str, payload: dict) -> None:
         """向用户的所有连接推送 JSON；无连接/发送失败静默。"""
@@ -47,11 +54,12 @@ class WSConnectionManager:
                 # 连接可能已失效，交给心跳/断线清理
                 pass
 
-    async def broadcast(self, payload: dict) -> None:
-        """向全部在线用户广播（预留：公告等）。"""
-        text = json.dumps(payload, ensure_ascii=False, default=str)
+    async def broadcast(self, payload: dict, exclude_user_id: str | None = None) -> None:
+        """向全部在线用户广播（可排除某用户——如上线/下线事件不推给自己）。"""
         for user_id in list(self._conns.keys()):
-            await self.send_to_user(user_id, json.loads(text))
+            if user_id == exclude_user_id:
+                continue
+            await self.send_to_user(user_id, payload)
 
     def stats(self) -> dict:
         return {"users": len(self._conns), "connections": sum(len(v) for v in self._conns.values())}

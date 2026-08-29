@@ -96,10 +96,14 @@ export default function MessagesPage() {
   const [imageUploading, setImageUploading] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(() => new Set())
+  const [peerTyping, setPeerTyping] = useState(false)
   // 渲染期不可调 Date.now()（purity 规则）：撤回按钮的 2 分钟窗口用挂载时快照近似，
   // 超时后后端仍会校验（提示"发送超过 2 分钟"）
   const [referenceNow] = useState(() => Date.now())
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const typingTimerRef = useRef<number | null>(null)
+  const lastTypingAtRef = useRef(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const selectedPeerRef = useRef<string | null>(null)
   useEffect(() => {
@@ -194,7 +198,7 @@ export default function MessagesPage() {
   }, [messages.length, selectedPeerId])
 
   // WS 实时事件
-  useChatSocket({
+  const { sendTyping } = useChatSocket({
     onMessage: (msg) => {
       if (msg.sender_id === selectedPeerRef.current) {
         setMessages((prev) => [...prev, msg])
@@ -221,7 +225,42 @@ export default function MessagesPage() {
       // 对方撤回消息：本地标记撤回
       setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, recalled: true, status: undefined } : m))
     },
+    onTyping: (fromUserId) => {
+      // 仅当前会话显示"正在输入"（3 秒后消失）
+      if (fromUserId !== selectedPeerRef.current) return
+      setPeerTyping(true)
+      if (typingTimerRef.current !== null) window.clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = window.setTimeout(() => setPeerTyping(false), 3000)
+    },
+    onOnline: (userId) => {
+      setOnlineUsers((prev) => {
+        if (prev.has(userId)) return prev
+        const next = new Set(prev)
+        next.add(userId)
+        return next
+      })
+    },
+    onOffline: (userId) => {
+      setOnlineUsers((prev) => {
+        if (!prev.has(userId)) return prev
+        const next = new Set(prev)
+        next.delete(userId)
+        return next
+      })
+    },
+    onOnlineList: (userIds) => {
+      setOnlineUsers(new Set(userIds))
+    },
   })
+
+  /** 输入时通知对方"正在输入"（3s 节流，避免刷屏） */
+  const notifyTyping = () => {
+    if (!selectedPeerId) return
+    const now = Date.now()
+    if (now - lastTypingAtRef.current < 3000) return
+    lastTypingAtRef.current = now
+    sendTyping(selectedPeerId)
+  }
 
   /** 会话列表同步：已有会话更新预览；首聊（无会话）插入新会话项 */
   const syncConversationAfterSend = useCallback((peerId: string, msg: ChatMessage) => {
@@ -430,7 +469,10 @@ export default function MessagesPage() {
                           }
                         }}
                       >
-                        <SocialAvatar username={conv.peer.username} avatar={conv.peer.avatar} size={42} />
+                        <span className="messages-peer-avatar">
+                          <SocialAvatar username={conv.peer.username} avatar={conv.peer.avatar} size={42} />
+                          {onlineUsers.has(conv.peer.user_id) && <i className="messages-online-dot" title={text('在线', 'Online')} />}
+                        </span>
                         <span className="messages-conv-copy">
                           <span className="messages-conv-top"><strong>{conv.peer.username}</strong><time>{formatTime(conv.last_message_at, english)}</time></span>
                           <span className="messages-conv-bottom">
@@ -462,7 +504,10 @@ export default function MessagesPage() {
               <header className="messages-chat-head">
                 <button className="messages-chat-back" onClick={closeChat} aria-label={text('返回会话列表', 'Back')}><ArrowLeft size={17} /></button>
                 <SocialAvatar username={selectedPeer.username} avatar={selectedPeer.avatar} size={34} />
-                <strong>{selectedPeer.username}</strong>
+                <span className="messages-chat-peer">
+                  <strong>{selectedPeer.username}</strong>
+                  {peerTyping && <small className="messages-typing">{text('正在输入…', 'Typing…')}</small>}
+                </span>
               </header>
               <div className="messages-chat-body">
                 {hasMore && (
@@ -551,7 +596,7 @@ export default function MessagesPage() {
                   )}
                   <textarea
                     value={input}
-                    onChange={(event) => { setInput(event.target.value); if (sendError) setSendError('') }}
+                    onChange={(event) => { setInput(event.target.value); if (sendError) setSendError(''); notifyTyping() }}
                     onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSend() } }}
                     placeholder={text('输入消息，Enter 发送…', 'Type a message, Enter to send…')}
                     rows={1}

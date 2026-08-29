@@ -34,6 +34,16 @@ async def chat_websocket(websocket: WebSocket, token: str = Query(...)):
 
     await ws_manager.connect(user_id, websocket)
     logger.info(f"WS 连接建立：user={user_id}，在线 {ws_manager.stats()['users']} 人")
+    # 新连接：推送当前在线列表（前端过滤会话好友）+ 广播上线
+    try:
+        await websocket.send_text(json.dumps({
+            "type": "online_list",
+            "users": ws_manager.online_users(),
+        }))
+        # 上线广播排除自己（避免自己收到自己的 online 事件）
+        await ws_manager.broadcast({"type": "online", "user_id": user_id}, exclude_user_id=user_id)
+    except Exception:
+        pass
     try:
         while True:
             try:
@@ -51,8 +61,14 @@ async def chat_websocket(websocket: WebSocket, token: str = Query(...)):
                     await websocket.send_text(json.dumps({"type": "pong"}))
                 except Exception:
                     break
+            elif data.get("type") == "typing" and data.get("to"):
+                # 转发"正在输入"给目标用户（不落库，纯实时状态）
+                await ws_manager.send_to_user(data["to"], {"type": "typing", "from": user_id})
     except WebSocketDisconnect:
         pass
     finally:
-        await ws_manager.disconnect(user_id, websocket)
+        still_online = await ws_manager.disconnect(user_id, websocket)
+        if not still_online:
+            # 完全下线才广播 offline（多标签页关闭一个不误报）
+            await ws_manager.broadcast({"type": "offline", "user_id": user_id})
         logger.info(f"WS 连接断开：user={user_id}，在线 {ws_manager.stats()['users']} 人")

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useChatStore } from '../stores/useChatStore'
 import type { ChatMessage } from '../api/messages'
 
@@ -6,11 +6,16 @@ export interface ChatSocketEvents {
   onMessage?: (message: ChatMessage) => void
   onRead?: (conversationId: string) => void
   onRecall?: (messageId: number, conversationId: string) => void
+  onTyping?: (fromUserId: string) => void
+  onOnline?: (userId: string) => void
+  onOffline?: (userId: string) => void
+  onOnlineList?: (userIds: string[]) => void
 }
 
 /**
  * 私聊 WebSocket hook：连接 /ws/chat?token=，指数退避自动重连（1s→30s 封顶），
  * 30s 心跳保活；unread 事件直接更新全局 useChatStore（侧边栏红点）。
+ * 提供 sendTyping（正在输入提示）发送能力。
  */
 export function useChatSocket(events: ChatSocketEvents, enabled = true) {
   const setUnread = useChatStore((s) => s.setUnread)
@@ -19,6 +24,7 @@ export function useChatSocket(events: ChatSocketEvents, enabled = true) {
   useEffect(() => {
     eventsRef.current = events
   }, [events])
+  const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
     if (!enabled) return
@@ -33,6 +39,7 @@ export function useChatSocket(events: ChatSocketEvents, enabled = true) {
       if (!token || closed) return
       const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
       ws = new WebSocket(`${protocol}://${window.location.host}${'/ws/chat'}?token=${encodeURIComponent(token)}`)
+      wsRef.current = ws
 
       ws.onopen = () => {
         retry = 0
@@ -50,6 +57,14 @@ export function useChatSocket(events: ChatSocketEvents, enabled = true) {
             eventsRef.current.onRead?.(data.conversation_id as string)
           } else if (data.type === 'recall') {
             eventsRef.current.onRecall?.(Number(data.message_id), data.conversation_id as string)
+          } else if (data.type === 'typing') {
+            eventsRef.current.onTyping?.(data.from as string)
+          } else if (data.type === 'online') {
+            eventsRef.current.onOnline?.(data.user_id as string)
+          } else if (data.type === 'offline') {
+            eventsRef.current.onOffline?.(data.user_id as string)
+          } else if (data.type === 'online_list') {
+            eventsRef.current.onOnlineList?.(Array.isArray(data.users) ? data.users as string[] : [])
           } else if (data.type === 'unread') {
             setUnread(Number(data.count) || 0)
           }
@@ -77,6 +92,17 @@ export function useChatSocket(events: ChatSocketEvents, enabled = true) {
       if (heartbeat !== null) window.clearInterval(heartbeat)
       if (reconnectTimer !== null) window.clearTimeout(reconnectTimer)
       ws?.close()
+      wsRef.current = null
     }
   }, [enabled, setUnread])
+
+  /** 发送"正在输入"（由调用方节流，如 3s 一次） */
+  const sendTyping = useCallback((toUserId: string) => {
+    const ws = wsRef.current
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'typing', to: toUserId }))
+    }
+  }, [])
+
+  return { sendTyping }
 }

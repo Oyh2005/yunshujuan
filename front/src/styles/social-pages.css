@@ -236,6 +236,11 @@
 .messages-conv-actions button:last-child:hover { color: var(--color-danger); background: var(--color-danger-bg); }
 .messages-conv-actions button.is-active { color: var(--color-accent); }
 .messages-conv-copy { flex: 1; min-width: 0; }
+.messages-peer-avatar { position: relative; flex-shrink: 0; }
+.messages-online-dot { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: var(--color-success); border: 2px solid var(--color-card); }
+.messages-chat-peer { display: flex; flex-direction: column; min-width: 0; }
+.messages-chat-peer strong { font-size: 14px; }
+.messages-typing { margin-top: 1px; font-size: 10px; color: var(--color-accent); animation: social-pulse 1.2s ease-in-out infinite; }
 .messages-conv-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .messages-conv-top strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .messages-conv-top time { flex-shrink: 0; font-size: 9px; color: var(--color-text-tertiary); }
