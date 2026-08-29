@@ -21,6 +21,8 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
 security = HTTPBearer()
+# 可选鉴权（错误上报等匿名接口用）：无 token 返回 None 而非 401
+security_optional = HTTPBearer(auto_error=False)
 
 pwd_context = CryptContext(schemes=["bcrypt", "django_pbkdf2_sha256"], deprecated="auto")
 
@@ -107,6 +109,21 @@ async def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depend
         )
 
     return user_id
+
+
+async def get_optional_user_id(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security_optional),
+) -> str | None:
+    """可选鉴权：token 有效返回 user_id，缺失/无效返回 None（不抛 401）。
+
+    用于允许匿名的接口（如前端错误上报：登录页也可能出错）。
+    """
+    if credentials is None:
+        return None
+    payload = decode_django_jwt(credentials.credentials)
+    if payload is None:
+        return None
+    return payload.get("user_id")
 
 
 async def get_user_info_from_db(user_id: str) -> dict[str, Any] | None:

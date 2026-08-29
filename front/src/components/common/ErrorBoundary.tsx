@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react'
+import { reportError } from '../../api/telemetry'
 
 interface Props {
   children: ReactNode
@@ -11,7 +12,7 @@ interface State {
 
 /**
  * 全局错误边界：捕获渲染错误，避免整个应用白屏（React 无边界时渲染错误会卸载整个 root）。
- * 出错时展示可恢复的错误页，而不是闪退。
+ * 出错时展示可恢复的错误页，而不是闪退；同时上报错误监控接口（稳定性三件套）。
  */
 export default class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false }
@@ -22,6 +23,12 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: unknown) {
     console.error('[ErrorBoundary] 捕获渲染错误:', error)
+    reportError({
+      kind: 'boundary',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      page: typeof window !== 'undefined' ? window.location.pathname : undefined,
+    })
   }
 
   handleReset = () => {
