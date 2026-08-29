@@ -55,6 +55,11 @@ def rate_limit(limit: int = 1, window: int = 60):
                 await redis.setex(key, window, 1)
             else:
                 await redis.incr(key)
+                # 兜底：incr 不更新 TTL。若 key 的过期时间意外丢失
+                # （Redis 重启恢复旧数据等），计数将永久累积 → 永久 429。
+                # 检测到无 TTL 时补设过期（保留计数，不重置窗口）
+                if await redis.ttl(key) < 0:
+                    await redis.expire(key, window)
         except HTTPException:
             raise
         except Exception as e:
@@ -107,6 +112,9 @@ class RateLimitMiddleware:
                 await redis.setex(key, self.window, 1)
             else:
                 await redis.incr(key)
+                # 兜底：同 rate_limit 依赖，TTL 意外丢失时补设过期，防止永久 429
+                if await redis.ttl(key) < 0:
+                    await redis.expire(key, self.window)
         except Exception as e:
             # Redis 不可用时降级放行
             from app.core.logger_handler import logger

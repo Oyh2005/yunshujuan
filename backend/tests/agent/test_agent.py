@@ -47,7 +47,7 @@ def fresh_session_manager(monkeypatch):
 
 
 class RecordingExecutor(FakeAgentExecutor):
-    """记录每次 astream 收到的输入，并可额外注入非 output chunk。"""
+    """记录每次 astream_events 收到的输入，并可额外注入非 output chunk。"""
 
     def __init__(self, outputs=None, extra_chunks=None):
         super().__init__(outputs)
@@ -60,6 +60,11 @@ class RecordingExecutor(FakeAgentExecutor):
             yield chunk
         for out in self.outputs:
             yield {"output": out}
+
+    async def astream_events(self, inputs, version="v1"):
+        self.inputs.append(inputs)
+        async for event in super().astream_events(inputs, version=version):
+            yield event
 
 
 class StepsOnlyExecutor:
@@ -205,8 +210,8 @@ async def test_get_agent_response_exception_fallback(monkeypatch):
 # get_agent_stream_response（Level A）
 # ---------------------------------------------------------------------------
 async def test_get_agent_stream_response_full_flow(monkeypatch, patched_db, fresh_session_manager):
-    response_text = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"  # 36 字符 -> 15/15/6 三分片
-    fake = FakeAgentExecutor(outputs=[response_text])
+    response_text = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"  # 36 字符 -> chunk_size=5 共 8 片
+    fake = FakeAgentExecutor(outputs=[response_text], chunk_size=5)
     monkeypatch.setattr(agent_module.agent_factory, "create_agent_executor", lambda **kw: fake)
 
     frames = await _collect_stream("你好", session_id="s1", user_id="u1")
@@ -220,11 +225,11 @@ async def test_get_agent_stream_response_full_flow(monkeypatch, patched_db, fres
     # 2) 无 error 帧
     assert all(e["type"] != "error" for e in events)
 
-    # 3) response 分片拼接 == 完整回答（chunk_size=15）
-    assert "".join(e["content"] for e in events if e["type"] == "response" and e["content"]) == response_text
-    assert [e["content"] for e in events if e["type"] == "response" and e["content"]] == [
-        "0123456789ABCDE", "FGHIJKLMNOPQRST", "UVWXYZ",
-    ]
+    # 3) 真流式：回答以 token 增量分片实时转发（非 15 字假流式整段后播）
+    stream_chunks = [e["content"] for e in events if e["type"] == "response" and e["content"]]
+    assert "".join(stream_chunks) == response_text
+    assert len(stream_chunks) == 8
+    assert stream_chunks[0] == "01234"  # 首个分片即首个 token 增量
 
     # 4) 结束帧：done + session_id
     assert events[-1]["type"] == "done"
@@ -243,7 +248,7 @@ async def test_get_agent_stream_response_full_flow(monkeypatch, patched_db, fres
 
 async def test_get_agent_stream_response_agent_error(monkeypatch, patched_db, fresh_session_manager):
     class BrokenExecutor:
-        async def astream(self, inputs):
+        async def astream_events(self, inputs, version="v1"):
             if False:  # pragma: no cover
                 yield None
             raise RuntimeError("代理内部异常")

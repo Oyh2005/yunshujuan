@@ -10,7 +10,7 @@ from app.agent.agent import get_agent_stream_response
 from app.core.rate_limit import rate_limit
 from app.core.success_response import success_response
 from app.router.chat_service import ChatService, get_router_service
-from app.schemas.models import QueryRequest, RAGRequest, RAGResponse, ReorderRequest, ReorderResponse, SessionResponse
+from app.schemas.models import QueryRequest, RAGRequest, RAGResponse, ReorderRequest, ReorderResponse, SessionResponse, SessionUpdateRequest
 from app.utils.auth_utils import get_current_user_id
 
 chat_router = APIRouter(prefix="/chat", tags=["chat"])
@@ -61,70 +61,84 @@ async def query_stream(
         )
 
     async def stream_with_rag_thinking():
-        """包装生成器：RAG 管线在内部实时推送思考事件，再转发 Agent 流式响应"""
-        rag_context = ""
+        """包装生成器：整条管线（RAG 前置 + Agent 生成 + 会话落库）在独立后台任务中执行，
+        本生成器只负责实时转发事件——客户端断开（切出页面/刷新）不影响管线继续完成入库"""
+        pipeline_queue = asyncio.Queue()
+        pipeline_done = asyncio.Event()
 
-        if score > 0.5:
-            from app.rag.rag_service import RagService
+        async def run_pipeline():
+            """后台执行完整管线：RAG 前置（如命中）→ Agent 流式（内部含会话落库）"""
+            try:
+                rag_context = ""
 
-            # RAG 管线与 SSE 推送共用的队列
-            thinking_queue = asyncio.Queue()
-            rag_done = asyncio.Event()
-
-            async def thinking_callback(data: dict):
-                await thinking_queue.put(data)
-
-            async def run_rag_pipeline():
-                """在后台执行 RAG 管线，thinking 事件通过队列实时推送"""
-                try:
-                    rag_service = RagService(user_id, thinking_callback=thinking_callback)
-                    documents = await rag_service.retrieve_document(request.query)
-
-                    def _format_doc(doc):
-                        if doc.metadata.get("source_type") == "note":
-                            title = doc.metadata.get("title", "无标题")
-                            return f"[来源：笔记《{title}》]\n{doc.page_content}"
-                        else:
-                            filename = doc.metadata.get("original_filename", "知识库文档")
-                            return f"[来源：知识库《{filename}》]\n{doc.page_content}"
-
-                    doc_contents = [_format_doc(doc) for doc in documents]
-                    reordered = await rag_service.reorder_documents(request.query, doc_contents)
-                    nonlocal rag_context
-                    rag_context = "\n\n".join(reordered[:3])
-                    logger.info(f"【RAG前置】检索到 {len(documents)} 个文档，重排序后取前 {min(3, len(reordered))} 个注入 Agent")
-                except Exception as e:
-                    logger.error(f"【RAG前置】管线执行失败: {e}", exc_info=True)
-                finally:
-                    rag_done.set()
-
-            # 启动 RAG 管线（后台任务）
-            rag_task = asyncio.create_task(run_rag_pipeline())
-
-            # 实时推送 RAG 思考事件：边跑边推，不等管线结束
-            while not rag_done.is_set() or not thinking_queue.empty():
-                try:
-                    event = thinking_queue.get_nowait()
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except asyncio.QueueEmpty:
-                    # 队列暂时为空，等 RAG 管线产出新事件
+                if score > 0.5:
                     try:
-                        event = await asyncio.wait_for(thinking_queue.get(), timeout=0.1)
-                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                    except (asyncio.TimeoutError, asyncio.QueueEmpty):
-                        continue
+                        from app.rag.rag_service import RagService
 
-            # 确保 RAG 任务完成，再 drain 一次队列防止竞态丢失事件
-            await rag_task
-            while not thinking_queue.empty():
-                event = thinking_queue.get_nowait()
+                        async def thinking_callback(data: dict):
+                            await pipeline_queue.put(data)
+
+                        rag_service = RagService(user_id, thinking_callback=thinking_callback)
+                        documents = await rag_service.retrieve_document(request.query)
+
+                        def _format_doc(doc):
+                            if doc.metadata.get("source_type") == "note":
+                                title = doc.metadata.get("title", "无标题")
+                                return f"[来源：笔记《{title}》]\n{doc.page_content}"
+                            else:
+                                filename = doc.metadata.get("original_filename", "知识库文档")
+                                return f"[来源：知识库《{filename}》]\n{doc.page_content}"
+
+                        doc_contents = [_format_doc(doc) for doc in documents]
+                        reordered = await rag_service.reorder_documents(request.query, doc_contents)
+                        # 注入 Agent 前每文档截断至 600 字（重排序仍用全文参与评分），
+                        # 控制 system prompt 规模，降低 Agent 首轮 LLM 调用延迟
+                        rag_context = "\n\n".join(doc[:600] for doc in reordered[:3])
+                        logger.info(f"【RAG前置】检索到 {len(documents)} 个文档，重排序后取前 {min(3, len(reordered))} 个注入 Agent")
+                    except Exception as e:
+                        # RAG 前置失败不阻断 Agent（rag_context 保持为空）
+                        logger.error(f"【RAG前置】管线执行失败: {e}", exc_info=True)
+
+                # Agent 流式：解析其 SSE 帧为事件后转发
+                # （get_agent_stream_response 内部 run_agent 独立任务负责回答落库，
+                #   本任务不依赖客户端连接，断开后仍会跑完）
+                async for chunk in get_agent_stream_response(
+                    request.query, session_id, user_id, rag_context=rag_context
+                ):
+                    if chunk.startswith("data: "):
+                        try:
+                            event = json.loads(chunk[6:])
+                            await pipeline_queue.put(event)
+                        except Exception:
+                            continue
+            except Exception as e:
+                logger.error(f"【AI管线】执行失败: {e}", exc_info=True)
+            finally:
+                pipeline_done.set()
+
+        # 启动完整管线（独立任务：客户端断开不影响其完成）
+        pipeline_task = asyncio.create_task(run_pipeline())
+
+        # 实时转发队列事件，直到管线完成
+        while not pipeline_done.is_set() or not pipeline_queue.empty():
+            try:
+                event = pipeline_queue.get_nowait()
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                pipeline_queue.task_done()
+            except asyncio.QueueEmpty:
+                try:
+                    event = await asyncio.wait_for(pipeline_queue.get(), timeout=0.1)
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    pipeline_queue.task_done()
+                except (asyncio.TimeoutError, asyncio.QueueEmpty):
+                    continue
 
-        # 转发 Agent 流式响应
-        async for chunk in get_agent_stream_response(
-            request.query, session_id, user_id, rag_context=rag_context
-        ):
-            yield chunk
+        # 管线完成，drain 一次防止竞态丢失事件
+        await pipeline_task
+        while not pipeline_queue.empty():
+            event = pipeline_queue.get_nowait()
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            pipeline_queue.task_done()
 
     return StreamingResponse(
         stream_with_rag_thinking(),
@@ -160,6 +174,18 @@ async def delete_session(session_id: str, user_id: str = Depends(get_current_use
     """删除会话"""
     await router_service.handle_delete_session(session_id, user_id)
     return success_response(message=f"Session {session_id} deleted successfully")
+
+
+@chat_router.patch("/session/{session_id}")
+async def update_session(
+    session_id: str,
+    payload: SessionUpdateRequest,
+    user_id: str = Depends(get_current_user_id),
+    router_service: ChatService = Depends(get_router_service),
+):
+    """更新会话：重命名（title）或置顶切换（is_pinned），可同时传，只更新显式传入的字段"""
+    result = await router_service.handle_update_session(session_id, user_id, payload)
+    return success_response(message="会话已更新", data=result)
 
 
 @chat_router.get("/sessions")

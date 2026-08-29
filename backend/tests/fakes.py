@@ -200,15 +200,24 @@ def make_fake_chat_model(responses: list[str] | None = None):
 
 
 class FakeAgentExecutor:
-    """AgentExecutor 内存替身：astream 产出预设 chunk。
+    """AgentExecutor 内存替身：astream / astream_events 产出预设内容。
 
     用于在编排层测试 get_agent_response / get_agent_stream_response，
     避免触发 LangChain 真实的 agent 规划循环。
+    astream_events 模拟真实 token 流：按 chunk_size 逐片发出
+    on_chat_model_stream 事件（content 为增量文本）。
     """
 
-    def __init__(self, outputs: list[str] | None = None):
+    def __init__(self, outputs: list[str] | None = None, chunk_size: int = 5):
         self.outputs = outputs or ["这是假 Agent 的回答。"]
+        self.chunk_size = chunk_size
 
     async def astream(self, inputs: dict):
         for out in self.outputs:
             yield {"output": out}
+
+    async def astream_events(self, inputs: dict, version: str = "v1"):
+        for out in self.outputs:
+            for i in range(0, len(out), self.chunk_size):
+                chunk = AIMessage(content=out[i:i + self.chunk_size])
+                yield {"event": "on_chat_model_stream", "data": {"chunk": chunk}}

@@ -20,8 +20,8 @@ class RagService:
         self.chat_model = init_manager.chat_model
         self.chain = self._init_chain()
         self.hyde_prompt_template = PromptTemplate.from_template(
-            "基于以下问题，生成一个详细的假设性回答，我会根据你的这个假设性回答"
-            "在向量数据库里检索文档：\n\n问题：{query}\n\n假设性回答："
+            "基于以下问题，生成一个简短的假设性回答（150字以内），"
+            "我会根据你的这个假设性回答在向量数据库里检索文档：\n\n问题：{query}\n\n假设性回答："
         )
         self.thinking_callback = thinking_callback
 
@@ -66,7 +66,9 @@ class RagService:
         try:
             hyde_chain = (
                 self.hyde_prompt_template
-                | self.chat_model
+                # 限长：HyDE 仅为检索服务，无需长文。不限长时 DeepSeek 会生成
+                # 1000~2000 字假设文档耗时 8~40s，max_tokens=150 实测降至 ~1.7s
+                | self.chat_model.bind(max_tokens=150)
                 | StrOutputParser()
             )
             hypothetical_doc = await hyde_chain.ainvoke({"query": query})

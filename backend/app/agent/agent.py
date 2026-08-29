@@ -11,6 +11,8 @@ from langchain_core.tools import BaseTool
 from app.agent.agent_middleware import get_middleware
 from app.agent.agent_tools import (
     create_note_tool,
+    get_knowledge_content_tool,
+    get_knowledge_docs_tool,
     get_note_stats_tool,
     get_related_notes_tool,
     get_today_reviews_tool,
@@ -68,6 +70,8 @@ class AgentFactory:
             mark_reviewed_tool,
             create_note_tool,
             get_related_notes_tool,
+            get_knowledge_docs_tool,
+            get_knowledge_content_tool,
         ]
 
     def _get_default_middleware(self) -> list:
@@ -258,7 +262,7 @@ async def get_agent_stream_response(
         await thinking_queue.put(data)
 
     async def run_agent():
-        """在独立任务中执行 Agent"""
+        """在独立任务中执行 Agent，LLM token 增量通过队列实时推送（真流式）"""
         try:
             set_current_user_id(user_id)
             set_thinking_callback(thinking_callback)
@@ -288,23 +292,39 @@ async def get_agent_stream_response(
 
             full_response = []
 
-            async for chunk in agent_executor.astream({
+            # 真流式：astream_events 逐 token 转发 LLM 输出。
+            # - on_chat_model_stream 的 chunk.content 是增量文本（planning 阶段
+            #   只有 tool_calls 没有 content，不会被误转发；DeepSeek 推理内容在
+            #   reasoning_content 字段，也不进入 content）
+            # - 完整回答同时拼接，供会话历史落库
+            async for event in agent_executor.astream_events({
                 "input": query,
                 "chat_history": chat_history,
                 "system_prompt": system_prompt
-            }):
-                if "output" in chunk:
-                    full_response.append(chunk["output"])
-                # 与 get_agent_response 同理：末帧同时含 output 与 intermediate_steps，
-                # 用 if 而非 elif，保证流式场景下工具调用日志也能输出。
-                if "intermediate_steps" in chunk:
-                    for action, observation in chunk["intermediate_steps"]:
-                        logger.info(f"\n\n🧠 [Agent 思考] {action.log}")
-                        logger.info(f"🛠️ [调用工具] {action.tool}")
-                        logger.info(f"📥 [工具输入] {action.tool_input}")
-                        logger.info(f"📤 [工具结果] {observation}\n")
+            }, version="v1"):
+                kind = event.get("event")
+                if kind == "on_chat_model_stream":
+                    chunk = event.get("data", {}).get("chunk")
+                    content = getattr(chunk, "content", "") or ""
+                    if content:
+                        full_response.append(content)
+                        await thinking_queue.put({"type": "response", "content": content})
+                elif kind == "on_tool_end":
+                    name = event.get("name", "tool")
+                    data = event.get("data", {})
+                    logger.info(
+                        f"\n\n🧠 [Agent 工具] {name}\n"
+                        f"📥 [工具输入] {str(data.get('input', ''))[:200]}\n"
+                        f"📤 [工具结果] {str(data.get('output', ''))[:300]}"
+                    )
 
-            agent_result_holder["response"] = "".join(full_response) if full_response else "抱歉，我无法理解您的请求。"
+            # 回答生成完毕，立即落库（不依赖客户端连接存活：
+            # 用户切出页面导致 SSE 断开时，主生成器被关闭，若在此处之外
+            # add_message 将永不执行，会话会丢失这次问答）
+            response = "".join(full_response) if full_response else "抱歉，我无法理解您的请求。"
+            await sm.session_manager.add_message(session_id, user_id, query, response)
+            logger.info("【Agent流式响应】添加到会话历史成功")
+            agent_result_holder["response"] = response
         except Exception as e:
             logger.error(f"【Agent流式响应】Agent执行失败: {e}", exc_info=True)
             agent_result_holder["error"] = str(e)
@@ -349,20 +369,7 @@ async def get_agent_stream_response(
             yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
             return
 
-        response = agent_result_holder["response"]
-
-        # 添加到会话历史
-        await sm.session_manager.add_message(session_id, user_id, query, response)
-        logger.info("【Agent流式响应】添加到会话历史成功")
-
-        # 发送回答内容（按chunk发送，减少SSE事件数）
-        chunk_size = 15
-        for i in range(0, len(response), chunk_size):
-            chunk = response[i:i + chunk_size]
-            yield f"data: {json.dumps({'type': 'response', 'content': chunk}, ensure_ascii=False)}\n\n"
-            await asyncio.sleep(0.03)
-
-        # 发送结束标记
+        # 发送结束标记（回答内容已在生成过程中实时转发，会话历史已由 run_agent 落库）
         yield f"data: {json.dumps({'type': 'done', 'session_id': session_id}, ensure_ascii=False)}\n\n"
         logger.info(f"【Agent流式响应】处理完成，会话ID: {session_id}")
 
