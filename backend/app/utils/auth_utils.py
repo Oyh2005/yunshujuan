@@ -11,6 +11,22 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy import select
 
+# ⚠️ passlib 1.7.4 与 bcrypt>=4.1 兼容补丁：新版 bcrypt 移除了 __about__ 模块，
+# passlib 检测版本时抛 AttributeError（"trapped error reading bcrypt version"，
+# 仅日志噪音，哈希功能不受影响）。在 passlib 初始化 bcrypt backend 前补上该属性。
+try:
+    import bcrypt as _bcrypt
+    import importlib.metadata as _metadata
+
+    if not hasattr(_bcrypt, "__about__"):
+        import types
+
+        _bcrypt.__about__ = types.SimpleNamespace(
+            __version__=_metadata.version("bcrypt")
+        )
+except Exception:
+    pass
+
 from app.core.failed_response import logger
 from app.db.db_config import AsyncSessionLocal
 from app.db.redis_config import connect_redis, set_redis_cache

@@ -107,6 +107,10 @@ async def register(req: RegisterRequest):
         )
         session.add(user)
         await session.commit()
+        # ⚠️ commit 后 refresh：date_joined 是 server_default 列，ORM 在 INSERT 时
+        # 不知道其值；不 refresh 的话，with 块退出（session 关闭）后访问该属性
+        # 会触发懒加载 → DetachedInstanceError（注册接口曾 500）
+        await session.refresh(user)
 
     token, expire_time = generate_token(user.uuid, user.username, user.email)
     return {

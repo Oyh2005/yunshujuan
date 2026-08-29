@@ -113,6 +113,11 @@
 43. **私聊好友校验**：复用 `_friend_ids`（双向 accepted）；非好友 403（前端在好友列表/主页 is_friend 才显示私信入口，双保险）
 44. **前端 WS 事件回调用 ref 同步**（渲染期禁写 ref 规则）：`eventsRef` 在 effect 中更新，`onMessage` 里读 `selectedPeerRef` 判断是否当前会话
 
+### 注册/bcrypt 踩坑（08-29 晚）
+45. **⚠️ 注册接口曾 500（DetachedInstanceError）**：`user.date_joined` 是 **server_default 列**，INSERT 后 ORM 不知道其值；`register` 在 `async with` 块内 commit 后、块外 `_user_to_response` 访问该属性 → 懒加载 → session 已关闭 → 500。**修复：commit 后 `await session.refresh(user)`**（在 with 块内）。同类问题：任何 server_default/DB 生成列，commit 后需 refresh 再在 session 外访问
+46. **⚠️ passlib 1.7.4 + bcrypt>=4.1 不兼容**：bcrypt 移除了 `__about__`，passlib 每次 hash/verify 打印 "trapped error reading bcrypt version"（仅噪音，功能正常）。**已加猴子补丁**（`auth_utils.py` 顶部给 bcrypt 补 `__about__.__version__`，用 importlib.metadata 取版本），新环境不需要降级 bcrypt
+47. **uv 安装依赖被运行中后端锁定的坑**：`uv pip install` 替换被加载的 .pyd 会失败（拒绝访问），且可能**留下损坏的包**（__init__.py 被删、dist-info 损坏）。恢复办法：从 PyPI 下载同版本 wheel 手动补齐非 pyd 文件 + 重建 dist-info；**改依赖前先确认后端 8000 已停止**；uv 缓存被沙箱拒时设 `UV_CACHE_DIR` 到工作区
+
 ## 4. 剩余任务（按优先级）
 
 ### ⚠️ 立即事项
