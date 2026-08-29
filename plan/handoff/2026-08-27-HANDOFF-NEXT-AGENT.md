@@ -1,6 +1,6 @@
 # 云舒卷（RAG Notebook）开发交接文档（给下一个 Agent）
 
-> 更新：2026-08-29（最新一轮：性能优化三批 + 限流调整 + libmagic 修复 + 首页/AI/学习页 UI 改版 + Git 接入 + **AI 对话延迟优化（HyDE 限长 + RAG 上下文截断 + Agent 真流式）**）
+> 更新：2026-08-29（最新一轮：AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
 > - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
 > - `plan/records/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
@@ -22,7 +22,7 @@
 - 后端：FastAPI + LangChain + ChromaDB + MySQL + Redis（`backend/`）
 - 前端：React 19 + TypeScript + Vite 8 + **Tailwind CSS 4**（CSS-first）+ **React Router 7** + Zustand + framer-motion（`front/`）
 - **✅ 已是 git 仓库**（2026-08-28 初始化）：远程 `origin → https://github.com/Oyh2005/yunshujuan.git`（分支 `main`）
-- **⚠️ 本地领先远程 16 个提交未推送**——开新会话后优先提醒用户 `git push`（凭据/PAT 由用户本机操作）
+- **⚠️ 本地领先远程 2 个提交未推送**——开新会话后提醒用户 `git push`（凭据/PAT 由用户本机操作，沙箱无凭据）
 - 用户会手动改代码，开工前先 `git status` 核对最近改动
 
 ## 2. 当前已完成功能总览（勿重复开发）
@@ -88,7 +88,7 @@
 ## 4. 剩余任务（按优先级）
 
 ### ⚠️ 立即事项
-- **本地 16 个提交未推送 `origin/main`**——提醒用户执行 `git push`（凭据/PAT 由用户本机操作，沙箱无凭据）
+- **本地 2 个提交未推送 `origin/main`**（`e6e8304` SWR 缓存、`118182c` plan 分类）——提醒用户 `git push`（凭据/PAT 由用户本机操作）
 
 ### ✅ 全部里程碑已完成（M2/M3/M4、方向 A/B/C1/C2/C3、数据上云、D 阶段一、备选精选、UI 改版、lint 清零、风格统一）
 
@@ -102,6 +102,7 @@
 - 数据库：tag 过滤下沉 SQL、复合索引 `(user_id, is_pinned, updated_at)`、asyncmy 驱动、pool_pre_ping/recycle、慢查询日志（`SLOW_QUERY_THRESHOLD_MS`）
 - 缓存：笔记列表 30s + 详情 300s（写操作失效）、重排序结果 10min、`/user/detail/` Redis 容错
 - **HTTP 客户端缓存（08-29）**：`app/core/http_cache.py`（域通用 note/chat）——`{domain}_version:{user_id}` ETag 版本化（写操作 INCR）+ `Cache-Control: private, max-age`（笔记列表 30/详情 300/stats 60/会话列表 30）+ If-None-Match 304 短路（查数据前判断）；media 静态文件 86400。实测 304/写后失效全通过。**新读接口沿用此模式**
+- **前端 SWR 缓存（08-29）**：`front/src/stores/useSwrCacheStore.ts`（内存 + localStorage，key 含 `:{userId}:` 隔离）——NoteList 首页 / AIChat 最近对话 / Sessions 列表三处接入，刷新页面先渲染本地缓存秒开、后台静默刷新替换；`loadNotes` reset 分支保留旧数据直到新数据到达（SWR 语义，不闪骨架）。**刻意不做**：NoteEditor（编辑器 stale 内容可能覆盖用户输入）。失效靠后台刷新自愈（ETag 保证最新），容忍 1~2s 陈旧
 - **AI 路由启发式（08-29）**：`chat.py _should_skip_rag`——≤4 字符短查询 + 自我认知正则（"你是谁/介绍一下你…"）跳过 RAG 前置（向量分数对闲聊与知识问题无区分度，实测 0.54~0.59 重叠）；合并 compute_route_score 与 Top-1 检索为一次 similarity_search（省一次 embedding）。实测闲聊 20.5s→2.8s
 - 修复：N+1（好友/粉丝/关注批量查询）、Redis 配置漂移（load_dotenv）、localhost→127.0.0.1、libmagic 中文路径（上传降级）
 
@@ -131,15 +132,18 @@
 - **AI 消息 HTML 渲染（08-29 追加）**：LLM 会输出 `<details><summary>答案</summary>` 折叠结构，AIChat 原 ReactMarkdown 无 rehype-raw → 标签以纯文本显示。修复：新增 `AssistantMarkdown` 组件（AIChat.tsx）——DOMPurify 白名单清洗（允许 details/summary/常用标签，禁 data/aria 属性）+ `rehypeRaw` 渲染；`main_prompt` 正向引导折叠结构可用 details。**注意：新渲染 AI 消息一律走 AssistantMarkdown（sanitize + raw），勿直接用 ReactMarkdown**
 - **GFM 表格渲染（08-29 追加）**：react-markdown 默认不支持 GFM 表格——AI/笔记里的 markdown 表格被当普通段落，行内换行按段落 soft-break 规则渲染为空格（看起来像单行 `|` 拼接）。**已装 `remark-gfm`**：AIChat `AssistantMarkdown` 与 TiptapEditor preview 均加 `remarkPlugins={[remarkGfm]}`（表格/删除线/任务列表）。**新增 markdown 渲染处记得带 remarkGfm**
 
+**⑦ 次级页面 UI 优化（08-29，用户完成）**：社交三页（SocialFeed/Friends/Notifications）统一 `SocialLayout` + `social-pages.css`（`components/social/SocialLayout.tsx`）；笔记编辑页 `note-authoring.css`；`MainLayout` shellVariant 扩展 `is-social`/`is-note-authoring`；附带 verify 脚本（`front/scripts/verify-*.cjs`）。详见 `plan/records/2026-08-29-secondary-pages-ui-plan.md`
+
 ### 🔜 待办（按触发条件）
 | 项 | 触发条件 | 参考 |
 | --- | --- | --- |
-| 方向 D 阶段二：模型服务拆分（embedding/reranker 独立 + 任务队列） | 活跃用户接近 1000 | `scale-up-plan.md` |
-| 方向 D 阶段三：大规模架构 | 几千用户 | `scale-up-plan.md` |
-| 路由阈值 0.5 过松：「你好」类闲聊也触发 RAG 白等 HyDE；合并 `compute_route_score` 与 Top-1 检索（省一次 embedding）；路由判断偶发 2~3.8s 待定位 | 有空 | 交接文档 §4 ④ |
-| 微信小程序版（Taro + 微信登录） | 用户决定开工 | `wechat-mini-program-plan.md` |
-| PWA 化 / 年度报告页 | 有空 | — |
-| 游标分页（笔记/动态深翻页）、社交列表缓存、静态资源 gzip 上线 | 有空 | 性能优化建议清单 |
+| 方向 D 阶段二：模型服务拆分（embedding/reranker 独立 + 任务队列） | 活跃用户接近 1000 | `plan/roadmap/2026-08-27-scale-up-plan.md` |
+| 方向 D 阶段三：大规模架构 | 几千用户 | `plan/roadmap/2026-08-27-scale-up-plan.md` |
+| 路由判断偶发 2~3.8s 待定位（Chroma/Ollama 侧） | 有空 | 交接文档 §4 ② |
+| 微信小程序版（Taro + 微信登录） | 用户决定开工 | `plan/roadmap/2026-08-27-wechat-mini-program-plan.md` |
+| PWA 化（Service Worker，承接缓存方案 3）/ 年度报告页 | 有空 | `plan/records/2026-08-29-client-cache-plan.md`、`plan/roadmap/2026-08-29-next-steps-plan.md` |
+| 游标分页（笔记/动态深翻页）、社交列表缓存、静态资源 gzip 上线 | 有空 | `plan/roadmap/2026-08-29-next-steps-plan.md` |
+| 导出增强 / AI 对话细节 / 移动端响应式 | 有空 | `plan/roadmap/2026-08-29-next-steps-plan.md` |
 
 ## 5. 设计约定（新体系）
 
