@@ -72,6 +72,8 @@ export default defineConfig({
       '^/stats/': { target: BACKEND_TARGET, changeOrigin: true },
       '^/public/': { target: BACKEND_TARGET, changeOrigin: true },
       '^/social/': { target: BACKEND_TARGET, changeOrigin: true },
+      // 私聊 WebSocket：ws 代理到后端（token 走 query）
+      '/ws/': { target: BACKEND_TARGET, changeOrigin: true, ws: true },
       '^/user/(login|logout|register|detail|update|reset-password|refresh-token|settings)': { target: BACKEND_TARGET, changeOrigin: true },
       '/health': { target: BACKEND_TARGET, changeOrigin: true },
       '/file': { target: BACKEND_TARGET, changeOrigin: true },

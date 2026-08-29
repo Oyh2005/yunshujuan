@@ -16,6 +16,7 @@ import {
   Rss,
   Users,
   Bell,
+  MessagesSquare,
   Compass,
   ChevronDown,
   Timer,
@@ -29,8 +30,10 @@ import {
   X,
 } from 'lucide-react'
 import { useUserStore } from '../../stores/useUserStore'
+import { useChatStore } from '../../stores/useChatStore'
 import { authApi } from '../../api/auth'
 import { socialApi } from '../../api/social'
+import { messagesApi } from '../../api/messages'
 import ConfirmDialog from '../common/ConfirmDialog'
 import AuthImage from '../common/AuthImage'
 
@@ -74,6 +77,7 @@ const navGroups: { labelKey: string; items: { path: string; icon: React.Componen
     items: [
       { path: '/social', icon: Rss, labelKey: 'nav.social' },
       { path: '/friends', icon: Users, labelKey: 'nav.friends' },
+      { path: '/messages', icon: MessagesSquare, labelKey: 'nav.messages' },
       { path: '/notifications', icon: Bell, labelKey: 'nav.notifications' },
     ],
   },
@@ -102,6 +106,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const closeMobile = () => { if (mobile) setMobileOpen(false) }
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [unread, setUnread] = useState(0)
+  /** 私聊未读（WS 即时更新 + 30s 轮询兜底） */
+  const chatUnread = useChatStore((s) => s.unread)
+  const setChatUnread = useChatStore((s) => s.setUnread)
   /** 组级折叠状态：labelKey -> 是否收起（默认全展开） */
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
 
@@ -119,6 +126,13 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           if (!cancelled) setUnread(res.data?.count ?? 0)
         })
         .catch(() => {})
+      // 私聊未读兜底（WS 在线时由 unread 事件即时更新）
+      messagesApi
+        .unreadCount()
+        .then((count) => {
+          if (!cancelled) setChatUnread(count)
+        })
+        .catch(() => {})
     }
     load()
     const timer = setInterval(load, 30000)
@@ -126,7 +140,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       cancelled = true
       clearInterval(timer)
     }
-  }, [])
+  }, [setChatUnread])
 
   const handleLogout = async () => {
     try { await authApi.logout() } catch { /* ignore */ }
@@ -205,6 +219,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                           {path === '/notifications' && unread > 0 && (
                             <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-[var(--color-danger)] text-white text-[10px] font-medium flex items-center justify-center">
                               {unread > 99 ? '99+' : unread}
+                            </span>
+                          )}
+                          {path === '/messages' && chatUnread > 0 && (
+                            <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 px-1 rounded-full bg-[var(--color-accent)] text-white text-[10px] font-medium flex items-center justify-center">
+                              {chatUnread > 99 ? '99+' : chatUnread}
                             </span>
                           )}
                         </span>

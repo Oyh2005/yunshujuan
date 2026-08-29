@@ -21,6 +21,7 @@ const PublicSharePage = lazy(() => import('../pages/PublicSharePage'))
 const SocialFeed = lazy(() => import('../pages/SocialFeed'))
 const FriendsPage = lazy(() => import('../pages/FriendsPage'))
 const NotificationsPage = lazy(() => import('../pages/NotificationsPage'))
+const MessagesPage = lazy(() => import('../pages/MessagesPage'))
 const PlazaPage = lazy(() => import('../pages/PlazaPage'))
 const UserProfilePage = lazy(() => import('../pages/UserProfilePage'))
 const PomodoroPage = lazy(() => import('../pages/PomodoroPage'))
@@ -67,6 +68,7 @@ const routes: RouteObject[] = [
       { path: 'graph', element: <LazyLoad><GraphPage /></LazyLoad> },
       { path: 'social', element: <LazyLoad><SocialFeed /></LazyLoad> },
       { path: 'friends', element: <LazyLoad><FriendsPage /></LazyLoad> },
+      { path: 'messages', element: <LazyLoad><MessagesPage /></LazyLoad> },
       { path: 'notifications', element: <LazyLoad><NotificationsPage /></LazyLoad> },
       { path: 'plaza', element: <LazyLoad><PlazaPage /></LazyLoad> },
       { path: 'user/:userId', element: <LazyLoad><UserProfilePage /></LazyLoad> },

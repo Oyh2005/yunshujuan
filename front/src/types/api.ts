@@ -354,6 +354,7 @@ export interface UserProfileData {
   follow: {
     is_following: boolean
     is_self: boolean
+    is_friend: boolean
     follower_count: number
     following_count: number
   }

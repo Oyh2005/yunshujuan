@@ -79,8 +79,7 @@ export const endpoints = {
   // Social（方向 B）
   userSearch: '/social/users/search',
   friendsList: '/social/friends/list',
-  friendsRequests: '/social/friends/requests',
-  friendRequest: '/social/friends/request',
+  friendsRequests: '/social/friends/requests',  friendRequest: '/social/friends/request',
   friendRespond: '/social/friends/respond',
   friendDelete: (id: string) => `/social/friends/${id}`,
   postsCreate: '/social/posts',
@@ -102,6 +101,14 @@ export const endpoints = {
   userFollowers: (id: string) => `/social/users/${id}/followers`,
   userFollowing: (id: string) => `/social/users/${id}/following`,
   userPublicNotes: (id: string) => `/social/users/${id}/public-notes`,
+
+  // 私聊（P0）
+  chatConversations: '/social/chat/conversations',
+  chatMessages: (peerId: string) => `/social/chat/conversations/${peerId}/messages`,
+  chatSend: (peerId: string) => `/social/chat/conversations/${peerId}/messages`,
+  chatRead: (peerId: string) => `/social/chat/conversations/${peerId}/read`,
+  chatUnreadCount: '/social/chat/unread-count',
+  chatWs: '/ws/chat',
 
   // Note Templates
   noteTemplateList: '/note-template/list',

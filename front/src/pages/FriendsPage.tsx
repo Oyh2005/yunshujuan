@@ -152,6 +152,7 @@ export default function FriendsPage() {
                 <article key={friend.user_id} className="social-friend-card">
                   <SocialAvatar username={friend.username} avatar={friend.avatar} size={42} />
                   <button onClick={() => navigate(`/user/${friend.user_id}`)} className="social-friend-open"><strong>{friend.username}</strong><small>{friend.bio || text('查看公开主页', 'View public profile')}</small></button>
+                  <button onClick={() => navigate(`/messages?with=${friend.user_id}`)} className="social-friend-chat" title={text('发私信', 'Send message')} aria-label={text('给 {name} 发私信', 'Message {name}')}><MessageSquare size={13} /></button>
                   <ChevronRight size={15} />
                   <button onClick={() => setRemoveTarget(friend)} disabled={busyId === friend.user_id} className="social-friend-remove" title={t('friends.remove')} aria-label={t('friends.remove')}><Trash2 size={13} /></button>
                 </article>

@@ -15,6 +15,7 @@ import {
   Eye,
   Lock,
   CalendarDays,
+  MessageSquare,
 } from 'lucide-react'
 import { socialApi } from '../api/social'
 import type { PlazaNote, UserProfileData } from '../types/api'
@@ -144,17 +145,27 @@ export default function UserProfilePage() {
                   <div className="flex items-center gap-3 flex-wrap">
                     <h1 className="text-lg font-semibold text-[var(--color-text)]">{profile.user.username}</h1>
                     {!profile.follow.is_self ? (
-                      <button
-                        onClick={handleToggleFollow}
-                        disabled={followingBusy}
-                        className={`px-4 h-8 text-sm rounded-md transition-colors disabled:opacity-50 ${
-                          profile.follow.is_following
-                            ? 'border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'
-                            : 'bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:opacity-90'
-                        }`}
-                      >
-                        {followingBusy ? t('common.loading') : profile.follow.is_following ? t('userpage.followingBtn') : t('userpage.follow')}
-                      </button>
+                      <>
+                        <button
+                          onClick={handleToggleFollow}
+                          disabled={followingBusy}
+                          className={`px-4 h-8 text-sm rounded-md transition-colors disabled:opacity-50 ${
+                            profile.follow.is_following
+                              ? 'border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'
+                              : 'bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:opacity-90'
+                          }`}
+                        >
+                          {followingBusy ? t('common.loading') : profile.follow.is_following ? t('userpage.followingBtn') : t('userpage.follow')}
+                        </button>
+                        {profile.follow.is_friend && (
+                          <button
+                            onClick={() => navigate(`/messages?with=${profile.user.user_id}`)}
+                            className="h-8 px-4 text-sm rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-accent-bg)] hover:text-[var(--color-accent)] transition-colors inline-flex items-center gap-1.5"
+                          >
+                            <MessageSquare size={13} />{t('userpage.message')}
+                          </button>
+                        )}
+                      </>
                     ) : (
                       <span className="px-3 h-8 flex items-center text-xs rounded-md bg-[var(--color-accent-bg)] text-[var(--color-accent)]">
                         {t('userpage.isSelf')}
