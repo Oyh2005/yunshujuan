@@ -35,6 +35,7 @@ export const endpoints = {
   knowledgeMd5Delete: (md5: string) => `/knowledge/md5/delete/${md5}`,
   knowledgeDeleteFilename: '/knowledge/delete/filename',
   knowledgeClip: '/knowledge/clip',
+  knowledgeExportZip: '/knowledge/export/zip',
 
   // Documents reorder
   reorderDocuments: '/chat/reorder',
@@ -70,6 +71,7 @@ export const endpoints = {
 
   // Stats Dashboard
   statsDashboard: '/stats/dashboard',
+  statsPeriod: '/stats/period',
 
   // Public Share（数据走 /public 别名，避免与 SPA 路由 /share/:id 代理冲突）
   shareNote: (id: string) => `/public/note/${id}`,

@@ -698,6 +698,98 @@ class KnowledgeService:
         return {"md5": md5, "images": images}
 
 
+    async def handle_export_zip(self, user_id: str) -> bytes:
+        """
+        知识库整体导出为 zip：对每个文档从向量切片重建文本，打包为 zip 字节。
+
+        说明：
+        - 上传的原始文件不落盘（临时文件切片后即删），只能从 Chroma 切片重建；
+          重建文本与原始文件可能存在细微差异（切片重叠/解析损耗）。
+        - 有 page 元数据的文档（多模态 PDF）按页号排序，其余保持入库顺序。
+        - 为防止超大知识库撑爆内存，导出文本总量超限时直接拒绝并提示。
+        """
+        import io
+        import re
+        import zipfile
+
+        documents = await self.handle_get_user_knowledge(user_id)
+        if not documents:
+            raise HTTPException(status_code=404, detail="知识库为空，暂无内容可导出")
+
+        MAX_TOTAL_TEXT = 80 * 1024 * 1024  # 重建文本总量上限（约 80MB）
+        used_names: dict[str, int] = {}
+        manifest: list[dict] = []
+
+        def unique_name(base: str) -> str:
+            """同名文件追加序号（如 笔记.md → 笔记-2.md）"""
+            if base not in used_names:
+                used_names[base] = 1
+                return base
+            used_names[base] += 1
+            stem, ext = os.path.splitext(base)
+            return f"{stem}-{used_names[base]}{ext}"
+
+        def safe_basename(filename: str) -> str:
+            """去除路径分隔符与非法文件名字符，空名兜底"""
+            name = os.path.basename(filename or "").strip()
+            name = re.sub(r'[\\/:*?"<>|\r\n]', "_", name)
+            return name or "document"
+
+        buf = io.BytesIO()
+        total_text = 0
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for i, doc in enumerate(documents, start=1):
+                filename = doc.get("filename", "")
+                detail = await self.handle_get_document_detail(user_id, filename)
+                chunks = detail.get("chunks") or []
+
+                # 有 page（多模态 PDF）按页号升序，无 page 保持入库顺序
+                chunks.sort(key=lambda c: (
+                    0 if c.get("page") is not None else 1,
+                    c.get("page") if c.get("page") is not None else c.get("index", 0),
+                ))
+                text = "\n\n".join(chunk.get("content", "") for chunk in chunks).strip()
+                if not text:
+                    text = "（该文档无可重建的文本内容）"
+
+                total_text += len(text)
+                if total_text > MAX_TOTAL_TEXT:
+                    raise HTTPException(
+                        status_code=413,
+                        detail="知识库过大，暂不支持整包导出（重建文本超过 80MB）",
+                    )
+
+                zip_name = unique_name(f"{i:03d}-{safe_basename(filename)}.txt")
+                zf.writestr(zip_name, text)
+                manifest.append({
+                    "index": i,
+                    "original": filename,
+                    "chunk_count": doc.get("chunk_count", len(chunks)),
+                    "export": zip_name,
+                })
+
+            readme_lines = [
+                "# 知识库导出说明",
+                "",
+                f"- 导出时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                f"- 文档数量：{len(manifest)}",
+                "",
+                "> 说明：本压缩包由「云舒卷 · RAG Notebook」自动导出，文档内容由向量切片重建，",
+                "> 可能与原始文件存在细微差异（如排版、图片不包含在内）。",
+                "",
+                "## 文件清单",
+                "",
+                "| # | 原始文件名 | 切片数 | 导出文件名 |",
+                "| --- | --- | --- | --- |",
+            ]
+            for row in manifest:
+                readme_lines.append(f"| {row['index']} | {row['original']} | {row['chunk_count']} | {row['export']} |")
+            zf.writestr("README.md", "\n".join(readme_lines))
+
+        logger.info(f"【知识库】导出 zip 完成：用户 {user_id}，{len(manifest)} 个文档，{total_text / 1024:.1f}KB 文本")
+        return buf.getvalue()
+
+
 def get_knowledge_service() -> KnowledgeService:
     """获取知识库服务实例（用于依赖注入）"""
     return KnowledgeService()

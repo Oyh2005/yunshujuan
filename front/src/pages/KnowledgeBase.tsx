@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import * as Dialog from '@radix-ui/react-dialog'
 import { toast } from 'sonner'
-import { Upload, FileText, Trash2, Loader2, CheckCircle2, AlertCircle, Link2, X, Search, Layers3, Clock, ArrowRight } from 'lucide-react'
+import { Upload, FileText, Trash2, Loader2, CheckCircle2, AlertCircle, Link2, X, Search, Layers3, Clock, ArrowRight, Archive } from 'lucide-react'
 import { knowledgeApi } from '../api/knowledge'
 import { useSSE } from '../hooks/useSSE'
 import ConfirmDialog from '../components/common/ConfirmDialog'
@@ -29,6 +29,7 @@ export default function KnowledgeBase() {
   const [clipOpen, setClipOpen] = useState(false)
   const [clipUrl, setClipUrl] = useState('')
   const [clipping, setClipping] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [search, setSearch] = useState('')
   const [type, setType] = useState('all')
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -134,6 +135,28 @@ export default function KnowledgeBase() {
     } catch { toast.error(t('common.error')) }
     setShowClean(false)
   }
+
+  const handleExportZip = async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      const { blob, filename } = await knowledgeApi.exportZip()
+      if (!mounted.current) return
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename || `knowledge-export-${new Date().toISOString().slice(0, 10)}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success(t('knowledge.exportSuccess'))
+    } catch (err) {
+      if (!mounted.current) return
+      const status = (err as { response?: { status?: number } })?.response?.status
+      toast.error(status === 404 ? t('knowledge.exportEmpty') : t('knowledge.exportFailed'))
+    } finally {
+      if (mounted.current) setExporting(false)
+    }
+  }
   const formatDate = (value?: string | null) => {
     if (!value || !Number.isFinite(Date.parse(value))) return '—'
     return new Date(value).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })
@@ -144,6 +167,7 @@ export default function KnowledgeBase() {
   return <KnowledgeLayout>
     <KnowledgeHeader title={t('knowledge.title')} subtitle={t('knowledgeUI.librarySubtitle')} actions={<>
       <button className="secondary-button" onClick={() => setClipOpen(true)}><Link2 size={16} />{t('clip.button')}</button>
+      <button className="secondary-button" disabled={exporting} onClick={() => void handleExportZip()} title={t('knowledge.exportHint')}>{exporting ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}{t(exporting ? 'knowledge.exporting' : 'knowledge.exportZip')}</button>
       <button className="primary-button" disabled={uploading} onClick={() => fileInputRef.current?.click()}><Upload size={17} />{t('knowledge.upload')}</button>
     </>} />
     <div className={'knowledge-upload' + (dragOver ? ' is-dragging' : '')} onDragOver={(event) => { event.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); void handleFilesSelected(event.dataTransfer.files) }}>

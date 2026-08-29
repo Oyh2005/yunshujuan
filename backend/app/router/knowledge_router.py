@@ -1,7 +1,9 @@
 import os
+from datetime import datetime
+from urllib.parse import quote
 
 from fastapi import Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.routing import APIRouter
 from pydantic import BaseModel
 
@@ -178,6 +180,33 @@ async def get_user_knowledge_list(
         documents=documents,
         total_count=len(documents)
     ))
+
+
+@knowledge_router.get("/export/zip")
+async def export_user_knowledge_zip(
+        user_id: str = Depends(get_current_user_id),
+        knowledge_service: KnowledgeService = Depends(get_knowledge_service),
+        _: None = Depends(rate_limit(limit=10, window=60))
+):
+    """
+    知识库整体导出为 zip：每个文档由向量切片重建为文本文件，
+    附带 README.md 文件清单说明。
+    """
+    payload = await knowledge_service.handle_export_zip(user_id)
+    date_str = datetime.now().strftime('%Y%m%d')
+    filename = f"知识库导出-{date_str}.zip"
+    return Response(
+        content=payload,
+        media_type="application/zip",
+        headers={
+            # RFC 5987：filename* 提供 UTF-8 中文文件名，filename 兜底 ASCII
+            "Content-Disposition": (
+                f"attachment; filename=\"knowledge-export-{date_str}.zip\"; "
+                f"filename*=UTF-8''{quote(filename)}"
+            ),
+            "Cache-Control": "no-store",
+        }
+    )
 
 
 @knowledge_router.get("/detail", response_model=KnowledgeDocumentDetail)

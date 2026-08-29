@@ -43,4 +43,18 @@ export const knowledgeApi = {
     const res = await client.post<ApiResponse<{ filename: string; chunk_count: number; title: string }>>(endpoints.knowledgeClip, { url })
     return res.data
   },
+
+  /** 知识库整体导出 zip（blob），文件名优先取后端 Content-Disposition */
+  exportZip: async () => {
+    const res = await client.get<Blob>(endpoints.knowledgeExportZip, { responseType: 'blob' })
+    let filename = ''
+    try {
+      const disposition = res.headers['content-disposition'] ?? ''
+      const match = /filename\*=UTF-8''([^;]+)/.exec(disposition)
+      filename = match ? decodeURIComponent(match[1]) : ''
+    } catch {
+      // 解析失败时回退为空，由调用方使用默认文件名
+    }
+    return { blob: res.data, filename }
+  },
 }

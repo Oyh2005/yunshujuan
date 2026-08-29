@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ArrowLeft, Save, Trash2, Download, Link2, ListTree, FileText, Users, GraduationCap, BookOpen, ListTodo, BookMarked, Plus, GripVertical, Share2, GitBranch, ExternalLink, X, FileCode2, Printer } from 'lucide-react'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { marked } from 'marked'
 import TiptapEditor, { type TiptapEditorHandle } from '../components/TiptapEditor'
 import TagInput from '../components/common/TagInput'
@@ -176,7 +177,7 @@ export default function NoteEditor() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${title || 'note'}.md`
+      a.download = `${(title || 'note').replace(/[\\/:*?"<>|]/g, '_')}.md`
       a.click()
       URL.revokeObjectURL(url)
     } catch {
@@ -227,26 +228,81 @@ export default function NoteEditor() {
   // ── 导出 HTML / 打印 PDF（备选方向）──
   const buildHtmlDoc = () => {
     const body = String(marked.parse(content || ''))
+    const safeTitle = (title || '无标题').replace(/</g, '&lt;')
+    const exportTime = new Date().toLocaleString('zh-CN', { dateStyle: 'long', timeStyle: 'short' })
     return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<title>${(title || '笔记').replace(/</g, '&lt;')}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${safeTitle}</title>
 <style>
-  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 720px; margin: 40px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.8; }
-  h1 { font-size: 26px; border-bottom: 1px solid #eee; padding-bottom: 12px; }
-  img { max-width: 100%; }
-  pre { background: #f6f6f4; padding: 12px; border-radius: 8px; overflow-x: auto; }
-  code { background: #f6f6f4; padding: 2px 5px; border-radius: 4px; font-size: 0.9em; }
-  blockquote { border-left: 3px solid #1f6c9f; margin: 0; padding-left: 16px; color: #555; }
-  table { border-collapse: collapse; } th, td { border: 1px solid #ddd; padding: 6px 12px; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    max-width: 780px; margin: 44px auto; padding: 0 28px;
+    color: #1f2328; font-size: 15.5px; line-height: 1.9;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 30px; font-weight: 700; line-height: 1.35; margin: 0 0 6px; letter-spacing: .5px; }
+  .meta { color: #8a8f98; font-size: 12.5px; padding-bottom: 18px; margin-bottom: 30px; border-bottom: 1px solid #e8eaed; }
+  h2 { font-size: 22px; font-weight: 650; margin: 34px 0 12px; padding-bottom: 6px; border-bottom: 1px solid #f0f1f3; }
+  h3 { font-size: 18px; font-weight: 650; margin: 26px 0 10px; }
+  h4 { font-size: 16px; font-weight: 650; margin: 22px 0 8px; }
+  p { margin: 12px 0; }
+  a { color: #2563eb; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  img { max-width: 100%; height: auto; display: block; margin: 10px auto; border-radius: 8px; }
+  pre {
+    background: #f6f8fa; border: 1px solid #eceff3; border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.7;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  code {
+    background: #f2f4f7; padding: 2px 6px; border-radius: 5px; font-size: .88em;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  pre code { background: none; padding: 0; border-radius: 0; font-size: 13px; }
+  blockquote {
+    margin: 14px 0; padding: 6px 18px; border-left: 4px solid #c7d2fe;
+    color: #57606a; background: #fafbff; border-radius: 0 8px 8px 0;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 14px; }
+  th, td { border: 1px solid #dfe3e8; padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; font-weight: 600; }
+  tbody tr:nth-child(even) td { background: #fafbfc; }
+  ul, ol { padding-left: 24px; margin: 12px 0; }
+  li { margin: 5px 0; }
+  li::marker { color: #6b7280; }
+  hr { border: none; border-top: 1px solid #e8eaed; margin: 28px 0; }
+  .footer {
+    margin-top: 42px; padding-top: 14px; border-top: 1px solid #e8eaed;
+    color: #9aa0a8; font-size: 12px;
+    display: flex; justify-content: space-between; gap: 16px;
+  }
+  /* ── 打印优化：A4 版式 + 分页保护 + 页码页脚 ── */
+  @page { size: A4; margin: 16mm 15mm; }
+  @media print {
+    body { max-width: none; margin: 0; padding: 0; font-size: 12pt; line-height: 1.85; }
+    h1 { font-size: 20pt; }
+    h2 { font-size: 15pt; }
+    h3 { font-size: 12.5pt; }
+    h4 { font-size: 11.5pt; }
+    pre, table, img, blockquote, .footer { break-inside: avoid; }
+    h1, h2, h3, h4 { break-after: avoid; page-break-after: avoid; }
+    a { color: inherit; text-decoration: none; }
+    body { padding-bottom: 18mm; }
+    .footer { position: fixed; bottom: 0; left: 0; right: 0; margin: 0; border-top: 1px solid #e8eaed; }
+    .footer .page-num::before { content: "第 " counter(page) " 页"; }
+  }
 </style>
 </head>
 <body>
-<h1>${(title || '无标题').replace(/</g, '&lt;')}</h1>
+<h1>${safeTitle}</h1>
+<div class="meta">由 云舒卷 · RAG Notebook 导出 · ${exportTime}</div>
 ${body}
-<hr />
-<p style="color:#999;font-size:12px;">由 云舒卷 · RAG Notebook 导出</p>
+<div class="footer"><span>由 云舒卷 · RAG Notebook 导出</span><span class="page-num"></span></div>
 </body>
 </html>`
   }
@@ -685,31 +741,24 @@ ${body}
             </button>
           )}
           {!isNew && (
-            <button
-              onClick={handleDownload}
-              className="flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] rounded-lg transition-colors"
-              title={t('note.download')}
-            >
-              <Download size={16} />
-            </button>
-          )}
-          {!isNew && (
-            <button
-              onClick={handleExportHtml}
-              className="flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] rounded-lg transition-colors"
-              title={t('note.exportHtml')}
-            >
-              <FileCode2 size={16} />
-            </button>
-          )}
-          {!isNew && (
-            <button
-              onClick={handlePrintPdf}
-              className="flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] rounded-lg transition-colors"
-              title={t('note.printPdf')}
-            >
-              <Printer size={16} />
-            </button>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  className="flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] rounded-lg transition-colors"
+                  title={t('note.export')}
+                >
+                  <Download size={16} />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="workspace-menu" sideOffset={6} align="end" collisionPadding={12}>
+                  <DropdownMenu.Item className="workspace-menu-item" onSelect={() => void handleDownload()}><FileText size={15} />{t('note.download')}</DropdownMenu.Item>
+                  <DropdownMenu.Item className="workspace-menu-item" onSelect={handleExportHtml}><FileCode2 size={15} />{t('note.exportHtml')}</DropdownMenu.Item>
+                  <DropdownMenu.Separator className="workspace-menu-separator" />
+                  <DropdownMenu.Item className="workspace-menu-item" onSelect={handlePrintPdf}><Printer size={15} />{t('note.printPdf')}</DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           )}
           {!isNew && (
             <button
