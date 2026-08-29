@@ -22,6 +22,7 @@ export interface ChatMessage {
   id: number
   conversation_id: string
   sender_id: string
+  message_type?: 'text' | 'image'
   content: string
   read: boolean
   created_at: string | null
@@ -56,9 +57,19 @@ export const messagesApi = {
   },
 
   /** 发送私聊消息 */
-  send: async (peerId: string, content: string) => {
-    const res = await client.post<ApiResponse<{ message: ChatMessage }>>(endpoints.chatSend(peerId), { content })
+  send: async (peerId: string, content: string, messageType: 'text' | 'image' = 'text') => {
+    const res = await client.post<ApiResponse<{ message: ChatMessage }>>(endpoints.chatSend(peerId), { content, message_type: messageType })
     return res.data.data?.message
+  },
+
+  /** 上传聊天图片 → 返回 /media 图片 URL */
+  uploadImage: async (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    const res = await client.post<ApiResponse<{ url: string; filename: string }>>(endpoints.chatUploadImage, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return res.data.data
   },
 
   /** 标记与某用户的会话已读，返回最新未读总数 */

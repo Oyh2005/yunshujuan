@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ArrowLeft, Loader2, MessageSquare, Pin, Search, Send, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, ImagePlus, Loader2, MessageSquare, Pin, Search, Send, Smile, Trash2, Users, X } from 'lucide-react'
 import { messagesApi, type ChatConversation, type ChatMessage, type ChatPeer } from '../api/messages'
 import { socialApi } from '../api/social'
 import { useChatSocket } from '../hooks/useChatSocket'
@@ -12,6 +12,9 @@ import ConfirmDialog from '../components/common/ConfirmDialog'
 import SocialLayout, { SocialAvatar, SocialHeader } from '../components/social/SocialLayout'
 
 const HISTORY_PAGE = 30
+
+/** 微信式常用 emoji 面板（基础表情集） */
+const EMOJIS = ['😀', '😄', '😁', '😂', '🤣', '😊', '😇', '🙂', '😉', '😍', '🥰', '😘', '😜', '🤪', '😎', '🤩', '🥳', '😏', '😢', '😭', '😤', '😡', '😱', '😳', '🤔', '🤗', '🤫', '😴', '👍', '👎', '👏', '🙏', '💪', '🤝', '👋', '✌️', '❤️', '💖', '💯', '✨', '🎉', '🔥', '🌟', '🌈', '🍀', '☕', '🍰', '🎁']
 
 function validTime(value?: string | null): number {
   const t = value ? Date.parse(value) : Number.NaN
@@ -89,6 +92,10 @@ export default function MessagesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<ChatConversation | null>(null)
   const [settingBusy, setSettingBusy] = useState<string | null>(null)
+  const [showEmoji, setShowEmoji] = useState(false)
+  const [imageUploading, setImageUploading] = useState(false)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const selectedPeerRef = useRef<string | null>(null)
   useEffect(() => {
@@ -221,12 +228,13 @@ export default function MessagesPage() {
   }, [directPeer])
 
   /** 发送消息（乐观更新：先本地插入"发送中"，成功替换为服务端消息，失败标记可重发） */
-  const sendMessage = useCallback(async (peerId: string, content: string) => {
+  const sendMessage = useCallback(async (peerId: string, content: string, messageType: 'text' | 'image' = 'text') => {
     const tempId = -Date.now()
     const tempMsg: ChatMessage = {
       id: tempId,
       conversation_id: '',
       sender_id: userId,
+      message_type: messageType,
       content,
       read: false,
       created_at: new Date().toISOString(),
@@ -234,7 +242,7 @@ export default function MessagesPage() {
     }
     setMessages((prev) => [...prev, tempMsg])
     try {
-      const msg = await messagesApi.send(peerId, content)
+      const msg = await messagesApi.send(peerId, content, messageType)
       if (msg) {
         setMessages((prev) => prev.map((m) => m.id === tempId ? { ...msg } : m))
         syncConversationAfterSend(peerId, msg)
@@ -267,12 +275,34 @@ export default function MessagesPage() {
     if (!selectedPeerId) return
     setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: 'sending' } : m))
     setSendError('')
-    const ok = await sendMessage(selectedPeerId, msg.content)
+    const ok = await sendMessage(selectedPeerId, msg.content, msg.message_type === 'image' ? 'image' : 'text')
     if (ok) {
       // 重发成功：移除旧的失败消息（sendMessage 已插入新临时消息）
       setMessages((prev) => prev.filter((m) => m.id !== msg.id))
     } else {
       setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: 'failed' } : m))
+    }
+  }
+
+  /** 选中图片 → 上传 → 发送图片消息 */
+  const handlePickImage = async (file: File | undefined) => {
+    if (!file || !selectedPeerId || imageUploading) return
+    if (!/^image\/(png|jpe?g|gif|webp)$/.test(file.type)) {
+      toast.error(text('仅支持 png/jpg/gif/webp 图片', 'Only png/jpg/gif/webp images are supported'))
+      return
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(text('图片不能超过 10MB', 'Image must be under 10MB'))
+      return
+    }
+    setImageUploading(true)
+    try {
+      const data = await messagesApi.uploadImage(file)
+      if (data?.url) await sendMessage(selectedPeerId, data.url, 'image')
+    } catch {
+      toast.error(text('图片发送失败，请重试', 'Failed to send image. Please retry.'))
+    } finally {
+      setImageUploading(false)
     }
   }
 
@@ -371,7 +401,7 @@ export default function MessagesPage() {
                         <span className="messages-conv-copy">
                           <span className="messages-conv-top"><strong>{conv.peer.username}</strong><time>{formatTime(conv.last_message_at, english)}</time></span>
                           <span className="messages-conv-bottom">
-                            <small>{conv.last_sender_id === userId ? `${text('我：', 'You: ')}${conv.last_message}` : conv.last_message}</small>
+                            <small>{conv.last_sender_id === userId ? `${text('我：', 'You: ')}${conv.last_message.startsWith('/media/') ? text('[图片]', '[Image]') : conv.last_message}` : conv.last_message.startsWith('/media/') ? text('[图片]', '[Image]') : conv.last_message}</small>
                             {conv.unread > 0 && <b>{conv.unread > 99 ? '99+' : conv.unread}</b>}
                           </span>
                         </span>
@@ -422,9 +452,13 @@ export default function MessagesPage() {
                           <div className="messages-bubble-content">
                             {msg.status === 'failed' ? (
                               <>
-                                <p className="messages-failed-text">{msg.content}</p>
+                                {msg.message_type === 'image'
+                                  ? <img className="messages-image failed" src={msg.content} alt="" onClick={() => setPreviewImage(msg.content)} />
+                                  : <p className="messages-failed-text">{msg.content}</p>}
                                 <button className="messages-resend" onClick={() => void resendMessage(msg)}>{text('发送失败，点击重发', 'Failed, tap to resend')}</button>
                               </>
+                            ) : msg.message_type === 'image' ? (
+                              <img className="messages-image" src={msg.content} alt={text('聊天图片', 'Chat image')} loading="lazy" onClick={() => setPreviewImage(msg.content)} />
                             ) : (
                               <p>{msg.content}</p>
                             )}
@@ -444,17 +478,31 @@ export default function MessagesPage() {
               </div>
               <footer className="messages-chat-input">
                 {sendError && <p className="messages-send-error">{sendError}</p>}
-                <textarea
-                  value={input}
-                  onChange={(event) => { setInput(event.target.value); if (sendError) setSendError('') }}
-                  onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSend() } }}
-                  placeholder={text('输入消息，Enter 发送…', 'Type a message, Enter to send…')}
-                  rows={1}
-                  aria-label={text('消息内容', 'Message')}
-                />
-                <button className="messages-send" onClick={() => void handleSend()} disabled={!input.trim() || sending} aria-label={text('发送', 'Send')}>
-                  {sending ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
-                </button>
+                <div className="messages-input-bar">
+                  <div className="messages-input-tools">
+                    <button className={`messages-tool${showEmoji ? ' is-active' : ''}`} onClick={() => setShowEmoji((v) => !v)} title={text('表情', 'Emoji')} aria-label={text('表情', 'Emoji')}><Smile size={18} /></button>
+                    <button className="messages-tool" onClick={() => imageInputRef.current?.click()} disabled={imageUploading} title={text('发送图片', 'Send image')} aria-label={text('发送图片', 'Send image')}>{imageUploading ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={18} />}</button>
+                    <input ref={imageInputRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" onChange={(e) => { void handlePickImage(e.target.files?.[0]); e.target.value = '' }} />
+                  </div>
+                  {showEmoji && (
+                    <div className="messages-emoji-panel" role="listbox" aria-label={text('表情选择', 'Emoji picker')}>
+                      {EMOJIS.map((emoji) => (
+                        <button key={emoji} onClick={() => { setInput((v) => v + emoji); setShowEmoji(false) }}>{emoji}</button>
+                      ))}
+                    </div>
+                  )}
+                  <textarea
+                    value={input}
+                    onChange={(event) => { setInput(event.target.value); if (sendError) setSendError('') }}
+                    onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void handleSend() } }}
+                    placeholder={text('输入消息，Enter 发送…', 'Type a message, Enter to send…')}
+                    rows={1}
+                    aria-label={text('消息内容', 'Message')}
+                  />
+                  <button className="messages-send" onClick={() => void handleSend()} disabled={!input.trim() || sending} aria-label={text('发送', 'Send')}>
+                    {sending ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
+                  </button>
+                </div>
               </footer>
             </>
           )}
@@ -469,6 +517,12 @@ export default function MessagesPage() {
         confirmText={text('删除', 'Delete')}
         onConfirm={handleDeleteConversation}
       />
+      {previewImage && (
+        <div className="messages-image-preview" role="dialog" aria-modal="true" onClick={() => setPreviewImage(null)}>
+          <button className="messages-image-preview-close" aria-label={text('关闭预览', 'Close preview')}><X size={20} /></button>
+          <img src={previewImage} alt="" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </SocialLayout>
   )
 }

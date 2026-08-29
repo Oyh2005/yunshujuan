@@ -8,10 +8,11 @@
 
 import asyncio
 import json
+import os
 import uuid
 from datetime import datetime
 
-from fastapi import Body, Depends, HTTPException, Query
+from fastapi import Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.routing import APIRouter
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, delete, func, or_, select, update
@@ -1001,7 +1002,8 @@ async def user_public_notes(
 # ───────────────────────── 私聊（P0：仅好友 + WebSocket 实时）─────────────────────────
 
 class ChatMessageRequest(BaseModel):
-    content: str = Field(..., min_length=1, max_length=2000, description="消息内容")
+    content: str = Field(..., min_length=1, max_length=2000, description="消息内容（image 时为图片 URL）")
+    message_type: str = Field("text", description="text/image")
 
 
 async def _get_conversation(db: AsyncSession, user_x: str, user_y: str) -> ChatConversation | None:
@@ -1051,6 +1053,7 @@ def _message_dict(msg: PrivateMessage) -> dict:
         "id": msg.id,
         "conversation_id": msg.conversation_id,
         "sender_id": msg.sender_id,
+        "message_type": msg.message_type or "text",
         "content": msg.content,
         "read": msg.read,
         "created_at": str(msg.created_at) if msg.created_at else None,
@@ -1205,10 +1208,12 @@ async def send_chat_message(
     friends = await _friend_ids(db, user_id)
     if target_id not in friends:
         raise HTTPException(status_code=403, detail="仅好友之间可以私聊")
-    _assert_clean(payload.content)
+    message_type = payload.message_type if payload.message_type in ("text", "image") else "text"
+    if message_type == "text":
+        _assert_clean(payload.content)
 
     conv = await _ensure_conversation(db, user_id, target_id)
-    msg = PrivateMessage(conversation_id=conv.id, sender_id=user_id, content=payload.content)
+    msg = PrivateMessage(conversation_id=conv.id, sender_id=user_id, content=payload.content, message_type=message_type)
     db.add(msg)
     conv.last_message = payload.content[:500]
     conv.last_message_at = datetime.now()
@@ -1267,3 +1272,33 @@ async def chat_unread_count(
 ):
     """私聊未读消息总数（侧边栏红点 + WS 未读事件兜底）。"""
     return success_response(data={"count": await _unread_count(db, user_id)})
+
+
+# ── 聊天图片（微信式图片消息）──
+ALLOWED_CHAT_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+MAX_CHAT_IMAGE_SIZE = 10 * 1024 * 1024
+
+
+@social_router.post("/chat/upload-image")
+async def upload_chat_image(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user_id),
+    _: None = Depends(rate_limit(limit=20, window=60)),
+):
+    """上传聊天图片 → backend/media/chat/{user_id}/，返回 /media 可访问 URL。"""
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_CHAT_IMAGE_EXTS:
+        raise HTTPException(status_code=400, detail="仅支持 png/jpg/gif/webp 图片")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="图片内容为空")
+    if len(content) > MAX_CHAT_IMAGE_SIZE:
+        raise HTTPException(status_code=400, detail="图片不能超过 10MB")
+
+    chat_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../..", "media", "chat", user_id))
+    os.makedirs(chat_dir, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}{ext}"
+    with open(os.path.join(chat_dir, filename), "wb") as f:
+        f.write(content)
+    logger.info(f"【私聊】图片上传：user={user_id} {filename} ({len(content)}B)")
+    return success_response(data={"url": f"/media/chat/{user_id}/{filename}", "filename": filename})

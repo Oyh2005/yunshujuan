@@ -108,6 +108,7 @@ export const endpoints = {
   chatSend: (peerId: string) => `/social/chat/conversations/${peerId}/messages`,
   chatRead: (peerId: string) => `/social/chat/conversations/${peerId}/read`,
   chatUnreadCount: '/social/chat/unread-count',
+  chatUploadImage: '/social/chat/upload-image',
   chatWs: '/ws/chat',
 
   // Note Templates

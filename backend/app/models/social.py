@@ -119,7 +119,8 @@ class PrivateMessage(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, comment="自增ID（游标分页）")
     conversation_id = Column(String(36), index=True, nullable=False, comment="会话ID")
     sender_id = Column(String(36), index=True, nullable=False, comment="发送者用户ID")
-    content = Column(Text, nullable=False, comment="消息内容")
+    message_type = Column(String(10), default="text", nullable=False, comment="消息类型 text/image")
+    content = Column(Text, nullable=False, comment="消息内容（image 时为图片 URL）")
     read = Column(Boolean, default=False, nullable=False, index=True, comment="接收方是否已读")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, comment="发送时间")
 
