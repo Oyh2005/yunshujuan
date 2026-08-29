@@ -25,6 +25,8 @@ import {
   LogOut,
   Columns2,
   House,
+  Menu,
+  X,
 } from 'lucide-react'
 import { useUserStore } from '../../stores/useUserStore'
 import { authApi } from '../../api/auth'
@@ -94,7 +96,10 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const logout = useUserStore((s) => s.logout)
   const userInfo = useUserStore((s) => s.userInfo)
   const mobile = useSyncExternalStore(subscribeToWidth, getCompactSnapshot, () => false)
-  const compact = collapsed || mobile
+  /** 移动端抽屉：图标栏 → 展开为覆盖式侧边栏（含文字标签） */
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const compact = (collapsed || mobile) && !mobileOpen
+  const closeMobile = () => { if (mobile) setMobileOpen(false) }
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [unread, setUnread] = useState(0)
   /** 组级折叠状态：labelKey -> 是否收起（默认全展开） */
@@ -130,16 +135,22 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   }
 
   return (
-    <aside className={`app-sidebar${compact ? ' is-collapsed' : ''}`}>
+    <aside className={`app-sidebar${compact ? ' is-collapsed' : ''}${mobile && mobileOpen ? ' is-mobile-open' : ''}`}>
+      {mobile && mobileOpen && <button className="sidebar-mobile-backdrop" aria-label={t('nav.collapse')} onClick={() => setMobileOpen(false)} />}
       <div className="sidebar-brand">
         {!compact && (
-          <NavLink to="/" className="sidebar-logo" aria-label={t('app.name')}>
+          <NavLink to="/" onClick={closeMobile} className="sidebar-logo" aria-label={t('app.name')}>
             <Cloud size={31} strokeWidth={1.8} />
             <span>{t('app.name')}</span>
           </NavLink>
         )}
         {mobile ? (
-          <NavLink to="/" className="sidebar-mobile-logo" aria-label={t('app.name')}><Cloud size={29} /></NavLink>
+          <>
+            <NavLink to="/" onClick={closeMobile} className="sidebar-mobile-logo" aria-label={t('app.name')}><Cloud size={29} /></NavLink>
+            <button onClick={() => setMobileOpen((value) => !value)} className="workspace-icon-button sidebar-mobile-menu" title={mobileOpen ? t('nav.collapse') : t('nav.expand')} aria-label={mobileOpen ? t('nav.collapse') : t('nav.expand')} aria-expanded={mobileOpen}>
+              {mobileOpen ? <X size={19} /> : <Menu size={20} />}
+            </button>
+          </>
         ) : (
           <button onClick={onToggle} className="workspace-icon-button sidebar-toggle" title={collapsed ? t('nav.expand') : t('nav.collapse')} aria-label={collapsed ? t('nav.expand') : t('nav.collapse')} aria-expanded={!collapsed}>
             <Columns2 size={17} />
@@ -148,7 +159,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       <nav className="sidebar-navigation" aria-label={t('nav.navigation')}>
-        <NavLink to="/" end className={({ isActive }) => `nav-item sidebar-link sidebar-home-link${isActive ? ' active' : ''}`} title={t('nav.home')} aria-label={t('nav.home')}><House size={18} />{!compact && <span className="sidebar-label">{t('nav.home')}</span>}</NavLink>
+        <NavLink to="/" end onClick={closeMobile} className={({ isActive }) => `nav-item sidebar-link sidebar-home-link${isActive ? ' active' : ''}`} title={t('nav.home')} aria-label={t('nav.home')}><House size={18} />{!compact && <span className="sidebar-label">{t('nav.home')}</span>}</NavLink>
         {navGroups.map((group) => {
           const groupCollapsed = !!collapsedGroups[group.labelKey]
           return (
@@ -182,6 +193,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                       <NavLink
                         key={path}
                         to={path}
+                        onClick={closeMobile}
                         className={({ isActive }) =>
                           `nav-item sidebar-link${isActive ? ' active' : ''}`
                         }
@@ -220,7 +232,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <DropdownMenu.Portal>
             <DropdownMenu.Content className="workspace-menu" side="top" align="start" sideOffset={10} collisionPadding={12}>
               {bottomItems.map(({ path, icon: Icon, labelKey }) => (
-                <DropdownMenu.Item key={path} className="workspace-menu-item" onSelect={() => navigate(path)}><Icon size={16} />{t(labelKey)}</DropdownMenu.Item>
+                <DropdownMenu.Item key={path} className="workspace-menu-item" onSelect={() => { closeMobile(); navigate(path) }}><Icon size={16} />{t(labelKey)}</DropdownMenu.Item>
               ))}
               <DropdownMenu.Separator className="workspace-menu-separator" />
               <DropdownMenu.Item className="workspace-menu-item workspace-menu-danger" onSelect={() => setShowLogoutConfirm(true)}><LogOut size={16} />{t('nav.logout')}</DropdownMenu.Item>

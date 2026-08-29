@@ -95,6 +95,18 @@
   .note-writing-editor .tiptap-wrapper > .flex-1 > .max-w-3xl { width: 100%; padding: 18px 16px 70px; border-inline: 0; box-shadow: none; }
 }
 
+@media (max-width: 600px) {
+  .note-authoring-topbar { min-height: 56px; padding-inline: 9px; gap: 6px; }
+  .note-authoring-back { width: 30px; height: 30px; }
+  .note-writing-actions > button:not(.note-writing-save) { width: 30px; height: 30px; }
+  .note-writing-save { min-height: 32px; padding-inline: 10px; font-size: 11px; }
+  .note-writing-title { padding-top: 18px; }
+  .note-writing-title-input { font-size: 24px; letter-spacing: -.03em; }
+  .note-writing-editor .tiptap-toolbar { height: 44px; }
+  .note-writing-editor .tiptap-wrapper > .flex-1 > .max-w-3xl { padding: 14px 14px 60px; }
+  .note-template-picker-title { font-size: 13px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .note-template-card { transition: none; }
   .note-template-card:hover { transform: none; }

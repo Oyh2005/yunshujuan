@@ -170,6 +170,9 @@
 }
 @media(prefers-reduced-motion:reduce) { .knowledge-page *, .knowledge-page *::before, .knowledge-page *::after { animation: none !important; transition: none !important; } }
 @media(max-width:600px) {
+  .knowledge-graph-node text { font-size: 9px; }
+  .knowledge-graph-picker select { max-width: 140px; }
+  .knowledge-legend { gap: 8px 14px; }
   .knowledge-header-actions { flex-shrink: 1; }
   .knowledge-graph-tools { left: 10px; right: auto; }
   .knowledge-graph-picker { font-size: 11px; left: 10px; top: 10px; max-width: calc(100% - 20px); }

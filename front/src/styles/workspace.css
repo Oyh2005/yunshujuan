@@ -148,6 +148,12 @@
   .notes-page { padding: 24px 18px 64px; }
   .notes-collection { gap: 14px; }
   .sidebar-mobile-logo { color: var(--color-accent); }
+  /* 移动端抽屉：展开时覆盖式侧边栏（fixed 脱离布局，不挤压内容区）。
+     ⚠️ 高特异性覆盖各域（.is-ai/.is-knowledge/.is-note-authoring）对 > .app-sidebar 的宽度强制 */
+  .sidebar-mobile-menu { margin-left: auto; }
+  .app-shell > .app-sidebar.is-mobile-open { position: fixed; z-index: 70; inset-block: 8px; left: 8px; width: 212px; }
+  .sidebar-mobile-backdrop { position: fixed; z-index: 65; inset: 0; background: rgba(22, 16, 38, .42); backdrop-filter: blur(2px); animation: sidebar-fade .18s ease; }
+  @keyframes sidebar-fade { from { opacity: 0; } }
 }
 @media (max-width: 640px) {
   .notes-collection { grid-template-columns: minmax(0, 1fr); }
