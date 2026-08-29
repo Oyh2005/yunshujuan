@@ -41,14 +41,21 @@ CLIP_USER_AGENT = (
 )
 
 # libmagic 实例化开销较大（加载 magic 数据库），模块级缓存单例复用
+# Windows 上缺少 magic 数据库文件时初始化会抛异常：标记 False 后降级为扩展名校验，
+# 避免每次上传都尝试初始化并导致 500。
 _magic_mime = None
 
 
 def _get_magic_mime():
+    """获取 libmagic 实例；不可用时返回 None（调用方降级为扩展名校验）。"""
     global _magic_mime
     if _magic_mime is None:
-        _magic_mime = magic.Magic(mime=True)
-    return _magic_mime
+        try:
+            _magic_mime = magic.Magic(mime=True)
+        except Exception as e:
+            logger.warning(f"libmagic 初始化失败，MIME 内容检测降级为扩展名校验: {type(e).__name__}: {e}")
+            _magic_mime = False
+    return _magic_mime if _magic_mime else None
 
 
 def _is_private_ip(ip: str) -> bool:
@@ -422,8 +429,14 @@ class KnowledgeService:
         for file_info in files_content:
             file = file_info['file']
             content = file_info['content']
-            file_type = mime.from_buffer(content)
             file_extension = os.path.splitext(file.filename)[1].lower()
+
+            file_type = ""
+            if mime is not None:
+                try:
+                    file_type = mime.from_buffer(content)
+                except Exception as e:
+                    logger.warning(f"MIME 检测失败（按扩展名校验）: {file.filename}: {type(e).__name__}")
 
             if file_type not in ALLOWED_MIME_TYPES and file_extension not in ALLOWED_EXTENSIONS:
                 failed_count += 1
