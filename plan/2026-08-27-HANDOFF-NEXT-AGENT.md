@@ -6,6 +6,7 @@
 > - `plan/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
 > - `plan/2026-08-29-ai-chat-latency-interview-qa.md` —— 同上项目的面试问答素材（数据怎么测的、预判追问应对）
 > - `plan/2026-08-29-ai-chat-flash-fix.md` —— 新会话首问闪屏排查全记录（MainLayout key 重挂载根因 + 双层修复）
+> - `plan/2026-08-29-client-cache-plan.md` —— 客户端缓存方案（HTTP 缓存头 + ETag 版本化 / 前端 SWR / PWA，含接口级配置清单，未实施）
 > - `plan/2026-08-26-feature-expansion-plan.md` —— 六方向企划
 > - `plan/2026-08-27-scale-up-plan.md` —— 高并发升级路线（方向 D 阶段二/三）
 > - `plan/2026-08-27-wechat-mini-program-plan.md` —— 微信小程序版规划（未开工）
@@ -99,6 +100,7 @@
 - 限流：开启 + 按路径/端口计数 + Redis 降级 + 配额 300/120/30/10/6
 - 数据库：tag 过滤下沉 SQL、复合索引 `(user_id, is_pinned, updated_at)`、asyncmy 驱动、pool_pre_ping/recycle、慢查询日志（`SLOW_QUERY_THRESHOLD_MS`）
 - 缓存：笔记列表 30s + 详情 300s（写操作失效）、重排序结果 10min、`/user/detail/` Redis 容错
+- **HTTP 客户端缓存（08-29）**：`app/core/http_cache.py`——`note_version:{user_id}` ETag 版本化（写操作 INCR，与 `_invalidate_note_caches` 同点）+ `Cache-Control: private, max-age`（列表 30/详情 300/stats 60）+ If-None-Match 304 短路（查数据前判断）；media 静态文件 86400。实测：304/写后失效全通过。**新笔记读接口沿用此模式；会话列表未做（需会话写操作版本化）**
 - 修复：N+1（好友/粉丝/关注批量查询）、Redis 配置漂移（load_dotenv）、localhost→127.0.0.1、libmagic 中文路径（上传降级）
 
 **③ AI/学习页布局（08-29）**：`AiWorkspace`/`LearningLayout` + `ai-pages.css`/`learning-pages.css`（AIChat/Sessions/DailyReview/HabitPage/PomodoroPage）

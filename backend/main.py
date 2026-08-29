@@ -69,7 +69,18 @@ app.add_middleware(
 # 挂载媒体文件目录（头像等上传文件）
 media_dir = os.path.join(os.path.dirname(__file__), "media")
 os.makedirs(media_dir, exist_ok=True)
-app.mount("/media", StaticFiles(directory=media_dir), name="media")
+
+
+class _CachedStaticFiles(StaticFiles):
+    """给静态文件附加私有缓存头（文件名带 uuid，基本不可变，1 天浏览器缓存）。"""
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "private, max-age=86400"
+        return response
+
+
+app.mount("/media", _CachedStaticFiles(directory=media_dir), name="media")
 
 # 注册异常处理函数
 register_exception_handlers(app)

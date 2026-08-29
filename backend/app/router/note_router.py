@@ -2,7 +2,7 @@
 笔记管理 API 路由 —— CRUD、搜索、自动标签、内联补全、写作辅助。
 """
 
-from fastapi import Depends, Query
+from fastapi import Depends, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from fastapi.routing import APIRouter
 from pydantic import BaseModel
@@ -55,6 +55,7 @@ async def create_note(
 
 @note_router.get("/list")
 async def list_notes(
+    request: Request,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
@@ -65,9 +66,15 @@ async def list_notes(
 ):
     """
     笔记列表：分页查询，支持按分类筛选和排序。tag 筛选在内存层完成。
+    客户端缓存：private 30s + ETag 版本化（304 短路），写操作自动失效。
     """
+    from app.core.http_cache import apply_note_http_cache, is_not_modified
+    if await is_not_modified(request, user_id):
+        return Response(status_code=304)
+
     notes, total = await init_manager.note_service.list_notes(db, user_id, page, page_size, category, tag, sort_by)
-    return success_response(data=NoteListResponse(notes=notes, total_count=total))
+    response = success_response(data=NoteListResponse(notes=notes, total_count=total))
+    return await apply_note_http_cache(request, response, user_id, max_age=30)
 
 
 @note_router.get("/search")
@@ -153,15 +160,22 @@ async def batch_pin_notes(
 
 @note_router.get("/stats")
 async def get_stats(
+    request: Request,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
     """
     获取用户笔记分类统计。
     返回各分类下的笔记数量及总数。
+    客户端缓存：private 60s + ETag 版本化。
     """
+    from app.core.http_cache import apply_note_http_cache, is_not_modified
+    if await is_not_modified(request, user_id):
+        return Response(status_code=304)
+
     stats = await init_manager.note_service.get_category_stats(db, user_id)
-    return success_response(data=stats)
+    response = success_response(data=stats)
+    return await apply_note_http_cache(request, response, user_id, max_age=60)
 
 
 @note_router.get("/graph")
@@ -360,14 +374,19 @@ async def delete_note(
 
 @note_router.get("/{note_id}")
 async def get_note(
+    request: Request,
     note_id: str,
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    获取笔记详情（5 分钟缓存，写操作自动失效；Redis 不可用时直查数据库）。
+    获取笔记详情（5 分钟客户端缓存 + ETag 版本化，写操作自动失效；Redis 不可用时直查数据库）。
     """
     from app.cache.redis_decorator import RedisCache
+    from app.core.http_cache import apply_note_http_cache, is_not_modified
+    if await is_not_modified(request, user_id):
+        return Response(status_code=304)
+
     note = await RedisCache.get_or_set(
         f"note_detail:{user_id}:{note_id}",
         init_manager.note_service.get_note,
@@ -378,7 +397,8 @@ async def get_note(
     )
     if not note:
         return success_response(message="笔记不存在")
-    return success_response(data=note)
+    response = success_response(data=note)
+    return await apply_note_http_cache(request, response, user_id, max_age=300)
 
 
 @note_router.post("/{note_id}/auto-tag")
