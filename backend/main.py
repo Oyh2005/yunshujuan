@@ -23,6 +23,7 @@ from app.router.social_router import social_router
 from app.router.stats_router import stats_router
 from app.router.telemetry_router import telemetry_router
 from app.router.user import file_router, user_router
+from app.router.ws_router import ws_router
 from app.services.database_session_manager import init_database_session_manager
 
 # 加载环境变量
@@ -56,6 +57,7 @@ app.include_router(share_router)
 app.include_router(public_router)
 app.include_router(social_router)
 app.include_router(telemetry_router)
+app.include_router(ws_router)
 
 
 

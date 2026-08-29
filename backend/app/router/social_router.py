@@ -9,10 +9,11 @@
 import asyncio
 import json
 import uuid
+from datetime import datetime
 
 from fastapi import Depends, HTTPException, Query
 from fastapi.routing import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +23,16 @@ from app.core.success_response import success_response
 from app.db.db_config import AsyncSessionLocal, get_db
 from app.models.note import Note
 from app.models.review_record import ReviewRecord
-from app.models.social import Follow, FriendRequest, Notification, Post, PostComment, PostLike
+from app.models.social import (
+    ChatConversation,
+    Follow,
+    FriendRequest,
+    Notification,
+    Post,
+    PostComment,
+    PostLike,
+    PrivateMessage,
+)
 from app.models.user_model import User
 from app.utils.auth_utils import get_current_user_id
 
@@ -832,6 +842,9 @@ async def user_profile(
             )
         ).scalar_one_or_none() is not None
 
+    # 私聊入口需要知道好友关系（仅好友可私信）
+    is_friend = target_id != user_id and target_id in await _friend_ids(db, user_id)
+
     achievements = [
         {"id": a["id"], "unlocked": stats.get(a["key"], 0) >= a["min"]}
         for a in ACHIEVEMENT_DEFS
@@ -849,6 +862,7 @@ async def user_profile(
         "follow": {
             "is_following": is_following,
             "is_self": target_id == user_id,
+            "is_friend": is_friend,
             "follower_count": followers,
             "following_count": following,
         },
@@ -975,3 +989,216 @@ async def user_public_notes(
         "total": total,
         "has_more": page * page_size < total,
     })
+
+
+# ───────────────────────── 私聊（P0：仅好友 + WebSocket 实时）─────────────────────────
+
+class ChatMessageRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2000, description="消息内容")
+
+
+async def _get_conversation(db: AsyncSession, user_x: str, user_y: str) -> ChatConversation | None:
+    """按归一化配对查会话。"""
+    lo, hi = sorted([user_x, user_y])
+    return (await db.execute(
+        select(ChatConversation).where(
+            ChatConversation.user_a == lo, ChatConversation.user_b == hi
+        )
+    )).scalar_one_or_none()
+
+
+async def _ensure_conversation(db: AsyncSession, user_x: str, user_y: str) -> ChatConversation:
+    """取或建会话（并发下唯一约束兜底）。"""
+    conv = await _get_conversation(db, user_x, user_y)
+    if conv:
+        return conv
+    lo, hi = sorted([user_x, user_y])
+    conv = ChatConversation(id=str(uuid.uuid4()), user_a=lo, user_b=hi)
+    db.add(conv)
+    await db.flush()
+    return conv
+
+
+async def _unread_count(db: AsyncSession, user_id: str) -> int:
+    """该用户所有会话的未读消息总数（对方发来且未读）。"""
+    convs = (await db.execute(
+        select(ChatConversation).where(
+            or_(ChatConversation.user_a == user_id, ChatConversation.user_b == user_id)
+        )
+    )).scalars().all()
+    if not convs:
+        return 0
+    conv_ids = [c.id for c in convs]
+    count = (await db.execute(
+        select(func.count(PrivateMessage.id)).where(
+            PrivateMessage.conversation_id.in_(conv_ids),
+            PrivateMessage.sender_id != user_id,
+            PrivateMessage.read.is_(False),
+        )
+    )).scalar()
+    return int(count or 0)
+
+
+def _message_dict(msg: PrivateMessage) -> dict:
+    return {
+        "id": msg.id,
+        "conversation_id": msg.conversation_id,
+        "sender_id": msg.sender_id,
+        "content": msg.content,
+        "read": msg.read,
+        "created_at": str(msg.created_at) if msg.created_at else None,
+    }
+
+
+@social_router.get("/chat/conversations")
+async def chat_conversations(
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit(limit=60, window=60)),
+):
+    """私聊会话列表：对方信息 + 最后消息预览 + 未读数，按最后消息时间倒序。"""
+    convs = (await db.execute(
+        select(ChatConversation)
+        .where(or_(ChatConversation.user_a == user_id, ChatConversation.user_b == user_id))
+        .order_by(ChatConversation.last_message_at.desc())
+    )).scalars().all()
+
+    items = []
+    if convs:
+        conv_ids = [c.id for c in convs]
+        # 未读数（按会话聚合）
+        unread_rows = (await db.execute(
+            select(PrivateMessage.conversation_id, func.count(PrivateMessage.id))
+            .where(
+                PrivateMessage.conversation_id.in_(conv_ids),
+                PrivateMessage.sender_id != user_id,
+                PrivateMessage.read.is_(False),
+            )
+            .group_by(PrivateMessage.conversation_id)
+        )).all()
+        unread_map = {row[0]: int(row[1]) for row in unread_rows}
+
+        # 对方用户信息（批量）
+        other_ids = [c.user_b if c.user_a == user_id else c.user_a for c in convs]
+        briefs = {b["user_id"]: b for b in await _get_user_briefs(db, other_ids)}
+
+        for conv in convs:
+            other_id = conv.user_b if conv.user_a == user_id else conv.user_a
+            items.append({
+                "conversation_id": conv.id,
+                "peer": briefs.get(other_id) or {"user_id": other_id, "username": "未知用户", "avatar": None},
+                "last_message": conv.last_message or "",
+                "last_sender_id": conv.last_sender_id,
+                "last_message_at": str(conv.last_message_at) if conv.last_message_at else None,
+                "unread": unread_map.get(conv.id, 0),
+            })
+
+    return success_response(data={"conversations": items})
+
+
+@social_router.get("/chat/conversations/{target_id}/messages")
+async def chat_history(
+    target_id: str,
+    cursor: int | None = Query(None, ge=1, description="消息ID游标（取更早的）"),
+    limit: int = Query(30, ge=1, le=50),
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit(limit=120, window=60)),
+):
+    """与某用户的历史消息（游标分页，返回时间正序）。"""
+    conv = await _get_conversation(db, user_id, target_id)
+    if not conv:
+        return success_response(data={"messages": [], "has_more": False, "conversation_id": None})
+
+    stmt = select(PrivateMessage).where(PrivateMessage.conversation_id == conv.id)
+    if cursor:
+        stmt = stmt.where(PrivateMessage.id < cursor)
+    rows = (await db.execute(
+        stmt.order_by(PrivateMessage.id.desc()).limit(limit + 1)
+    )).scalars().all()
+
+    has_more = len(rows) > limit
+    messages = [_message_dict(m) for m in reversed(rows[:limit])]
+    return success_response(data={
+        "messages": messages,
+        "has_more": has_more,
+        "conversation_id": conv.id,
+    })
+
+
+@social_router.post("/chat/conversations/{target_id}/messages")
+async def send_chat_message(
+    target_id: str,
+    payload: ChatMessageRequest,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit(limit=30, window=60)),
+):
+    """发送私聊消息：仅好友（403 非好友）；敏感词即时拦截；落库后 WS 实时推送。"""
+    if target_id == user_id:
+        raise HTTPException(status_code=400, detail="不能给自己发消息")
+    friends = await _friend_ids(db, user_id)
+    if target_id not in friends:
+        raise HTTPException(status_code=403, detail="仅好友之间可以私聊")
+    _assert_clean(payload.content)
+
+    conv = await _ensure_conversation(db, user_id, target_id)
+    msg = PrivateMessage(conversation_id=conv.id, sender_id=user_id, content=payload.content)
+    db.add(msg)
+    conv.last_message = payload.content[:500]
+    conv.last_message_at = datetime.now()
+    conv.last_sender_id = user_id
+    await db.commit()
+    await db.refresh(msg)
+
+    # WS 推送：新消息 + 接收方未读数（离线时跳过，重连后 REST 拉取）
+    from app.core.ws_manager import ws_manager
+
+    await ws_manager.send_to_user(target_id, {
+        "type": "message",
+        "conversation_id": conv.id,
+        "message": _message_dict(msg),
+    })
+    unread = await _unread_count(db, target_id)
+    await ws_manager.send_to_user(target_id, {"type": "unread", "count": unread})
+
+    return success_response(data={"message": _message_dict(msg)})
+
+
+@social_router.post("/chat/conversations/{target_id}/read")
+async def mark_conversation_read(
+    target_id: str,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit(limit=60, window=60)),
+):
+    """标记与某用户的会话全部已读，并返回最新未读总数（WS 通知对方已读）。"""
+    conv = await _get_conversation(db, user_id, target_id)
+    if conv:
+        await db.execute(
+            update(PrivateMessage)
+            .where(
+                PrivateMessage.conversation_id == conv.id,
+                PrivateMessage.sender_id == target_id,
+                PrivateMessage.read.is_(False),
+            )
+            .values(read=True)
+        )
+        await db.commit()
+
+        from app.core.ws_manager import ws_manager
+
+        await ws_manager.send_to_user(target_id, {"type": "read", "conversation_id": conv.id})
+
+    unread = await _unread_count(db, user_id)
+    return success_response(data={"unread": unread})
+
+
+@social_router.get("/chat/unread-count")
+async def chat_unread_count(
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit(limit=120, window=60)),
+):
+    """私聊未读消息总数（侧边栏红点 + WS 未读事件兜底）。"""
+    return success_response(data={"count": await _unread_count(db, user_id)})

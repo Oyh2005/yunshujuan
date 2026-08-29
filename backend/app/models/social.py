@@ -94,3 +94,31 @@ class Follow(Base):
     follower_id = Column(String(36), index=True, nullable=False, comment="关注者用户ID")
     following_id = Column(String(36), index=True, nullable=False, comment="被关注者用户ID")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
+
+
+class ChatConversation(Base):
+    """私聊会话（仅好友）：user_a < user_b 归一化配对，UNIQUE 防重复会话"""
+
+    __tablename__ = "chat_conversations"
+    __table_args__ = (UniqueConstraint("user_a", "user_b", name="uq_chat_conversation"),)
+
+    id = Column(String(36), primary_key=True, comment="UUID")
+    user_a = Column(String(36), index=True, nullable=False, comment="归一化较小用户ID")
+    user_b = Column(String(36), index=True, nullable=False, comment="归一化较大用户ID")
+    last_message_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, comment="最后消息时间")
+    last_message = Column(String(500), nullable=True, comment="最后消息预览")
+    last_sender_id = Column(String(36), nullable=True, comment="最后消息发送者")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
+
+
+class PrivateMessage(Base):
+    """私聊消息（自增主键作游标分页）。表名避开 chat_messages（AI 对话消息表）。"""
+
+    __tablename__ = "private_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True, comment="自增ID（游标分页）")
+    conversation_id = Column(String(36), index=True, nullable=False, comment="会话ID")
+    sender_id = Column(String(36), index=True, nullable=False, comment="发送者用户ID")
+    content = Column(Text, nullable=False, comment="消息内容")
+    read = Column(Boolean, default=False, nullable=False, index=True, comment="接收方是否已读")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, comment="发送时间")
