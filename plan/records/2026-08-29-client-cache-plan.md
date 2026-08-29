@@ -3,7 +3,7 @@
 > 日期：2026-08-29
 > 状态：✅ **方案 1（HTTP 缓存头 + ETag）与方案 2（前端 SWR）均已实施**；方案 3（PWA）待做
 > 背景：用户高频刷新笔记页时，请求仍会到达服务器（Redis 缓存只减少"查库"），本方案把"请求"本身挡在用户浏览器本地
-> 关联：`plan/2026-08-27-scale-up-plan.md`（方向 D 高并发路线）、`plan/2026-08-27-HANDOFF-NEXT-AGENT.md` 待办「PWA 化 / 静态资源 gzip」、`plan/2026-08-29-next-steps-plan.md`（下一步规划）
+> 关联：`plan/roadmap/2026-08-27-scale-up-plan.md`（方向 D 高并发路线）、`plan/handoff/2026-08-27-HANDOFF-NEXT-AGENT.md` 待办「PWA 化 / 静态资源 gzip」、`plan/roadmap/2026-08-29-next-steps-plan.md`（下一步规划）
 
 ## 实施记录（方案 1：HTTP 缓存头 + ETag 版本化 ✅）
 

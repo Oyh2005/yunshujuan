@@ -2,16 +2,16 @@
 
 > 更新：2026-08-29（最新一轮：性能优化三批 + 限流调整 + libmagic 修复 + 首页/AI/学习页 UI 改版 + Git 接入 + **AI 对话延迟优化（HyDE 限长 + RAG 上下文截断 + Agent 真流式）**）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
-> - `plan/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
-> - `plan/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
-> - `plan/2026-08-29-ai-chat-latency-interview-qa.md` —— 同上项目的面试问答素材（数据怎么测的、预判追问应对）
-> - `plan/2026-08-29-ai-chat-flash-fix.md` —— 新会话首问闪屏排查全记录（MainLayout key 重挂载根因 + 双层修复）
-> - `plan/2026-08-29-client-cache-plan.md` —— 客户端缓存方案（HTTP 缓存头 + ETag 已实施 / 前端 SWR 已实施 / PWA 待做，含接口级配置清单）
-> - `plan/2026-08-29-next-steps-plan.md` —— 下一步规划（小程序/PWA/年度报告/体验打磨/稳定性/线上化，按触发条件分类）
-> - `plan/2026-08-26-feature-expansion-plan.md` —— 六方向企划
-> - `plan/2026-08-27-scale-up-plan.md` —— 高并发升级路线（方向 D 阶段二/三）
-> - `plan/2026-08-27-wechat-mini-program-plan.md` —— 微信小程序版规划（未开工）
-> - `plan/2026-08-29-libmagic-chinese-path-fix.md` —— libmagic 中文路径问题排查记录
+> - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
+> - `plan/records/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
+> - `plan/records/2026-08-29-ai-chat-latency-interview-qa.md` —— 同上项目的面试问答素材（数据怎么测的、预判追问应对）
+> - `plan/fixes/2026-08-29-ai-chat-flash-fix.md` —— 新会话首问闪屏排查全记录（MainLayout key 重挂载根因 + 双层修复）
+> - `plan/records/2026-08-29-client-cache-plan.md` —— 客户端缓存方案（HTTP 缓存头 + ETag 已实施 / 前端 SWR 已实施 / PWA 待做，含接口级配置清单）
+> - `plan/roadmap/2026-08-29-next-steps-plan.md` —— 下一步规划（小程序/PWA/年度报告/体验打磨/稳定性/线上化，按触发条件分类）
+> - `plan/roadmap/2026-08-26-feature-expansion-plan.md` —— 六方向企划
+> - `plan/roadmap/2026-08-27-scale-up-plan.md` —— 高并发升级路线（方向 D 阶段二/三）
+> - `plan/roadmap/2026-08-27-wechat-mini-program-plan.md` —— 微信小程序版规划（未开工）
+> - `plan/fixes/2026-08-29-libmagic-chinese-path-fix.md` —— libmagic 中文路径问题排查记录
 > - `docs/user-guide.md` —— 面向普通用户的产品说明（零技术术语）
 
 ---
@@ -66,7 +66,7 @@
 11. 全局异常处理器把业务 404 改写为「接口不存在」——调试看后端日志而非响应文案
 12. `note_router.dependencies = [Depends(ensure_note_service)]`：笔记路由等后台初始化；`/note/graph` 必须注册在 `/{note_id}` 之前
 13. LLM 审核：JSON 解析须容忍代码块/前后文本；审核前 `await init_manager.models_ready.wait()`
-14. **⚠️ 项目路径含中文**（`D:\项目\...`）：libmagic 等 C 库的 fopen 用 ANSI 解释 UTF-8 路径 → 打不开文件。知识库上传已做修复（`_get_magic_mime` 复制 mgc 到英文临时路径），**新接入 C 库依赖时注意**；详见 `plan/2026-08-29-libmagic-chinese-path-fix.md`
+14. **⚠️ 项目路径含中文**（`D:\项目\...`）：libmagic 等 C 库的 fopen 用 ANSI 解释 UTF-8 路径 → 打不开文件。知识库上传已做修复（`_get_magic_mime` 复制 mgc 到英文临时路径），**新接入 C 库依赖时注意**；详见 `plan/fixes/2026-08-29-libmagic-chinese-path-fix.md`
 15. **Redis 容错已全面铺开**：限流/缓存装饰器/`get_user_info_from_redis` 全部 try/except 降级；连接池 `socket_connect_timeout=0.5s` + `socket_timeout=2s`（Redis 挂时快速失败，不拖慢请求）
 16. **redis_config 必须保留自身的 `load_dotenv()`**（曾因 import 顺序导致 REDIS_DB 静默用默认值 3 而非 .env 的 0，配置漂移难排查）
 16b. **⚠️ 限流 key TTL 兜底（08-29）**：`rate_limit.py` 的 `incr` 不更新 TTL——若 key 过期时间意外丢失（Redis 重启恢复旧数据等），计数永久累积（TTL=-1）→ **全站永久 429「请求过于频繁」**。已修复：incr 后查 TTL，<0 时补 `expire`（保留计数）。**遇全站 429 先查 `redis-cli KEYS "rate_limit:*"` 的 TTL，-1 即此问题，DEL 即可恢复**
@@ -92,7 +92,7 @@
 
 ### ✅ 全部里程碑已完成（M2/M3/M4、方向 A/B/C1/C2/C3、数据上云、D 阶段一、备选精选、UI 改版、lint 清零、风格统一）
 
-> 每项的交付物/验证/踩坑见 `plan/2026-08-27-COMPLETED-OPTIMIZATIONS.md`，此处不重复。
+> 每项的交付物/验证/踩坑见 `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md`，此处不重复。
 
 ### 最近两轮工作要点
 **① 首页 + 知识页改版（08-28）**：Dashboard 首页（淡紫横幅/云朵插画/快捷操作/最近记录/图谱预览/成长卡）；KnowledgeBase/Plaza/Stats/Graph 统一 `KnowledgeLayout` + `knowledge-pages.css`；图谱语义关联按需加载（`include_semantic` + `semantic_status`）；空标签兜底；页宠拖拽边界钳制

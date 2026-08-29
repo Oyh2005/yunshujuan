@@ -3,7 +3,7 @@
 > 日期：2026-08-29
 > 项目：云舒卷（RAG Notebook）——AI 驱动的个人知识管理平台（FastAPI + LangChain + React 19）
 > 文档性质：性能问题「发现 → 分析 → 解决」完整过程记录，兼作简历/面试素材
-> 面试问答素材（数据怎么测的 + 预判追问应对）：见 `plan/2026-08-29-ai-chat-latency-interview-qa.md`
+> 面试问答素材（数据怎么测的 + 预判追问应对）：见 `plan/records/2026-08-29-ai-chat-latency-interview-qa.md`
 > 相关代码：`backend/app/rag/rag_service.py`、`backend/app/router/chat.py`、`backend/app/agent/agent.py`
 
 ---

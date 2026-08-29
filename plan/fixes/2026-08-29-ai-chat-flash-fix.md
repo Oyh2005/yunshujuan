@@ -2,7 +2,7 @@
 
 > 日期：2026-08-29
 > 状态：✅ 已解决（用户确认）
-> 关联：`plan/2026-08-27-HANDOFF-NEXT-AGENT.md` 踩坑 27
+> 关联：`plan/handoff/2026-08-27-HANDOFF-NEXT-AGENT.md` 踩坑 27
 > 相关代码：`front/src/layouts/MainLayout.tsx`、`front/src/pages/AIChat.tsx`
 
 ---

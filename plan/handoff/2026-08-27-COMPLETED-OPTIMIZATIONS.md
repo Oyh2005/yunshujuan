@@ -2,7 +2,7 @@
 
 > 汇总日期：2026-08-27
 > 范围：自 M2 起的全部功能优化 / 架构改造 / 社交化三阶段 / 数据安全改造，含交付物、验证结果与踩坑记录。
-> 配套文档：`plan/2026-08-27-HANDOFF-NEXT-AGENT.md`（交接）、`plan/2026-08-27-scale-up-plan.md`（高并发路线图）
+> 配套文档：`plan/handoff/2026-08-27-HANDOFF-NEXT-AGENT.md`（交接）、`plan/roadmap/2026-08-27-scale-up-plan.md`（高并发路线图）
 
 ---
 

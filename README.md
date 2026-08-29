@@ -2,7 +2,7 @@
 
 把 **笔记、知识库、AI 对话、间隔回顾** 串成完整学习闭环，并带有页宠养成与轻社交能力——解决"笔记写了从不回看、知识散落成孤岛"的问题。
 
-> 📋 全部功能与优化汇总：见 [`plan/2026-08-27-COMPLETED-OPTIMIZATIONS.md`](./plan/2026-08-27-COMPLETED-OPTIMIZATIONS.md)
+> 📋 全部功能与优化汇总：见 [`plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md`](./plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md)
 
 ---
 
@@ -335,11 +335,13 @@ separators: ["\n\n", "\n", "。", "！", "？", "!", "?", " ", ""]
 │   ├── modelscope_model.md     # 模型下载和配置
 │   └── troubleshooting.md      # 故障排除
 ├── images/                      # 截图资源
-└── plan/                        # 项目规划与交接文档
-    ├── 2026-08-27-COMPLETED-OPTIMIZATIONS.md  # 全部优化汇总
-    ├── 2026-08-27-HANDOFF-NEXT-AGENT.md       # 开发交接文档
-    ├── 2026-08-27-scale-up-plan.md            # 高并发升级路线
-    └── 2026-08-26-feature-expansion-plan.md   # 六方向企划
+└── plan/                        # 规划文档（按用途分类）
+    ├── handoff/                 # 交接与总汇总
+    │   ├── 2026-08-27-HANDOFF-NEXT-AGENT.md       # 开发交接文档（新窗口必读）
+    │   └── 2026-08-27-COMPLETED-OPTIMIZATIONS.md  # 全部优化汇总
+    ├── roadmap/                 # 规划与路线（高并发/小程序/功能企划等）
+    ├── fixes/                   # 问题排查与修复记录
+    └── records/                 # 功能交付与专题记录（UI 交付/性能优化/缓存方案等）
 ```
 
 ## API 文档

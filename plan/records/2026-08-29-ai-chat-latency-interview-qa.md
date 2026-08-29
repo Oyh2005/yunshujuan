@@ -1,6 +1,6 @@
 # 面试备战：AI 对话延迟优化项目问答素材
 
-> 配套文档：`plan/2026-08-29-ai-chat-latency-optimization.md`（优化过程全记录，本文件所有数字的出处）
+> 配套文档：`plan/records/2026-08-29-ai-chat-latency-optimization.md`（优化过程全记录，本文件所有数字的出处）
 > 用途：面试官问「这些优化数据是怎么测的」及衍生追问的应答话术
 
 ---
