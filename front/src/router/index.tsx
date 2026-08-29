@@ -1,34 +1,15 @@
 /* eslint-disable react-refresh/only-export-components -- 路由配置文件：lazy 常量按惯例集中声明 */
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import type { RouteObject } from 'react-router-dom'
 import MainLayout from '../layouts/MainLayout'
 import AuthLayout from '../layouts/AuthLayout'
 import LoadingSkeleton from '../components/common/LoadingSkeleton'
-
-const Login = lazy(() => import('../pages/Login'))
-const Register = lazy(() => import('../pages/Register'))
-const NoteList = lazy(() => import('../pages/NoteList'))
-const Dashboard = lazy(() => import('../pages/Dashboard'))
-const NoteEditor = lazy(() => import('../pages/NoteEditor'))
-const AIChat = lazy(() => import('../pages/AIChat'))
-const Sessions = lazy(() => import('../pages/Sessions'))
-const KnowledgeBase = lazy(() => import('../pages/KnowledgeBase'))
-const PetPage = lazy(() => import('../pages/PetPage'))
-const HabitPage = lazy(() => import('../pages/HabitPage'))
-const StatsPage = lazy(() => import('../pages/StatsPage'))
-const GraphPage = lazy(() => import('../pages/GraphPage'))
-const PublicSharePage = lazy(() => import('../pages/PublicSharePage'))
-const SocialFeed = lazy(() => import('../pages/SocialFeed'))
-const FriendsPage = lazy(() => import('../pages/FriendsPage'))
-const NotificationsPage = lazy(() => import('../pages/NotificationsPage'))
-const MessagesPage = lazy(() => import('../pages/MessagesPage'))
-const PlazaPage = lazy(() => import('../pages/PlazaPage'))
-const UserProfilePage = lazy(() => import('../pages/UserProfilePage'))
-const PomodoroPage = lazy(() => import('../pages/PomodoroPage'))
-const DailyReview = lazy(() => import('../pages/DailyReview'))
-const Profile = lazy(() => import('../pages/Profile'))
-const Settings = lazy(() => import('../pages/Settings'))
-const AboutUs = lazy(() => import('../pages/AboutUs'))
+import {
+  Login, Register, Dashboard, NoteList, NoteEditor, AIChat, Sessions,
+  KnowledgeBase, PetPage, HabitPage, StatsPage, GraphPage, PublicSharePage,
+  SocialFeed, FriendsPage, NotificationsPage, MessagesPage, PlazaPage,
+  UserProfilePage, PomodoroPage, DailyReview, Profile, Settings, AboutUs,
+} from './pages'
 
 const LazyLoad = ({ children }: { children: React.ReactNode }) => (
   <Suspense fallback={<LoadingSkeleton />}>{children}</Suspense>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { CheckSquare, FileText, Globe, MoreHorizontal, Pencil, Pin, Square } from 'lucide-react'
@@ -10,13 +10,13 @@ interface NoteCardProps {
   selected: boolean
   selectMode: boolean
   pinPending: boolean
-  onOpen: () => void
-  onSelect: () => void
-  onPin: () => void
-  onTogglePublic: () => void
+  onOpen: (id: string) => void
+  onSelect: (id: string) => void
+  onPin: (note: Note) => void
+  onTogglePublic: (note: Note) => void
 }
 
-export default function NoteCard({ note, selected, selectMode, pinPending, onOpen, onSelect, onPin, onTogglePublic }: NoteCardProps) {
+const NoteCard = memo(function NoteCard({ note, selected, selectMode, pinPending, onOpen, onSelect, onPin, onTogglePublic }: NoteCardProps) {
   const { t, i18n } = useTranslation()
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const pointerStart = useRef({ x: 0, y: 0 })
@@ -43,7 +43,7 @@ export default function NoteCard({ note, selected, selectMode, pinPending, onOpe
           clearPress()
           suppressClick.current = false
           pointerStart.current = { x: event.clientX, y: event.clientY }
-          if (!selectMode) timer.current = setTimeout(() => { suppressClick.current = true; onSelect() }, 500)
+          if (!selectMode) timer.current = setTimeout(() => { suppressClick.current = true; onSelect(note.id) }, 500)
         }}
         onPointerMove={(event) => {
           if (Math.abs(event.clientX - pointerStart.current.x) > 10 || Math.abs(event.clientY - pointerStart.current.y) > 10) {
@@ -56,8 +56,8 @@ export default function NoteCard({ note, selected, selectMode, pinPending, onOpe
         onPointerCancel={() => { clearPress(); suppressClick.current = true }}
         onClick={(event) => {
           if (suppressClick.current && event.detail !== 0) { suppressClick.current = false; return }
-          if (selectMode) onSelect()
-          else onOpen()
+          if (selectMode) onSelect(note.id)
+          else onOpen(note.id)
         }}
       />
       <div className="note-card-header">
@@ -65,18 +65,18 @@ export default function NoteCard({ note, selected, selectMode, pinPending, onOpe
           {selectMode ? (selected ? <CheckSquare size={23} /> : <Square size={23} />) : <FileText size={23} strokeWidth={1.6} />}
         </div>
         <div className="note-card-actions">
-          <button className="workspace-icon-button" onClick={onPin} disabled={pinPending} aria-label={t(note.is_pinned ? 'note.ui.unpin' : 'note.ui.pin')} aria-pressed={note.is_pinned} title={t(note.is_pinned ? 'note.ui.unpin' : 'note.ui.pin')}>
+          <button className="workspace-icon-button" onClick={() => onPin(note)} disabled={pinPending} aria-label={t(note.is_pinned ? 'note.ui.unpin' : 'note.ui.pin')} aria-pressed={note.is_pinned} title={t(note.is_pinned ? 'note.ui.unpin' : 'note.ui.pin')}>
             <Pin size={16} className={note.is_pinned ? 'text-[var(--color-accent)] fill-[var(--color-accent)]' : ''} />
           </button>
           <DropdownMenu.Root>
             <DropdownMenu.Trigger asChild><button className="workspace-icon-button" aria-label={t('note.ui.moreActions', { title })}><MoreHorizontal size={19} /></button></DropdownMenu.Trigger>
             <DropdownMenu.Portal>
               <DropdownMenu.Content className="workspace-menu" sideOffset={6} align="end" collisionPadding={12}>
-                <DropdownMenu.Item className="workspace-menu-item" onSelect={onOpen}><Pencil size={15} />{t('note.ui.edit')}</DropdownMenu.Item>
-                <DropdownMenu.Item className="workspace-menu-item" onSelect={onPin} disabled={pinPending}><Pin size={15} />{t(note.is_pinned ? 'note.ui.unpin' : 'note.ui.pin')}</DropdownMenu.Item>
-                <DropdownMenu.Item className="workspace-menu-item" onSelect={onTogglePublic}><Globe size={15} />{note.is_public ? t('share.closePublic') : t('note.ui.makePublic')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="workspace-menu-item" onSelect={() => onOpen(note.id)}><Pencil size={15} />{t('note.ui.edit')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="workspace-menu-item" onSelect={() => onPin(note)} disabled={pinPending}><Pin size={15} />{t(note.is_pinned ? 'note.ui.unpin' : 'note.ui.pin')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="workspace-menu-item" onSelect={() => onTogglePublic(note)}><Globe size={15} />{note.is_public ? t('share.closePublic') : t('note.ui.makePublic')}</DropdownMenu.Item>
                 <DropdownMenu.Separator className="workspace-menu-separator" />
-                <DropdownMenu.Item className="workspace-menu-item" onSelect={onSelect}><CheckSquare size={15} />{t(selected ? 'note.ui.deselect' : 'note.ui.select')}</DropdownMenu.Item>
+                <DropdownMenu.Item className="workspace-menu-item" onSelect={() => onSelect(note.id)}><CheckSquare size={15} />{t(selected ? 'note.ui.deselect' : 'note.ui.select')}</DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
@@ -99,4 +99,6 @@ export default function NoteCard({ note, selected, selectMode, pinPending, onOpe
       </div>
     </article>
   )
-}
+})
+
+export default NoteCard

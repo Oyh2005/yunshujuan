@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 /* Tailwind CSS v4：CSS-first 配置 */
 @import "tailwindcss";
 @import "./styles/workspace.css";
@@ -8,17 +6,20 @@
 /* 暗色模式：跟随 .dark class（与 useThemeStore 一致） */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* 自定义主题令牌（原 tailwind.config.cjs 迁移） */
+/* 自定义主题令牌（原 tailwind.config.cjs 迁移）。
+   字体全部走系统栈（macOS 苹方/宋体、Windows 微软雅黑/中易宋体），
+   不再依赖 Google Fonts——国内网络下远程字体曾阻塞首屏；
+   Noto/JetBrains 系列保留为候选：本地安装了才会使用。 */
 @theme {
-  --font-heading: 'Noto Serif SC', 'Songti SC', serif;
-  --font-body: 'Noto Sans SC', 'PingFang SC', 'SF Pro Display', 'Helvetica Neue', sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+  --font-heading: 'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif;
+  --font-body: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, 'Courier New', monospace;
 }
 
 :root {
-  --font-heading: 'Noto Serif SC', 'Songti SC', serif;
-  --font-body: 'Noto Sans SC', 'PingFang SC', 'SF Pro Display', 'Helvetica Neue', sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+  --font-heading: 'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif;
+  --font-body: -apple-system, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', Consolas, 'Courier New', monospace;
   --color-bg: #F7F7FB;
   --color-bg-secondary: #F2F1F7;
   --color-bg-tertiary: #EAE7F1;
@@ -127,16 +128,6 @@ body {
 /* 主内容区同样保留滚动条占位 */
 main {
   scrollbar-gutter: stable;
-}
-
-/* 页面切换入场：纯透明度淡入（不涉及 transform/布局，避免宽度抖动） */
-.page-enter {
-  animation: page-fade-in 0.18s ease-out both;
-}
-
-@keyframes page-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -678,7 +669,7 @@ main {
 
 /* 减少动态效果偏好 */
 @media (prefers-reduced-motion: reduce) {
-  .aurora-blob, .text-gradient, .msg-pop-in, .cursor-blink, .page-enter {
+  .aurora-blob, .text-gradient, .msg-pop-in, .cursor-blink {
     animation: none !important;
   }
   .card-lift:hover {

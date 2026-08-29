@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -6,6 +6,8 @@ import { Bell, UserPlus, UserCheck, Heart, MessageCircle, CheckCheck, Loader2, I
 import { socialApi } from '../api/social'
 import type { NotificationItem } from '../types/api'
 import ConfirmDialog from '../components/common/ConfirmDialog'
+import { useUserStore } from '../stores/useUserStore'
+import { swrCache } from '../stores/useSwrCacheStore'
 import SocialLayout, { SocialAvatar, SocialHeader, SocialPetCard } from '../components/social/SocialLayout'
 
 export default function NotificationsPage() {
@@ -13,13 +15,28 @@ export default function NotificationsPage() {
   const english = i18n.resolvedLanguage?.startsWith('en')
   const text = (zh: string, en: string) => english ? en : zh
   const navigate = useNavigate()
-  const [items, setItems] = useState<NotificationItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const userId = useUserStore((s) => s.userInfo?.uuid || s.userInfo?.user_id || s.userInfo?.id || '')
+  const CACHE_KEY = `notifications:${userId}`
+  // SWR 预填：刷新页面先渲染本地缓存（秒开），后台请求到达后替换
+  const [initialCached] = useState(() => swrCache.get<NotificationItem[]>(CACHE_KEY))
+  const [items, setItems] = useState<NotificationItem[]>(() => initialCached ?? [])
+  const [loading, setLoading] = useState(() => !initialCached)
   const [loadFailed, setLoadFailed] = useState(false)
+  // 是否已有可展示的数据：后续后台刷新失败时静默保留旧数据
+  const hadData = useRef(initialCached !== undefined)
   const [marking, setMarking] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [clearOpen, setClearOpen] = useState(false)
   const [referenceNow] = useState(() => Date.now())
+
+  /** 本地更新 items 并同步 SWR 缓存（删除/清空/已读等操作后缓存保持一致） */
+  const commitItems = (updater: (prev: NotificationItem[]) => NotificationItem[]) => {
+    setItems((prev) => {
+      const next = updater(prev)
+      if (userId) swrCache.set(CACHE_KEY, next)
+      return next
+    })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -27,12 +44,15 @@ export default function NotificationsPage() {
       .notifications()
       .then((res) => {
         if (!cancelled) {
-          setItems(res.data ?? [])
+          const data = res.data ?? []
+          setItems(data)
           setLoadFailed(false)
+          hadData.current = true
+          if (userId) swrCache.set(CACHE_KEY, data)
         }
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && !hadData.current) {
           setLoadFailed(true)
           toast.error(t('common.error'))
         }
@@ -43,13 +63,13 @@ export default function NotificationsPage() {
     return () => {
       cancelled = true
     }
-  }, [t])
+  }, [CACHE_KEY, t, userId])
 
   const handleMarkAllRead = async () => {
     setMarking(true)
     try {
       await socialApi.markAllRead()
-      setItems((prev) => prev.map((n) => ({ ...n, read: true })))
+      commitItems((prev) => prev.map((n) => ({ ...n, read: true })))
       toast.success(t('notifications.allRead'))
     } catch {
       toast.error(t('common.error'))
@@ -61,7 +81,7 @@ export default function NotificationsPage() {
   /** 点击通知：单条标记已读 + 跳转对应页面（QQ/微信式快捷跳转） */
   const handleOpen = async (item: NotificationItem) => {
     if (!item.read) {
-      setItems((prev) => prev.map((n) => n.id === item.id ? { ...n, read: true } : n))
+      commitItems((prev) => prev.map((n) => n.id === item.id ? { ...n, read: true } : n))
       try {
         await socialApi.markRead([item.id])
       } catch {
@@ -89,7 +109,7 @@ export default function NotificationsPage() {
   const handleDelete = async (item: NotificationItem) => {
     try {
       await socialApi.deleteNotification(item.id)
-      setItems((prev) => prev.filter((n) => n.id !== item.id))
+      commitItems((prev) => prev.filter((n) => n.id !== item.id))
       toast.success(t('notifications.deleted'))
     } catch {
       toast.error(t('common.error'))
@@ -101,7 +121,7 @@ export default function NotificationsPage() {
     setClearing(true)
     try {
       await socialApi.clearNotifications()
-      setItems([])
+      commitItems(() => [])
       toast.success(t('notifications.cleared'))
     } catch {
       toast.error(t('common.error'))

@@ -19,6 +19,8 @@ import { swrCache } from '../stores/useSwrCacheStore'
 const PAGE_SIZE = 20
 const VIEW_KEY = 'note_list_view'
 const CATEGORY_ORDER_KEY = 'note_category_order'
+/** 列表滚动位置记忆（详情返回时恢复，sessionStorage 会话级） */
+const SCROLL_KEY = 'note-list-scroll'
 
 function initialView(): NoteView {
   try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid' } catch { return 'grid' }
@@ -173,7 +175,27 @@ export default function NoteList() {
     try { localStorage.setItem(VIEW_KEY, next) } catch { /* View still works without storage. */ }
   }
 
-  const selectNote = (id: string) => {
+  /** 打开笔记：先记住当前滚动位置，返回列表时恢复 */
+  const handleOpenNote = useCallback((id: string) => {
+    try { sessionStorage.setItem(SCROLL_KEY, String(window.scrollY)) } catch { /* ignore */ }
+    navigate('/notes/' + id)
+  }, [navigate])
+
+  // 返回列表恢复上次浏览位置：数据到达后执行（晚于 MainLayout 的切页回顶，
+  // 且列表内容已渲染，滚动目标位置准确）
+  useEffect(() => {
+    if (loading) return
+    let saved = 0
+    try { saved = Number(sessionStorage.getItem(SCROLL_KEY) || 0) } catch { /* ignore */ }
+    if (saved > 0) {
+      const timer = window.setTimeout(() => window.scrollTo(0, saved), 0)
+      return () => window.clearTimeout(timer)
+    }
+  }, [loading])
+
+  // 稳定回调（配合 NoteCard 的 memo：回调引用不变时列表滚动/重排不重渲染整卡）
+  const handleSelectNote = useCallback((id: string) => {
+    if (busy) return
     setSelectMode(true)
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -181,10 +203,10 @@ export default function NoteList() {
       else next.add(id)
       return next
     })
-  }
+  }, [busy])
 
-  const handlePin = async (note: Note) => {
-    if (pinRequests.current.has(note.id)) return
+  const handlePin = useCallback(async (note: Note) => {
+    if (busy || pinRequests.current.has(note.id)) return
     pinRequests.current.add(note.id)
     setPinPending(new Set(pinRequests.current))
     try {
@@ -198,11 +220,11 @@ export default function NoteList() {
       pinRequests.current.delete(note.id)
       setPinPending(new Set(pinRequests.current))
     }
-  }
+  }, [busy, query, sortBy, t])
 
   /** 公开/私有切换（列表页快速入口，与编辑页分享弹窗同一接口） */
-  const handleTogglePublic = async (note: Note) => {
-    if (pinPending.has(note.id)) return
+  const handleTogglePublic = useCallback(async (note: Note) => {
+    if (busy || pinPending.has(note.id)) return
     setPinPending(new Set([...pinPending, note.id]))
     try {
       const next = !note.is_public
@@ -220,7 +242,7 @@ export default function NoteList() {
         return nextSet
       })
     }
-  }
+  }, [busy, pinPending, query, sortBy, t])
 
   const runBatch = async (action: () => Promise<void>) => {
     if (batchInFlight.current || selectedIds.size === 0) return
@@ -351,7 +373,7 @@ export default function NoteList() {
           </div>
         ) : (
           <div className={collectionClass}>
-            {notes.map((note) => <NoteCard key={note.id} note={note} selected={selectedIds.has(note.id)} selectMode={selectMode} pinPending={busy || pinPending.has(note.id)} onOpen={() => navigate('/notes/' + note.id)} onSelect={() => { if (!busy) selectNote(note.id) }} onPin={() => { if (!busy) void handlePin(note) }} onTogglePublic={() => { if (!busy) void handleTogglePublic(note) }} />)}
+            {notes.map((note) => <NoteCard key={note.id} note={note} selected={selectedIds.has(note.id)} selectMode={selectMode} pinPending={busy || pinPending.has(note.id)} onOpen={handleOpenNote} onSelect={handleSelectNote} onPin={handlePin} onTogglePublic={handleTogglePublic} />)}
           </div>
         )}
       </div>

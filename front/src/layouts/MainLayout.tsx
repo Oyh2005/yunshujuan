@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 import Sidebar from '../components/layout/Sidebar'
 import Pet from '../components/pet/Pet'
 import CommandPalette from '../components/common/CommandPalette'
@@ -7,6 +9,37 @@ import { useUserStore } from '../stores/useUserStore'
 import { useSettingsSync } from '../hooks/useSettingsSync'
 import { useChatSocket } from '../hooks/useChatSocket'
 import { useChatStore } from '../stores/useChatStore'
+import { PREFETCH_IDLE } from '../router/pages'
+
+/** 路径前缀 → i18n 标题键（复用 nav.*；按前缀匹配，/notes/:id 等参数页归入所属域） */
+const TITLE_BY_PATH: Array<[string, string]> = [
+  ['/notes', 'nav.notes'],
+  ['/chat', 'nav.chat'],
+  ['/sessions', 'nav.sessions'],
+  ['/review', 'nav.review'],
+  ['/habit', 'nav.habit'],
+  ['/pomodoro', 'nav.pomodoro'],
+  ['/knowledge', 'nav.knowledge'],
+  ['/stats', 'nav.stats'],
+  ['/graph', 'nav.graph'],
+  ['/plaza', 'nav.plaza'],
+  ['/social', 'nav.social'],
+  ['/friends', 'nav.friends'],
+  ['/messages', 'nav.messages'],
+  ['/notifications', 'nav.notifications'],
+  ['/profile', 'nav.profile'],
+  ['/settings', 'nav.settings'],
+  ['/about', 'nav.about'],
+]
+
+function titleKeyForPath(pathname: string): string {
+  if (pathname === '/') return 'nav.home'
+  if (pathname.startsWith('/user/')) return 'nav.profile'
+  for (const [prefix, key] of TITLE_BY_PATH) {
+    if (pathname === prefix || pathname.startsWith(prefix + '/')) return key
+  }
+  return ''
+}
 import '../styles/knowledge-pages.css'
 import '../styles/learning-pages.css'
 import '../styles/social-pages.css'
@@ -15,6 +48,7 @@ import '../styles/account-pages.css'
 
 export default function MainLayout() {
   const isLogin = useUserStore((s) => s.isLogin)
+  const { t } = useTranslation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const location = useLocation()
   const shellVariant = location.pathname === '/'
@@ -32,6 +66,28 @@ export default function MainLayout() {
             : ['/profile', '/settings', '/pet', '/about'].includes(location.pathname)
               ? ' is-account'
               : ''
+
+  // 页面切换 key：chat 归一化（/chat 与 /chat/:id 同 key，切会话不重挂载、不触发过渡）
+  const pageKey = location.pathname.startsWith('/chat') ? '/chat' : location.pathname
+
+  // 页面切换回顶部（避免新页面停留在旧滚动位置造成"跳变"感）
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pageKey])
+
+  // 浏览器标签页标题随路由更新（番茄钟页的倒计时标题在其卸载时会恢复本标题）
+  useEffect(() => {
+    const key = titleKeyForPath(location.pathname)
+    document.title = key ? `${t(key)} · 云舒卷` : '云舒卷'
+  }, [location.pathname, t])
+
+  // 空闲预取高频页面（登录后 2s；侧边栏 hover 预取未命中的情况兜底）
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void Promise.allSettled(PREFETCH_IDLE.map((load) => load()))
+    }, 2000)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   // 养成数据上云同步（小卷 + 打卡；登录后拉取，变更防抖上传）
   useSettingsSync(isLogin)
@@ -68,13 +124,23 @@ export default function MainLayout() {
         onToggle={() => setSidebarCollapsed((v) => !v)}
       />
       <main className="app-workspace">
-        {/* 页面切换：仅纯 CSS 透明度淡入（key 变化触发重挂载，无 transform/布局副作用，
-            不会引起滚动条宽度抖动）。
+        {/* 页面切换过渡：旧页 120ms 淡出 → 新页淡入（mode="wait"，避免叠放与布局跳动）。
             ⚠️ AI 聊天会话（/chat 与 /chat/:id）归一化为同一 key：首问回答完自动跳转
             /chat/:id 时若重挂载，防闪屏守卫（AIChat 内 ref）会随组件销毁失效，
-            导致历史重新加载 + 淡入动画的整页闪屏 */}
-        <div key={location.pathname.startsWith('/chat') ? '/chat' : location.pathname} className="page-enter h-full">
-          <Outlet />
+            导致历史重新加载 + 淡入动画的整页闪屏；key 不变 → 无过渡无重挂载 */}
+        <div className="h-full">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={pageKey}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12, ease: 'easeOut' }}
+              className="h-full"
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </div>
       </main>
     </div>

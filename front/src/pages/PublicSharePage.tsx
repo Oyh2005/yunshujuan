@@ -28,6 +28,8 @@ export default function PublicSharePage() {
         if (cancelled) return
         setNote(data)
         setNotFound(false)
+        // 标签页标题用笔记标题（分享页独立于 MainLayout，自行设置）
+        document.title = `${data.title} · 云舒卷`
       })
       .catch(() => {
         if (cancelled) return

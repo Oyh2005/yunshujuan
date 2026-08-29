@@ -34,8 +34,15 @@ import { useChatStore } from '../../stores/useChatStore'
 import { authApi } from '../../api/auth'
 import { socialApi } from '../../api/social'
 import { messagesApi } from '../../api/messages'
+import { PREFETCH_BY_PATH } from '../../router/pages'
 import ConfirmDialog from '../common/ConfirmDialog'
 import AuthImage from '../common/AuthImage'
+
+/** 预取目标页面 chunk（hover/聚焦时触发，已加载过的懒加载模块不会重复请求） */
+function prefetchPage(path: string): void {
+  const loader = PREFETCH_BY_PATH[path]
+  if (loader) void loader()
+}
 
 const compactQuery = '(max-width: 767px)'
 function subscribeToWidth(callback: () => void) {
@@ -208,6 +215,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                         key={path}
                         to={path}
                         onClick={closeMobile}
+                        onMouseEnter={() => prefetchPage(path)}
+                        onFocus={() => prefetchPage(path)}
                         className={({ isActive }) =>
                           `nav-item sidebar-link${isActive ? ' active' : ''}`
                         }
@@ -251,7 +260,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <DropdownMenu.Portal>
             <DropdownMenu.Content className="workspace-menu" side="top" align="start" sideOffset={10} collisionPadding={12}>
               {bottomItems.map(({ path, icon: Icon, labelKey }) => (
-                <DropdownMenu.Item key={path} className="workspace-menu-item" onSelect={() => { closeMobile(); navigate(path) }}><Icon size={16} />{t(labelKey)}</DropdownMenu.Item>
+                <DropdownMenu.Item key={path} className="workspace-menu-item" onSelect={() => { closeMobile(); navigate(path) }} onFocus={() => prefetchPage(path)}><Icon size={16} />{t(labelKey)}</DropdownMenu.Item>
               ))}
               <DropdownMenu.Separator className="workspace-menu-separator" />
               <DropdownMenu.Item className="workspace-menu-item workspace-menu-danger" onSelect={() => setShowLogoutConfirm(true)}><LogOut size={16} />{t('nav.logout')}</DropdownMenu.Item>

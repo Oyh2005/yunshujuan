@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -7,6 +7,8 @@ import { socialApi } from '../api/social'
 import type { FriendRequestItem, SocialUser } from '../types/api'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import { useChatStore } from '../stores/useChatStore'
+import { useUserStore } from '../stores/useUserStore'
+import { swrCache } from '../stores/useSwrCacheStore'
 import SocialLayout, { SocialAvatar, SocialHeader, SocialPetCard } from '../components/social/SocialLayout'
 
 export default function FriendsPage() {
@@ -16,10 +18,15 @@ export default function FriendsPage() {
   const navigate = useNavigate()
   // 在线好友集合：MainLayout 全局 WS 维护（好友登录网站任意页面即可见）
   const onlineUsers = useChatStore((s) => s.onlineUsers)
-  const [friends, setFriends] = useState<SocialUser[]>([])
-  const [requests, setRequests] = useState<FriendRequestItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const userId = useUserStore((s) => s.userInfo?.uuid || s.userInfo?.user_id || s.userInfo?.id || '')
+  // SWR 预填：刷新页面先渲染本地缓存（秒开），后台请求到达后替换
+  const [initialCached] = useState(() => swrCache.get<{ friends: SocialUser[]; requests: FriendRequestItem[] }>(`social-friends:${userId}`))
+  const [friends, setFriends] = useState<SocialUser[]>(() => initialCached?.friends ?? [])
+  const [requests, setRequests] = useState<FriendRequestItem[]>(() => initialCached?.requests ?? [])
+  const [loading, setLoading] = useState(() => !initialCached)
   const [loadFailed, setLoadFailed] = useState(false)
+  // 是否已有可展示的数据（缓存或首次成功）：后续后台刷新失败时静默保留旧数据
+  const hadData = useRef(initialCached !== undefined)
 
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
@@ -34,12 +41,18 @@ export default function FriendsPage() {
     Promise.all([socialApi.friendsList(), socialApi.friendRequests()])
       .then(([f, r]) => {
         if (cancelled) return
-        setFriends(f.data ?? [])
-        setRequests(r.data ?? [])
+        const friendsData = f.data ?? []
+        const requestsData = r.data ?? []
+        setFriends(friendsData)
+        setRequests(requestsData)
         setLoadFailed(false)
+        hadData.current = true
+        // 写入 SWR 缓存（刷新页面秒开；后台刷新自愈）
+        if (userId) swrCache.set(`social-friends:${userId}`, { friends: friendsData, requests: requestsData })
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && !hadData.current) {
+          // 无缓存且从未成功过才提示失败（有缓存时保留旧数据展示）
           setLoadFailed(true)
           toast.error(t('common.error'))
         }
@@ -50,7 +63,7 @@ export default function FriendsPage() {
     return () => {
       cancelled = true
     }
-  }, [t])
+  }, [t, userId])
 
   const handleSearch = async () => {
     const q = query.trim()

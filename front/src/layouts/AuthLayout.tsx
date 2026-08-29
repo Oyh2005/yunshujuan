@@ -1,6 +1,17 @@
-import { Outlet } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 
 export default function AuthLayout() {
+  const { t } = useTranslation()
+  const { pathname } = useLocation()
+
+  // 标签页标题：登录 / 注册
+  useEffect(() => {
+    const key = pathname === '/register' ? 'auth.register' : 'auth.login'
+    document.title = `${t(key)} · 云舒卷`
+  }, [pathname, t])
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)] relative">
       {/* 氛围光晕背景 */}
