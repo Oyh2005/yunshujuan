@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ArrowLeft, Save, Trash2, Download, Link2, ListTree, FileText, Users, GraduationCap, BookOpen, ListTodo, BookMarked, Plus, GripVertical, Share2, GitBranch, ExternalLink, X, FileCode2, Printer, Sparkles, ChevronRight, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft, Save, Trash2, Download, Link2, ListTree, FileText, Users, GraduationCap, BookOpen, ListTodo, BookMarked, Plus, GripVertical, Share2, GitBranch, ExternalLink, X, FileCode2, Printer, ChevronRight, MoreHorizontal } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { marked } from 'marked'
 import TiptapEditor, { type TiptapEditorHandle } from '../components/TiptapEditor'
@@ -902,36 +902,17 @@ ${body}
                 value={content}
                 onChange={(next) => { setContent(next); setSaveStatus('unsaved') }}
                 placeholder="开始写作..."
-                onAutocomplete={async (context) => {
-                  try {
-                    const res = await notesApi.autocomplete(context)
-                    return (res.data as { completion?: string })?.completion || null
-                  } catch {
-                    return null
-                  }
-                }}
               />
             </div>
             <div className="note-writing-statusbar">
               <span>{wordCount} 字</span>
               <span>{saveStatus === 'saved' ? '内容已保存' : '等待保存'}</span>
-              <span>Tab 接受智能续写</span>
             </div>
           </div>
         </div>
 
         {!showRelated && !showBacklinks && (
           <aside className="note-writing-inspector" aria-label="写作辅助信息">
-            <section className="note-writing-inspector-card">
-              <div className="note-writing-inspector-heading">
-                <h2>写作助手</h2>
-                <Sparkles size={17} />
-              </div>
-              <div className="note-writing-assistant-status">
-                <div><kbd>Tab</kbd><strong>智能续写已开启</strong></div>
-                <p>停顿片刻获取续写建议，按 Tab 接受。</p>
-              </div>
-            </section>
             <section className="note-writing-inspector-card">
               <div className="note-writing-inspector-heading">
                 <h2>笔记信息</h2>

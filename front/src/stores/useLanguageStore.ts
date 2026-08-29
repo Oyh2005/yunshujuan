@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-type Lang = 'zh-CN' | 'en-US'
+export type Lang = 'zh-CN' | 'en-US'
 
 interface LanguageState {
   lang: Lang

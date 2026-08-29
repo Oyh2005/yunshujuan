@@ -93,6 +93,8 @@ export const endpoints = {
   notifications: '/social/notifications',
   notificationsUnread: '/social/notifications/unread-count',
   notificationsRead: '/social/notifications/read',
+  notificationDelete: (id: string) => `/social/notifications/${id}`,
+  notificationsClear: '/social/notifications',
   plaza: '/social/plaza',
   leaderboard: '/stats/leaderboard',
   userProfile: (id: string) => `/social/users/${id}/profile`,

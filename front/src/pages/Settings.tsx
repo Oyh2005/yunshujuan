@@ -5,6 +5,8 @@ import { useLanguageStore } from '../stores/useLanguageStore'
 import { usePetStore } from '../stores/usePetStore'
 import { useChatFontStore, CHAT_FONT_MIN, CHAT_FONT_MAX } from '../stores/useChatFontStore'
 import i18n from '../i18n'
+import AccountLayout, { AccountHeader } from '../components/account/AccountLayout'
+import type { Lang } from '../stores/useLanguageStore'
 
 export default function Settings() {
   const { t } = useTranslation()
@@ -15,69 +17,101 @@ export default function Settings() {
   const chatFontSize = useChatFontStore((s) => s.size)
   const setChatFontSize = useChatFontStore((s) => s.setSize)
 
-  const handleLangChange = (newLang: 'zh-CN' | 'en-US') => {
+  const handleLangChange = (newLang: Lang) => {
     setLang(newLang)
     i18n.changeLanguage(newLang)
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-6">
-      <h1 className="font-heading text-xl font-semibold text-[var(--color-text)] mb-8">{t('settings.title')}</h1>
+    <AccountLayout>
+      <AccountHeader
+        breadcrumb={t('account.breadcrumb')}
+        title={t('settings.title')}
+        subtitle={t('account.settingsSubtitle')}
+      />
 
-      <div className="space-y-6">
-        <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {theme === 'light' ? <Sun size={18} className="text-[var(--color-text-secondary)]" /> : <Moon size={18} className="text-[var(--color-text-secondary)]" />}
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text)]">{t('settings.theme')}</p>
-                <p className="text-xs text-[var(--color-text-tertiary)]">{t(theme === 'light' ? 'settings.light' : 'settings.dark')}</p>
-              </div>
+      <div className="account-body">
+        <section className="account-panel">
+          <h2 className="account-panel-title">{t('account.appearance')}</h2>
+
+          <div className="account-setting-row">
+            <div className="account-setting-copy">
+              <span className="account-setting-icon">
+                {theme === 'light' ? <Sun size={19} /> : <Moon size={19} />}
+              </span>
+              <span className="account-setting-text">
+                <strong>{t('settings.theme')}</strong>
+                <small>{t(theme === 'light' ? 'settings.light' : 'settings.dark')}</small>
+              </span>
             </div>
             <button
               onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
               role="switch"
               aria-label={t('settings.theme')}
               aria-checked={theme === 'dark'}
-              className={`relative w-12 h-6 rounded-full transition-colors ${theme === 'dark' ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-tertiary)]'}`}
-            >
-              <div style={{ backgroundColor: theme === 'dark' ? 'var(--color-accent-foreground)' : 'var(--color-card)' }} className={`absolute top-0.5 w-5 h-5 rounded-full shadow-sm transition-transform ${theme === 'dark' ? 'translate-x-6' : 'translate-x-0.5'}`} />
-            </button>
+              className="account-switch"
+            />
           </div>
-        </div>
 
-        <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Cloud size={18} className="text-[var(--color-text-secondary)]" />
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text)]">{t('settings.pet')}</p>
-                <p className="text-xs text-[var(--color-text-tertiary)]">{t('settings.petDesc')}</p>
-              </div>
+          <div className="account-setting-row">
+            <div className="account-setting-copy">
+              <span className="account-setting-icon"><Languages size={19} /></span>
+              <span className="account-setting-text">
+                <strong>{t('settings.language')}</strong>
+                <small>{lang === 'zh-CN' ? '简体中文' : 'English'}</small>
+              </span>
+            </div>
+            <div className="account-segmented">
+              <button
+                onClick={() => handleLangChange('zh-CN')}
+                aria-pressed={lang === 'zh-CN'}
+              >
+                中文
+              </button>
+              <button
+                onClick={() => handleLangChange('en-US')}
+                aria-pressed={lang === 'en-US'}
+              >
+                English
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section className="account-panel">
+          <h2 className="account-panel-title">{t('account.petSection')}</h2>
+          <div className="account-setting-row">
+            <div className="account-setting-copy">
+              <span className="account-setting-icon"><Cloud size={19} /></span>
+              <span className="account-setting-text">
+                <strong>{t('settings.pet')}</strong>
+                <small>{t('settings.petDesc')}</small>
+              </span>
             </div>
             <button
               onClick={() => setPetVisible(!petVisible)}
               role="switch"
               aria-label={t('settings.pet')}
               aria-checked={petVisible}
-              className={`relative w-12 h-6 rounded-full transition-colors ${petVisible ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-bg-tertiary)]'}`}
-            >
-              <div style={{ backgroundColor: petVisible ? 'var(--color-accent-foreground)' : 'var(--color-card)' }} className={`absolute top-0.5 w-5 h-5 rounded-full shadow-sm transition-transform ${petVisible ? 'translate-x-6' : 'translate-x-0.5'}`} />
-            </button>
+              className="account-switch"
+            />
           </div>
-        </div>
+        </section>
 
-        <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-6 space-y-4">
-          <div className="flex items-center gap-3">
-            <Type size={18} className="text-[var(--color-text-secondary)]" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-[var(--color-text)]">{t('settings.chatFont')}</p>
-              <p className="text-xs text-[var(--color-text-tertiary)]">{t('settings.chatFontDesc')}</p>
+        <section className="account-panel">
+          <div className="account-setting-row">
+            <div className="account-setting-copy">
+              <span className="account-setting-icon"><Type size={19} /></span>
+              <span className="account-setting-text">
+                <strong>{t('settings.chatFont')}</strong>
+                <small>{t('settings.chatFontDesc')}</small>
+              </span>
             </div>
-            <span className="text-sm font-semibold text-[var(--color-accent)]">{chatFontSize}px</span>
+            <span className="account-slider-value">{chatFontSize}px</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[var(--color-text-tertiary)]">{t('settings.chatFontSmall')}</span>
+
+          <div className="account-slider-row">
+            <span>{t('settings.chatFontSmall')}</span>
             <input
               type="range"
               min={CHAT_FONT_MIN}
@@ -85,58 +119,19 @@ export default function Settings() {
               step={1}
               value={chatFontSize}
               onChange={(e) => setChatFontSize(Number(e.target.value))}
-              className="flex-1 accent-[var(--color-accent)]"
               aria-label={t('settings.chatFont')}
             />
-            <span className="text-xs text-[var(--color-text-tertiary)]">{t('settings.chatFontLarge')}</span>
+            <span>{t('settings.chatFontLarge')}</span>
           </div>
-          {/* 实时预览：仿私聊界面，滑块拖动时字号即时变化 */}
-          <div
-            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4 space-y-2.5"
-            style={{ fontSize: `${chatFontSize}px` } as React.CSSProperties}
-          >
-            <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-2xl rounded-bl-md border border-[var(--color-border-light)] bg-[var(--color-card)] px-3.5 py-2.5 leading-relaxed">
-                {t('settings.chatFontPreviewTheirs')}
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <div className="max-w-[80%] rounded-2xl rounded-br-md px-3.5 py-2.5 leading-relaxed text-white" style={{ background: 'var(--gradient-brand)' }}>
-                {t('settings.chatFontPreviewMine')}
-              </div>
-            </div>
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-2 text-[var(--color-text-tertiary)]">
-              {t('settings.chatFontPreviewInput')}
-            </div>
-          </div>
-        </div>
 
-        <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Languages size={18} className="text-[var(--color-text-secondary)]" />
-              <div>
-                <p className="text-sm font-medium text-[var(--color-text)]">{t('settings.language')}</p>
-                <p className="text-xs text-[var(--color-text-tertiary)]">{lang === 'zh-CN' ? '中文' : 'English'}</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleLangChange('zh-CN')}
-                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${lang === 'zh-CN' ? 'bg-[var(--color-accent-bg)] text-[var(--color-accent)]' : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'}`}
-              >
-                中文
-              </button>
-              <button
-                onClick={() => handleLangChange('en-US')}
-                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${lang === 'en-US' ? 'bg-[var(--color-accent-bg)] text-[var(--color-accent)]' : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)]'}`}
-              >
-                English
-              </button>
-            </div>
+          {/* 实时预览：仿私聊界面，滑块拖动时字号即时变化 */}
+          <div className="account-chat-preview" style={{ fontSize: `${chatFontSize}px` }}>
+            <div className="chat-bubble is-theirs">{t('settings.chatFontPreviewTheirs')}</div>
+            <div className="chat-bubble is-mine">{t('settings.chatFontPreviewMine')}</div>
+            <div className="chat-bubble is-input">{t('settings.chatFontPreviewInput')}</div>
           </div>
-        </div>
+        </section>
       </div>
-    </div>
+    </AccountLayout>
   )
 }

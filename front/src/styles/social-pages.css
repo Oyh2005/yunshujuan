@@ -152,6 +152,8 @@
 .social-add-button:hover { background: var(--color-accent-bg); }
 .social-friend-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-top: 13px; }
 .social-friend-card { position: relative; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 10px; min-width: 0; padding: 13px 38px 13px 12px; border: 1px solid var(--color-border); border-radius: 11px; background: var(--color-card); }
+/* 好友头像容器：承载在线绿点（登录任意页面即在线） */
+.social-friend-avatar { position: relative; display: inline-flex; flex-shrink: 0; }
 .social-friend-card:hover { border-color: var(--color-accent-border); background: var(--color-accent-surface); }
 .social-friend-open { min-width: 0; text-align: left; }
 .social-friend-open strong,.social-friend-open small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -172,10 +174,20 @@
 .social-mark-read { display: inline-flex; align-items: center; gap: 7px; min-height: 39px; padding: 8px 14px; border: 1px solid var(--color-accent-border); border-radius: 11px; color: var(--color-accent); background: var(--color-card); font-size: 11px; font-weight: 650; }
 .social-mark-read:hover { background: var(--color-accent-surface); }
 .social-mark-read:disabled { opacity: .45; }
+/* 清空全部通知（danger 描边） */
+.social-clear-all { display: inline-flex; align-items: center; gap: 7px; min-height: 39px; padding: 8px 14px; border: 1px solid var(--color-border); border-radius: 11px; color: var(--color-danger); background: var(--color-card); font-size: 11px; font-weight: 650; }
+.social-clear-all:hover { background: var(--color-danger-bg); border-color: transparent; }
+.social-clear-all:disabled { opacity: .45; }
 .social-notifications-layout { display: grid; grid-template-columns: minmax(0,1fr) 285px; align-items: start; gap: 22px; }
 .social-notification-list { padding: 17px; }
 .social-notification-list > .social-card-heading { padding-bottom: 12px; border-bottom: 1px solid var(--color-border-light); }
 .social-notification-group-title { padding: 13px 2px 7px; color: var(--color-text-secondary); font-size: 11px; font-weight: 650; }
+/* 通知行容器 + 删除按钮（hover 显示，与右侧箭头互斥） */
+.social-notification-row-wrap { position: relative; }
+.social-notification-delete { position: absolute; z-index: 2; right: 5px; top: 50%; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; color: var(--color-text-tertiary); background: var(--color-card); border: 1px solid var(--color-border); opacity: 0; transition: opacity .15s, color .15s, background .15s; transform: translateY(-50%); }
+.social-notification-row-wrap:hover .social-notification-delete { opacity: 1; }
+.social-notification-delete:hover { color: var(--color-danger); background: var(--color-danger-bg); border-color: transparent; }
+.social-notification-row-wrap:hover .social-notification-arrow { opacity: 0; }
 .social-notification-row { display: grid; grid-template-columns: auto auto minmax(0,1fr) auto auto auto; align-items: center; gap: 12px; min-width: 0; width: 100%; margin-top: 7px; padding: 12px; border: 1px solid var(--color-border); border-radius: 11px; background: var(--color-card); text-align: left; transition: border-color .15s, background .15s, transform .15s; }
 .social-notification-row:hover { border-color: var(--color-accent-border); background: var(--color-accent-surface); }
 .social-notification-row:active { transform: scale(.995); }

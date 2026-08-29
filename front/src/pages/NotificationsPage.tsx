@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Bell, UserPlus, UserCheck, Heart, MessageCircle, CheckCheck, Loader2, Inbox, ChevronRight } from 'lucide-react'
+import { Bell, UserPlus, UserCheck, Heart, MessageCircle, CheckCheck, Loader2, Inbox, ChevronRight, X, Trash2 } from 'lucide-react'
 import { socialApi } from '../api/social'
 import type { NotificationItem } from '../types/api'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 import SocialLayout, { SocialAvatar, SocialHeader, SocialPetCard } from '../components/social/SocialLayout'
 
 export default function NotificationsPage() {
@@ -16,6 +17,8 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [marking, setMarking] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [clearOpen, setClearOpen] = useState(false)
   const [referenceNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -82,6 +85,32 @@ export default function NotificationsPage() {
     }
   }
 
+  /** 删除单条通知（hover 行尾出现，微信/QQ 式清理） */
+  const handleDelete = async (item: NotificationItem) => {
+    try {
+      await socialApi.deleteNotification(item.id)
+      setItems((prev) => prev.filter((n) => n.id !== item.id))
+      toast.success(t('notifications.deleted'))
+    } catch {
+      toast.error(t('common.error'))
+    }
+  }
+
+  /** 清空全部通知（二次确认后执行） */
+  const handleClearAll = async () => {
+    setClearing(true)
+    try {
+      await socialApi.clearNotifications()
+      setItems([])
+      toast.success(t('notifications.cleared'))
+    } catch {
+      toast.error(t('common.error'))
+    } finally {
+      setClearing(false)
+      setClearOpen(false)
+    }
+  }
+
   const formatTime = (iso: string | null) => {
     if (!iso) return ''
     const d = new Date(iso)
@@ -126,14 +155,25 @@ export default function NotificationsPage() {
       comment: { icon: <MessageCircle size={17} />, tone: 'blue' },
     }[item.type]
     return (
-      <button key={item.id} type="button" onClick={() => void handleOpen(item)} className={`social-notification-row${item.read ? '' : ' is-unread'}`}>
-        <SocialAvatar username={item.actor?.username || text('用户', 'User')} avatar={item.actor?.avatar || null} size={42} />
-        <span className={`social-type-icon ${meta?.tone || 'violet'}`}>{meta?.icon || <Bell size={17} />}</span>
-        <p className="social-notification-copy">{renderText(item)}</p>
-        <time>{formatTime(item.created_at)}</time>
-        {!item.read && <span className="social-unread-dot" aria-label={text('未读', 'Unread')} />}
-        <ChevronRight size={14} className="social-notification-arrow" />
-      </button>
+      <div key={item.id} className="social-notification-row-wrap">
+        <button type="button" onClick={() => void handleOpen(item)} className={`social-notification-row${item.read ? '' : ' is-unread'}`}>
+          <SocialAvatar username={item.actor?.username || text('用户', 'User')} avatar={item.actor?.avatar || null} size={42} />
+          <span className={`social-type-icon ${meta?.tone || 'violet'}`}>{meta?.icon || <Bell size={17} />}</span>
+          <p className="social-notification-copy">{renderText(item)}</p>
+          <time>{formatTime(item.created_at)}</time>
+          {!item.read && <span className="social-unread-dot" aria-label={text('未读', 'Unread')} />}
+          <ChevronRight size={14} className="social-notification-arrow" />
+        </button>
+        <button
+          type="button"
+          className="social-notification-delete"
+          onClick={() => void handleDelete(item)}
+          aria-label={text('删除通知', 'Delete notification')}
+          title={text('删除通知', 'Delete notification')}
+        >
+          <X size={13} />
+        </button>
+      </div>
     )
   }
 
@@ -143,7 +183,12 @@ export default function NotificationsPage() {
         title={text('通知中心', 'Notification center')}
         subtitle={text('不错过每一次回应与新的连接', 'Keep up with every response and new connection')}
         badge={unreadCount > 0 ? <span className="social-unread-badge">{unreadCount} {text('条未读', 'unread')}</span> : undefined}
-        actions={<button onClick={handleMarkAllRead} disabled={marking || unreadCount === 0} className="social-mark-read">{marking ? <Loader2 size={15} className="animate-spin" /> : <CheckCheck size={16} />}{t('notifications.markAllRead')}</button>}
+        actions={
+          <>
+            <button onClick={handleMarkAllRead} disabled={marking || unreadCount === 0} className="social-mark-read">{marking ? <Loader2 size={15} className="animate-spin" /> : <CheckCheck size={16} />}{t('notifications.markAllRead')}</button>
+            <button onClick={() => setClearOpen(true)} disabled={clearing || items.length === 0} className="social-clear-all">{clearing ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}{t('notifications.clearAll')}</button>
+          </>
+        }
       />
       <div className="social-notifications-layout">
         <main className="social-main-stack">
@@ -176,6 +221,15 @@ export default function NotificationsPage() {
           <SocialPetCard title={text('小卷提醒你', 'A note from Xiao Juan')} message={unreadCount > 0 ? text('有人回应了你的想法，去看看这次新的连接吧～', 'Someone responded to your idea. See the new connection~') : text('所有回应都看过啦，继续分享新的想法吧～', 'You are all caught up. Keep sharing new ideas~')} />
         </aside>
       </div>
+      <ConfirmDialog
+        open={clearOpen}
+        onOpenChange={(open) => { if (!open) setClearOpen(false) }}
+        title={text('清空全部通知', 'Clear all notifications')}
+        message={text('确定清空全部通知吗？删除后不可恢复。', 'Clear all notifications? This cannot be undone.')}
+        variant="danger"
+        confirmText={text('清空', 'Clear')}
+        onConfirm={handleClearAll}
+      />
     </SocialLayout>
   )
 }

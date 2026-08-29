@@ -6,6 +6,7 @@ import { Search, UserPlus, UserCheck, X, Trash2, Loader2, Inbox, ChevronRight, M
 import { socialApi } from '../api/social'
 import type { FriendRequestItem, SocialUser } from '../types/api'
 import ConfirmDialog from '../components/common/ConfirmDialog'
+import { useChatStore } from '../stores/useChatStore'
 import SocialLayout, { SocialAvatar, SocialHeader, SocialPetCard } from '../components/social/SocialLayout'
 
 export default function FriendsPage() {
@@ -13,6 +14,8 @@ export default function FriendsPage() {
   const english = i18n.resolvedLanguage?.startsWith('en')
   const text = (zh: string, en: string) => english ? en : zh
   const navigate = useNavigate()
+  // 在线好友集合：MainLayout 全局 WS 维护（好友登录网站任意页面即可见）
+  const onlineUsers = useChatStore((s) => s.onlineUsers)
   const [friends, setFriends] = useState<SocialUser[]>([])
   const [requests, setRequests] = useState<FriendRequestItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -150,7 +153,10 @@ export default function FriendsPage() {
             {loading ? <div className="social-loading"><Loader2 size={22} />{t('common.loading')}</div> : loadFailed ? <div className="social-inline-error"><p>{text('好友数据暂时加载失败', 'Friends could not be loaded')}</p></div> : friends.length === 0 ? <div className="social-empty"><Contact size={26} /><p>{t('friends.empty')}</p></div> : (
               <div className="social-friend-grid">{friends.map((friend) => (
                 <article key={friend.user_id} className="social-friend-card">
-                  <SocialAvatar username={friend.username} avatar={friend.avatar} size={42} />
+                  <span className="social-friend-avatar">
+                    <SocialAvatar username={friend.username} avatar={friend.avatar} size={42} />
+                    {onlineUsers.has(friend.user_id) && <i className="messages-online-dot" title={text('在线', 'Online')} />}
+                  </span>
                   <button onClick={() => navigate(`/user/${friend.user_id}`)} className="social-friend-open"><strong>{friend.username}</strong><small>{friend.bio || text('查看公开主页', 'View public profile')}</small></button>
                   <button onClick={() => navigate(`/messages?with=${friend.user_id}`)} className="social-friend-chat" title={text('发私信', 'Send message')} aria-label={text('给 {name} 发私信', 'Message {name}')}><MessageSquare size={13} /></button>
                   <ChevronRight size={15} />

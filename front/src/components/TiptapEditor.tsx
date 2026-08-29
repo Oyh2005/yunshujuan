@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle, type ReactNode } from 'react'
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle, type ReactNode } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -69,7 +69,6 @@ interface TiptapEditorProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string
-  onAutocomplete?: (context: string) => Promise<string | null>
 }
 
 // ── Toolbar sub-components ──
@@ -317,21 +316,15 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
 
 // ── Main component ──
 
-const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(({ value, onChange, placeholder, onAutocomplete }, ref) => {
-  const wrapperRef = useRef<HTMLDivElement>(null)
+const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(({ value, onChange, placeholder }, ref) => {
   const onChangeRef = useRef(onChange)
-  const autocompleteRef = useRef(onAutocomplete)
   const updatingRef = useRef(false)
-  const ghostTextRef = useRef<string | null>(null)
-  const ghostFromRef = useRef(0)
   const [preview, setPreview] = useState(false)
-  const [ghost, setGhost] = useState<{ text: string; left: number; top: number } | null>(null)
 
   // 在 effect 中同步最新 props 到 ref（避免渲染期间写入 ref）
   useEffect(() => {
     onChangeRef.current = onChange
-    autocompleteRef.current = onAutocomplete
-  }, [onChange, onAutocomplete])
+  }, [onChange])
 
   const editor = useEditor({
     extensions: [
@@ -370,83 +363,6 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(({ value,
     updatingRef.current = false
   }, [value, editor])
 
-  // Re-position ghost text (cursor may have moved)
-  const updateGhostPosition = useCallback(() => {
-    const g = ghostTextRef.current
-    if (!g) { setGhost(null); return }
-    if (!editor?.view) return
-    try {
-      const wrapper = wrapperRef.current
-      if (!wrapper) return
-      const coords = editor.view.coordsAtPos(ghostFromRef.current)
-      if (!coords) return
-      const rect = wrapper.getBoundingClientRect()
-      setGhost({
-        text: g,
-        left: coords.left - rect.left,
-        top: coords.top - rect.top,
-      })
-    } catch { /* ignore */ }
-  }, [editor])
-
-  // Autocomplete: 3 s after last keystroke
-  useEffect(() => {
-    if (!editor || !autocompleteRef.current) return
-    ghostTextRef.current = null
-    setGhost(null)
-    const timer = setTimeout(async () => {
-      const { from } = editor.state.selection
-      const start = Math.max(0, from - 200)
-      const context = editor.state.doc.textBetween(start, from)
-      const posAtRequest = from
-      const docBefore = editor.state.doc.textBetween(0, from)
-      try {
-        const result = await autocompleteRef.current!(context)
-        if (!result) return
-        // 等待期间用户可能继续输入：只要锚点前的内容没变（只追加了文字），
-        // 补全仍是有效续写 → 锚定到当前光标显示；否则丢弃，避免与正文重叠
-        const curFrom = editor.state.selection.from
-        if (curFrom < posAtRequest) return
-        if (editor.state.doc.textBetween(0, posAtRequest) !== docBefore) return
-        ghostTextRef.current = result
-        ghostFromRef.current = curFrom
-        updateGhostPosition()
-      } catch { /* ignore */ }
-    }, 3000)
-    return () => { clearTimeout(timer) }
-  }, [value, editor, updateGhostPosition])
-
-  // 光标离开锚点后幽灵文本不再指向当前位置 → 立即清除
-  useEffect(() => {
-    if (!editor) return
-    const handler = () => {
-      if (!ghostTextRef.current) return
-      if (editor.state.selection.from !== ghostFromRef.current) {
-        ghostTextRef.current = null
-        setGhost(null)
-      }
-    }
-    editor.on('selectionUpdate', handler)
-    return () => { editor.off('selectionUpdate', handler) }
-  }, [editor])
-
-  // Window scroll / resize → re-position ghost
-  useEffect(() => {
-    if (!ghostTextRef.current) return
-    let rafId: number
-    const onMove = () => {
-      cancelAnimationFrame(rafId)
-      rafId = requestAnimationFrame(updateGhostPosition)
-    }
-    window.addEventListener('scroll', onMove, { capture: true })
-    window.addEventListener('resize', onMove)
-    return () => {
-      window.removeEventListener('scroll', onMove, { capture: true })
-      window.removeEventListener('resize', onMove)
-      cancelAnimationFrame(rafId)
-    }
-  }, [editor, ghost, updateGhostPosition])
-
   // Keyboard shortcuts (kept in direct DOM handler to match Milkdown behaviour)
   useEffect(() => {
     if (!editor) return
@@ -454,13 +370,22 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(({ value,
     const handler = (e: KeyboardEvent) => {
       const isCtrl = e.ctrlKey || e.metaKey
 
-      // Tab → accept ghost completion
-      if (e.key === 'Tab' && ghostTextRef.current) {
+      // Tab → 文本缩进：列表项嵌套/提升，代码块与段落插入四空格
+      // （contenteditable 默认 Tab 是移出焦点，不产生缩进）
+      if (e.key === 'Tab') {
+        if (!view.state.selection.empty) return
         e.preventDefault()
-        const { from } = view.state.selection
-        view.dispatch(view.state.tr.insertText(ghostTextRef.current, from))
-        ghostTextRef.current = null
-        setGhost(null)
+        const inList = editor.isActive('bulletList') || editor.isActive('orderedList') || editor.isActive('taskList')
+        if (inList) {
+          if (e.shiftKey) {
+            editor.chain().focus().liftListItem('listItem').run()
+          } else {
+            editor.chain().focus().sinkListItem('listItem').run()
+          }
+          return
+        }
+        // 普通段落/代码块：Shift+Tab 无可减少的缩进语义，保持默认行为
+        if (!e.shiftKey) view.dispatch(view.state.tr.insertText('    '))
         return
       }
 
@@ -569,29 +494,12 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(({ value,
   }
 
   return (
-    <div ref={wrapperRef} className="tiptap-wrapper h-full relative flex flex-col">
+    <div className="tiptap-wrapper h-full relative flex flex-col">
       <EditorToolbar editor={editor} />
       <div className="flex-1 overflow-auto">
         <div className="max-w-3xl mx-auto">
           <EditorContent editor={editor} />
         </div>
-        {ghost && (
-          <div
-            style={{
-              position: 'absolute',
-              left: ghost.left,
-              top: ghost.top,
-              pointerEvents: 'none',
-              whiteSpace: 'pre',
-            }}
-            className="ghost-completion text-[var(--color-text)] select-none"
-          >
-            <span style={{ opacity: 0.3 }}>{ghost.text}</span>
-            <span className="ml-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium rounded bg-[var(--color-accent-bg)] text-[var(--color-accent)]">
-              Tab 补全
-            </span>
-          </div>
-        )}
       </div>
     </div>
   )

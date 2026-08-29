@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  Cloud,
   Sparkles,
   Crown,
   Star,
@@ -19,6 +18,7 @@ import {
   Plus,
   Image as ImageIcon,
   X,
+  Cloud,
 } from 'lucide-react'
 import {
   usePetStore,
@@ -30,7 +30,7 @@ import {
 import { PET_CHARACTERS, getCharacter } from '../components/pet/characters/registry'
 import LevelDecor from '../components/pet/characters/LevelDecor'
 import ConfirmDialog from '../components/common/ConfirmDialog'
-import { FadeIn } from '../components/common/motion'
+import AccountLayout, { AccountHeader } from '../components/account/AccountLayout'
 
 /** 可选的宠物主色（空字符串 = 主题默认） */
 const PET_COLORS: { value: string; label: string; color: string }[] = [
@@ -44,12 +44,12 @@ const PET_COLORS: { value: string; label: string; color: string }[] = [
 
 /** 成长阶段图标（名称/描述按当前角色从注册表取，如云宝宝 vs 猫宝宝） */
 const LEVEL_ICONS: Record<PetLevel, React.ReactNode> = {
-  1: <Cloud size={28} />,
-  2: <Star size={28} />,
-  3: <Crown size={28} />,
+  1: <Cloud size={14} />,
+  2: <Star size={14} />,
+  3: <Crown size={14} />,
 }
 
-/** 养成页大图的展示尺寸（px，随等级变大；右下角页宠仍用 LEVEL_SIZES） */
+/** 养成页主视觉的展示尺寸（px，随等级变大；右下角页宠仍用 LEVEL_SIZES） */
 const DISPLAY_SIZES: Record<PetLevel, number> = { 1: 152, 2: 170, 3: 188 }
 
 /** 自定义形象大小上限（KB）：localStorage 存储，避免撑爆 5MB 配额 */
@@ -57,13 +57,23 @@ const MAX_CUSTOM_IMAGE_SIZE = 500 * 1024
 
 /** 成就定义（按统计解锁） */
 const ACHIEVEMENTS = () => [
-  { id: 'first_note', icon: <BookOpen size={16} />, label: 'achFirstNote', cond: (s: { notes: number }) => s.notes >= 1 },
-  { id: 'note_master', icon: <BookOpen size={16} />, label: 'achNoteMaster', cond: (s: { notes: number }) => s.notes >= 10 },
-  { id: 'reviewer', icon: <GraduationCap size={16} />, label: 'achReviewer', cond: (s: { reviews: number }) => s.reviews >= 10 },
-  { id: 'uploader', icon: <Upload size={16} />, label: 'achUploader', cond: (s: { uploads: number }) => s.uploads >= 5 },
-  { id: 'chatter', icon: <MessageSquare size={16} />, label: 'achChatter', cond: (s: { chats: number }) => s.chats >= 20 },
-  { id: 'buddy', icon: <Hand size={16} />, label: 'achBuddy', cond: (s: { interactions: number }) => s.interactions >= 50 },
-  { id: 'affection', icon: <Heart size={16} />, label: 'achAffection', cond: () => false, custom: (a: number) => a >= 100 },
+  { id: 'first_note', icon: <BookOpen size={14} />, label: 'achFirstNote', cond: (s: { notes: number }) => s.notes >= 1 },
+  { id: 'note_master', icon: <BookOpen size={14} />, label: 'achNoteMaster', cond: (s: { notes: number }) => s.notes >= 10 },
+  { id: 'reviewer', icon: <GraduationCap size={14} />, label: 'achReviewer', cond: (s: { reviews: number }) => s.reviews >= 10 },
+  { id: 'uploader', icon: <Upload size={14} />, label: 'achUploader', cond: (s: { uploads: number }) => s.uploads >= 5 },
+  { id: 'chatter', icon: <MessageSquare size={14} />, label: 'achChatter', cond: (s: { chats: number }) => s.chats >= 20 },
+  { id: 'buddy', icon: <Hand size={14} />, label: 'achBuddy', cond: (s: { interactions: number }) => s.interactions >= 50 },
+  { id: 'affection', icon: <Heart size={14} />, label: 'achAffection', cond: () => false, custom: (a: number) => a >= 100 },
+]
+
+/** 成长指南条目（与 store 的好感度规则保持一致） */
+const GROW_GUIDE = [
+  { icon: <BookOpen size={13} />, key: 'guideNote' },
+  { icon: <GraduationCap size={13} />, key: 'guideReview' },
+  { icon: <Upload size={13} />, key: 'guideUpload' },
+  { icon: <MessageSquare size={13} />, key: 'guideChat' },
+  { icon: <Hand size={13} />, key: 'guidePet' },
+  { icon: <Sparkles size={13} />, key: 'guideLevel' },
 ]
 
 export default function PetPage() {
@@ -179,332 +189,290 @@ export default function PetPage() {
   }
 
   const statItems = [
-    { icon: <BookOpen size={16} />, label: t('pet.statNotes'), value: stats.notes },
-    { icon: <GraduationCap size={16} />, label: t('pet.statReviews'), value: stats.reviews },
-    { icon: <Upload size={16} />, label: t('pet.statUploads'), value: stats.uploads },
-    { icon: <MessageSquare size={16} />, label: t('pet.statChats'), value: stats.chats },
-    { icon: <Rss size={16} />, label: t('pet.statPosts'), value: stats.posts },
-    { icon: <Timer size={16} />, label: t('pet.statPomodoros'), value: stats.pomodoros },
-    { icon: <Hand size={16} />, label: t('pet.statInteractions'), value: stats.interactions },
+    { icon: <BookOpen size={15} />, label: t('pet.statNotes'), value: stats.notes },
+    { icon: <GraduationCap size={15} />, label: t('pet.statReviews'), value: stats.reviews },
+    { icon: <Upload size={15} />, label: t('pet.statUploads'), value: stats.uploads },
+    { icon: <MessageSquare size={15} />, label: t('pet.statChats'), value: stats.chats },
+    { icon: <Rss size={15} />, label: t('pet.statPosts'), value: stats.posts },
+    { icon: <Timer size={15} />, label: t('pet.statPomodoros'), value: stats.pomodoros },
+    { icon: <Hand size={15} />, label: t('pet.statInteractions'), value: stats.interactions },
   ]
 
+  const petStyle = { width: displaySize, height: displaySize, ...(petColor ? { '--pet-body': petColor } : {}) } as React.CSSProperties
+
   return (
-    <div className="max-w-3xl mx-auto py-8 px-6">
-      <FadeIn>
-        <h1 className="font-heading text-xl font-semibold text-[var(--color-text)] mb-6">
-          {t('pet.raiseTitle')}
-        </h1>
+    <AccountLayout className="is-wide">
+      <AccountHeader
+        breadcrumb={t('account.breadcrumbPet')}
+        title={t('pet.raiseTitle')}
+        subtitle={t('account.petSubtitle')}
+      />
 
-        {/* 主卡：形象展示 + 好感度 */}
-        <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-6 mb-6 relative overflow-hidden">
-          <div className="aurora-blob aurora-blob-2" style={{ width: 300, height: 300, opacity: 0.15 }} />
-          <div className="flex flex-col items-center gap-4 relative">
-            {/* 大图展示：干净容器（relative 定位 + 展示尺寸），pet-visual 正确参照 */}
-            <div
-              className="relative"
-              style={{ width: displaySize, height: displaySize, ...(petColor ? { '--pet-body': petColor } : {}) } as React.CSSProperties}
-            >
-              <div className="pet-visual">
-                <CharacterRenderer mood="idle" level={level} />
-                <LevelDecor mood="idle" level={level} />
-              </div>
+      <div className="account-body">
+        {/* 主视觉：形象展示 + 好感度 + 互动 */}
+        <section className="account-pet-hero">
+          <div className="account-pet-hero-art" style={petStyle}>
+            <div className="pet-visual">
+              <CharacterRenderer mood="idle" level={level} />
+              <LevelDecor mood="idle" level={level} />
             </div>
-            <div className="text-center">
-              <h2 className="text-lg font-semibold text-[var(--color-text)] flex items-center justify-center gap-2">
-                {nickname}
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--color-accent-bg)] text-[var(--color-accent)] text-xs font-medium">
-                  {levelIcon}
-                  {levelName}
-                </span>
-              </h2>
-              <p className="text-xs text-[var(--color-text-tertiary)] mt-1 max-w-md">
-                {levelDesc}
-              </p>
-            </div>
+          </div>
 
-            {/* 好感度进度条 */}
-            <div className="w-full max-w-sm">
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-[var(--color-text-secondary)] flex items-center gap-1">
-                  <Heart size={12} className="text-[var(--color-danger)]" /> {t('pet.affection')}
+          <div className="account-pet-hero-copy">
+            <div className="account-pet-hero-name">
+              <h2>{nickname}</h2>
+              <span className="account-pet-level-badge">
+                {levelIcon}
+                Lv.{level} {levelName}
+              </span>
+            </div>
+            <p className="account-pet-hero-desc">{levelDesc}</p>
+
+            <div className="account-pet-affection">
+              <div className="account-pet-affection-head">
+                <span>
+                  <Heart size={13} className="text-[var(--color-danger)]" />
+                  {t('pet.affection')}
                 </span>
-                <span className="text-[var(--color-text-secondary)]">
+                <span>
                   {affection} / {nextThreshold >= 9999 ? 'MAX' : nextThreshold}
                   {level < 3 && `（${t('pet.toNextLevel')} ${nextThreshold - affection}）`}
                 </span>
               </div>
-              <div className="h-2.5 rounded-full bg-[var(--color-bg-tertiary)] overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-[var(--color-accent)] to-[#d0579b] transition-all duration-700"
-                  style={{ width: `${progress}%` }}
-                />
+              <div
+                className="account-pet-affection-track"
+                role="progressbar"
+                aria-label={t('pet.affection')}
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <i style={{ width: `${progress}%` }} />
               </div>
-              <p className="text-xs text-[var(--color-text-tertiary)] mt-2 text-center">
-                {t('pet.affectionHint')}
-              </p>
             </div>
 
-            {/* 互动按钮 */}
-            <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={handlePet}
-                className="primary-button"
-              >
+            <div className="account-pet-hero-actions">
+              <button onClick={handlePet} className="primary-button">
                 <Hand size={16} /> {t('pet.petButton')}（+1）
               </button>
-              <p className="text-xs text-[var(--color-text-tertiary)]">
-                {t('pet.touchRemaining', { count: remainingTouch })}
-              </p>
-              {petTip && (
-                <p className="text-xs text-[var(--color-warning)]">{petTip}</p>
-              )}
+              <span className="account-pet-touch-hint">{t('pet.touchRemaining', { count: remainingTouch })}</span>
+              {petTip && <span className="account-pet-touch-hint">{petTip}</span>}
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* 形象 + 颜色 */}
-        <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-5 mb-6">
-          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
-            <Sparkles size={14} className="text-[var(--color-text-secondary)]" /> {t('pet.characterTitle')}
-          </h3>
-          <div className="grid gap-3 sm:grid-cols-2 mb-2">
-            {PET_CHARACTERS.map((char) => {
-              const Preview = char.Renderer
-              const active = characterId === char.id
-              const isCustom = char.id === 'custom'
-              return (
-                <div
-                  key={char.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    // 自定义形象未上传时点击 = 打开文件选择器
-                    if (isCustom && !customImage) {
-                      customFileRef.current?.click()
-                      return
-                    }
-                    setCharacter(char.id)
-                  }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCharacter(char.id) } }}
-                  className={`relative flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors cursor-pointer ${
-                    active
-                      ? 'border-[var(--color-accent)] bg-[var(--color-accent-bg)]'
-                      : 'border-[var(--color-border)] hover:border-[var(--color-accent)] hover:bg-[var(--color-bg-secondary)]'
-                  }`}
-                >
-                  {isCustom ? (
-                    customImage ? (
-                      <img
-                        src={customImage}
-                        alt="custom pet"
-                        className="w-14 h-14 object-contain shrink-0 rounded-md"
-                        draggable={false}
-                      />
-                    ) : (
-                      <div className="w-14 h-14 shrink-0 rounded-md border-2 border-dashed border-[var(--color-border)] flex items-center justify-center bg-[var(--color-bg-secondary)]">
-                        <ImageIcon size={20} className="text-[var(--color-text-tertiary)]" />
-                      </div>
-                    )
-                  ) : (
-                    <div className="w-14 h-14 shrink-0" style={petColor ? { '--pet-body': petColor } as React.CSSProperties : undefined}>
-                      <Preview mood="idle" level={level} />
-                    </div>
-                  )}
-                  <div className="text-left flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${active ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}`}>
-                      {t(char.nameKey)}
-                    </p>
-                    <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5 truncate">
-                      {isCustom ? (customImage ? t('pet.customUploaded') : t('pet.customEmpty')) : t('pet.characterTip')}
-                    </p>
-                  </div>
-                  {active && <Check size={16} className="ml-auto shrink-0 text-[var(--color-accent)]" />}
-                  {isCustom && customImage && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmRemoveCustom(true) }}
-                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[var(--color-danger)] text-white flex items-center justify-center hover:opacity-80 transition-opacity shadow-sm"
-                      title={t('pet.customRemove')}
+        <div className="account-split">
+          <div>
+            {/* 形象与颜色 */}
+            <section className="account-panel">
+              <div className="account-panel-head">
+                <h2 className="account-panel-title">{t('pet.characterTitle')}</h2>
+                <span className="account-panel-note">{t('pet.characterTip')}</span>
+              </div>
+
+              <div className="account-char-grid">
+                {PET_CHARACTERS.map((char) => {
+                  const Preview = char.Renderer
+                  const active = characterId === char.id
+                  const isCustom = char.id === 'custom'
+                  return (
+                    <div
+                      key={char.id}
+                      className={`account-char-card${active ? ' is-active' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        // 自定义形象未上传时点击 = 打开文件选择器
+                        if (isCustom && !customImage) {
+                          customFileRef.current?.click()
+                          return
+                        }
+                        setCharacter(char.id)
+                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCharacter(char.id) } }}
                     >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          <input
-            ref={customFileRef}
-            type="file"
-            accept="image/png,image/gif,image/webp"
-            className="hidden"
-            onChange={handleCustomImageChange}
-          />
-          {customTip ? (
-            <p className="text-xs text-[var(--color-warning)] mb-1">{customTip}</p>
-          ) : (
-            <p className="text-xs text-[var(--color-text-tertiary)] mb-1">{t('pet.customHint')}</p>
-          )}
+                      <span className="account-char-thumb" style={petColor ? { '--pet-body': petColor } as React.CSSProperties : undefined}>
+                        {isCustom ? (
+                          customImage
+                            ? <img src={customImage} alt="" draggable={false} />
+                            : <ImageIcon size={20} className="text-[var(--color-text-tertiary)]" />
+                        ) : (
+                          <Preview mood="idle" level={level} />
+                        )}
+                      </span>
+                      <span className="account-char-copy">
+                        <strong>{t(char.nameKey)}</strong>
+                        <small>{isCustom ? (customImage ? t('pet.customUploaded') : t('pet.customEmpty')) : t('pet.characterTip')}</small>
+                      </span>
+                      {active && <Check size={16} className="text-[var(--color-accent)]" />}
+                      {isCustom && customImage && (
+                        <button
+                          className="account-char-remove"
+                          onClick={(e) => { e.stopPropagation(); setConfirmRemoveCustom(true) }}
+                          title={t('pet.customRemove')}
+                          aria-label={t('pet.customRemove')}
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
 
-          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
-            <Heart size={14} className="text-[var(--color-danger)]" /> {t('pet.colorTitle')}
-          </h3>
-          <div className="flex items-center gap-3 flex-wrap">
-            {PET_COLORS.map((c) => (
-              <button
-                key={c.label}
-                onClick={() => setPetColor(c.value)}
-                title={t(`pet.color${c.label === 'default' ? 'Default' : c.label.charAt(0).toUpperCase() + c.label.slice(1)}`)}
-                className={`w-8 h-8 rounded-full border-2 transition-transform hover:scale-110 ${
-                  petColor === c.value ? 'border-[var(--color-accent)] scale-110' : 'border-transparent'
-                }`}
-                style={{ background: c.color }}
-                aria-label={c.label}
-              />
-            ))}
-            <label
-              className="w-8 h-8 rounded-full border-2 border-dashed border-[var(--color-border)] flex items-center justify-center cursor-pointer hover:border-[var(--color-accent)] transition-colors"
-              title={t('pet.colorCustom')}
-              style={{ background: petColor && !PET_COLORS.some((c) => c.value === petColor) ? petColor : 'transparent' }}
-            >
               <input
-                type="color"
-                value={petColor || '#1F6C9F'}
-                onChange={(e) => setPetColor(e.target.value)}
-                className="w-0 h-0 opacity-0"
+                ref={customFileRef}
+                type="file"
+                accept="image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={handleCustomImageChange}
               />
-              <Plus size={14} className="text-[var(--color-text-tertiary)]" />
-            </label>
-          </div>
-        </div>
+              <p className="account-panel-hint">{customTip || t('pet.customHint')}</p>
 
-        {/* 昵称 + 统计 */}
-        <div className="grid gap-6 md:grid-cols-2 mb-6">
-          <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-5">
-            <h3 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
-              <Pencil size={14} className="text-[var(--color-text-secondary)]" /> {t('pet.customName')}
-            </h3>
-            {editingName ? (
-              <div className="flex gap-2">
-                <input
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  maxLength={12}
-                  placeholder={t('pet.namePlaceholder')}
-                  className="flex-1 px-3 py-2 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                />
-                <button
-                  onClick={handleRename}
-                  className="btn-press px-3 py-2 text-sm rounded-md bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:bg-[var(--color-accent-hover)] transition-colors"
-                >
-                  <Check size={16} />
-                </button>
+              <div className="account-panel-head" style={{ marginTop: 22 }}>
+                <h2 className="account-panel-title">{t('pet.colorTitle')}</h2>
               </div>
-            ) : (
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-[var(--color-text)]">{nickname}</span>
-                <button
-                  onClick={() => { setNameInput(nickname); setEditingName(true) }}
-                  className="secondary-button"
+              <div className="account-color-dots">
+                {PET_COLORS.map((c) => (
+                  <button
+                    key={c.label}
+                    onClick={() => setPetColor(c.value)}
+                    title={t(`pet.color${c.label === 'default' ? 'Default' : c.label.charAt(0).toUpperCase() + c.label.slice(1)}`)}
+                    className={`account-color-dot${petColor === c.value ? ' is-active' : ''}`}
+                    style={{ background: c.color }}
+                    aria-label={c.label}
+                  />
+                ))}
+                <label
+                  className="account-color-dot is-custom"
+                  title={t('pet.colorCustom')}
+                  style={{ background: petColor && !PET_COLORS.some((c) => c.value === petColor) ? petColor : undefined }}
                 >
-                  {t('pet.editName')}
-                </button>
+                  <input
+                    type="color"
+                    value={petColor || '#1F6C9F'}
+                    onChange={(e) => setPetColor(e.target.value)}
+                    aria-label={t('pet.colorCustom')}
+                  />
+                  <Plus size={13} />
+                </label>
               </div>
-            )}
-            <p className="text-xs text-[var(--color-text-tertiary)] mt-2">{t('pet.nameHint')}</p>
+            </section>
+
+            {/* 自定义昵称 */}
+            <section className="account-panel">
+              <div className="account-panel-head">
+                <h2 className="account-panel-title">{t('pet.customName')}</h2>
+              </div>
+              {editingName ? (
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <input
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    maxLength={12}
+                    placeholder={t('pet.namePlaceholder')}
+                    className="account-info-input"
+                    style={{ width: '100%', maxWidth: '100%', textAlign: 'left' }}
+                    aria-label={t('pet.customName')}
+                  />
+                  <button onClick={handleRename} className="secondary-button is-compact" aria-label={t('profile.save')}>
+                    <Check size={15} />
+                  </button>
+                </div>
+              ) : (
+                <div className="account-setting-row" style={{ padding: 0 }}>
+                  <div className="account-setting-copy">
+                    <span className="account-setting-icon"><Pencil size={18} /></span>
+                    <span className="account-setting-text"><strong>{nickname}</strong></span>
+                  </div>
+                  <button
+                    className="secondary-button is-compact"
+                    onClick={() => { setNameInput(nickname); setEditingName(true) }}
+                  >
+                    {t('pet.editName')}
+                  </button>
+                </div>
+              )}
+              <p className="account-panel-hint">{t('pet.nameHint')}</p>
+            </section>
+
+            {/* 互动记录 */}
+            <section className="account-panel">
+              <div className="account-panel-head">
+                <h2 className="account-panel-title">{t('pet.logTitle')}</h2>
+                {log.length > 0 && (
+                  <button className="account-ghost-button" onClick={() => setConfirmClearLog(true)}>
+                    <Trash2 size={12} /> {t('pet.clearLog')}
+                  </button>
+                )}
+              </div>
+              {log.length === 0 ? (
+                <p className="account-empty-hint">{t('pet.logEmpty')}</p>
+              ) : (
+                <div>
+                  {log.map((entry, i) => (
+                    <div key={`${entry.time}-${i}`} className="account-log-row">
+                      <time>
+                        {new Date(entry.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                      </time>
+                      <p>{entry.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
 
-          <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-5">
-            <h3 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
-              <Sparkles size={14} className="text-[var(--color-text-secondary)]" /> {t('pet.platformStats')}
-            </h3>
-            <div className="space-y-2">
+          <div>
+            {/* 平台互动统计 */}
+            <section className="account-panel">
+              <h2 className="account-panel-title">{t('pet.platformStats')}</h2>
               {statItems.map(({ icon, label, value }) => (
-                <div key={label} className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-                    {icon} {label}
-                  </span>
-                  <span className="font-medium text-[var(--color-text)]">{value}</span>
+                <div key={label} className="account-stat-row">
+                  <span>{icon}{label}</span>
+                  <strong>{value}</strong>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
+            </section>
 
-        {/* 成就 + 记录 */}
-        <div className="grid gap-6 md:grid-cols-2 mb-6">
-          <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-5">
-            <h3 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
-              <Crown size={14} className="text-[var(--color-text-secondary)]" />
-              {t('pet.achievements')}
-              <span className="text-xs text-[var(--color-text-tertiary)]">（{unlockedCount}/{achievements.length}）</span>
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              {achievements.map((a) => {
-                const unlocked = a.custom ? a.custom(affection) : a.cond(stats)
-                return (
-                  <div
-                    key={a.id}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs border transition-colors ${
-                      unlocked
-                        ? 'bg-[var(--color-accent-bg)] border-[var(--color-accent)] text-[var(--color-accent)]'
-                        : 'bg-[var(--color-bg-secondary)] border-transparent text-[var(--color-text-tertiary)] opacity-60'
-                    }`}
-                    title={t(`pet.${a.label}`)}
-                  >
-                    {a.icon}
-                    <span className="truncate">{t(`pet.${a.label}`)}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+            {/* 成就 */}
+            <section className="account-panel">
+              <div className="account-panel-head">
+                <h2 className="account-panel-title">{t('pet.achievements')}</h2>
+                <span className="account-panel-note">（{unlockedCount}/{achievements.length}）</span>
+              </div>
+              <div className="account-ach-grid">
+                {achievements.map((a) => {
+                  const unlocked = a.custom ? a.custom(affection) : a.cond(stats)
+                  return (
+                    <div
+                      key={a.id}
+                      className={`account-ach ${unlocked ? 'is-on' : 'is-off'}`}
+                      title={t(`pet.${a.label}`)}
+                    >
+                      {a.icon}
+                      <span>{t(`pet.${a.label}`)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
 
-          <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-[var(--color-text)] flex items-center gap-2">
-                <Star size={14} className="text-[var(--color-text-secondary)]" /> {t('pet.logTitle')}
-              </h3>
-              {log.length > 0 && (
-                <button
-                  onClick={() => setConfirmClearLog(true)}
-                  className="flex items-center gap-1 text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] transition-colors"
-                >
-                  <Trash2 size={12} /> {t('pet.clearLog')}
-                </button>
-              )}
-            </div>
-            {log.length === 0 ? (
-              <p className="text-xs text-[var(--color-text-tertiary)] py-6 text-center">{t('pet.logEmpty')}</p>
-            ) : (
-              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                {log.map((entry, i) => (
-                  <div key={entry.time + '-' + i} className="flex items-start gap-2 text-xs">
-                    <span className="text-[var(--color-text-tertiary)] shrink-0">
-                      {new Date(entry.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <span className="text-[var(--color-text-secondary)]">{entry.text}</span>
+            {/* 好感度获取指南 */}
+            <section className="account-panel">
+              <h2 className="account-panel-title">{t('pet.growGuide')}</h2>
+              <div className="account-guide-grid is-single">
+                {GROW_GUIDE.map(({ icon, key }) => (
+                  <div key={key} className="account-guide-item">
+                    {icon}
+                    <span>{t(`pet.${key}`)}</span>
                   </div>
                 ))}
               </div>
-            )}
+            </section>
           </div>
         </div>
-
-        {/* 好感度获取指南 */}
-        <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-5">
-          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3 flex items-center gap-2">
-            <Heart size={14} className="text-[var(--color-danger)]" /> {t('pet.growGuide')}
-          </h3>
-          <div className="grid gap-2 text-xs text-[var(--color-text-secondary)] md:grid-cols-2">
-            <p className="flex items-center gap-2"><BookOpen size={13} /> {t('pet.guideNote')}</p>
-            <p className="flex items-center gap-2"><GraduationCap size={13} /> {t('pet.guideReview')}</p>
-            <p className="flex items-center gap-2"><Upload size={13} /> {t('pet.guideUpload')}</p>
-            <p className="flex items-center gap-2"><MessageSquare size={13} /> {t('pet.guideChat')}</p>
-            <p className="flex items-center gap-2"><Hand size={13} /> {t('pet.guidePet')}</p>
-            <p className="flex items-center gap-2"><Sparkles size={13} /> {t('pet.guideLevel')}</p>
-          </div>
-        </div>
-      </FadeIn>
+      </div>
 
       <ConfirmDialog
         open={confirmClearLog}
@@ -525,6 +493,6 @@ export default function PetPage() {
         confirmText={t('pet.customRemove')}
         onConfirm={handleRemoveCustom}
       />
-    </div>
+    </AccountLayout>
   )
 }

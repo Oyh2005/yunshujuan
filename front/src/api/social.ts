@@ -94,6 +94,16 @@ export const socialApi = {
     const res = await client.post<ApiResponse<null>>(endpoints.notificationsRead, { ids })
     return res.data
   },
+  /** 删除单条通知（仅本人） */
+  deleteNotification: async (id: string) => {
+    const res = await client.delete<ApiResponse<null>>(endpoints.notificationDelete(id))
+    return res.data
+  },
+  /** 清空我的全部通知（仅本人） */
+  clearNotifications: async () => {
+    const res = await client.delete<ApiResponse<null>>(endpoints.notificationsClear)
+    return res.data
+  },
 
   // 知识广场
   plaza: async (page: number, pageSize = 10) => {

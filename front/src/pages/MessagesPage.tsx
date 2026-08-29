@@ -106,6 +106,8 @@ export default function MessagesPage() {
   const text = useCallback((zh: string, en: string) => english ? en : zh, [english])
   const userId = useUserStore((s) => s.userInfo?.uuid || s.userInfo?.user_id || s.userInfo?.id || '')
   const setUnread = useChatStore((s) => s.setUnread)
+  // 在线好友集合：MainLayout 的全局 WS 维护（登录即在线，任意页面实时更新）
+  const onlineUsers = useChatStore((s) => s.onlineUsers)
   const chatFontSize = useChatFontStore((s) => s.size)
   const [searchParams, setSearchParams] = useSearchParams()
   const withId = searchParams.get('with')
@@ -129,7 +131,6 @@ export default function MessagesPage() {
   const [imageUploading, setImageUploading] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
-  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(() => new Set())
   const [peerTyping, setPeerTyping] = useState(false)
   // 消息右键/长按菜单（WeChat 式：菜单项在打开瞬间计算，含 2 分钟撤回窗口）
   const [menu, setMenu] = useState<MenuState | null>(null)
@@ -327,25 +328,6 @@ export default function MessagesPage() {
       setPeerTyping(true)
       if (typingTimerRef.current !== null) window.clearTimeout(typingTimerRef.current)
       typingTimerRef.current = window.setTimeout(() => setPeerTyping(false), 3000)
-    },
-    onOnline: (userId) => {
-      setOnlineUsers((prev) => {
-        if (prev.has(userId)) return prev
-        const next = new Set(prev)
-        next.add(userId)
-        return next
-      })
-    },
-    onOffline: (userId) => {
-      setOnlineUsers((prev) => {
-        if (!prev.has(userId)) return prev
-        const next = new Set(prev)
-        next.delete(userId)
-        return next
-      })
-    },
-    onOnlineList: (userIds) => {
-      setOnlineUsers(new Set(userIds))
     },
   })
 

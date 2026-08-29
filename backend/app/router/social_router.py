@@ -769,6 +769,40 @@ async def mark_notifications_read(
     return success_response(message="已标记为已读")
 
 
+@social_router.delete("/notifications")
+async def clear_notifications(
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit(limit=30, window=60)),
+):
+    """清空我的全部通知（仅本人）。"""
+    result = await db.execute(
+        delete(Notification).where(Notification.user_id == user_id)
+    )
+    await db.commit()
+    return success_response(message=f"已清空 {result.rowcount} 条通知")
+
+
+@social_router.delete("/notifications/{notification_id}")
+async def delete_notification(
+    notification_id: str,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit(limit=60, window=60)),
+):
+    """删除单条通知（仅本人；他人通知一律 404，不泄露存在性）。"""
+    result = await db.execute(
+        delete(Notification).where(
+            Notification.id == notification_id,
+            Notification.user_id == user_id,
+        )
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="通知不存在")
+    await db.commit()
+    return success_response(message="通知已删除")
+
+
 # ═══════════════════════════════════════════════════════════
 # 个人主页 + 关注/粉丝 + 成就墙（方向 C 二期）
 # ═══════════════════════════════════════════════════════════

@@ -39,6 +39,7 @@ export default function Dashboard() {
   const nickname = usePetStore((s) => s.nickname)
   const affection = usePetStore((s) => s.affection)
   const characterId = usePetStore((s) => s.characterId)
+  const customImage = usePetStore((s) => s.customImage)
   const streak = useHabitStore((s) => s.noteStreak)
   const taskDate = useHabitStore((s) => s.taskDate)
   const tasksDone = useHabitStore((s) => s.tasksDone)
@@ -123,7 +124,9 @@ export default function Dashboard() {
   const graphNodes = (graph?.nodes || []).slice(0, 6)
   const graphPositions = new Map(graphNodes.map((node, index) => [node.id, positions[index]]))
   const graphLinks = (graph?.links || []).filter((link) => graphPositions.has(link.source) && graphPositions.has(link.target))
-  const Character = getCharacter(characterId).Renderer
+  // 自定义形象未上传时回退默认云朵，与 PetPage 行为一致
+  const activeCharacterId = characterId === 'custom' && !customImage ? 'cloud' : characterId
+  const Character = getCharacter(activeCharacterId).Renderer
   const tasks = [
     { id: 'note' as const, label: text('记录一篇新笔记', 'Write a new note'), to: '/notes/new' },
     { id: 'review' as const, label: text('回顾学过的知识', 'Review your knowledge'), to: '/review' },
@@ -200,7 +203,7 @@ export default function Dashboard() {
         <aside className="dashboard-rail" aria-label={text('学习与成长', 'Learning and growth')}>
           <section className="dashboard-companion">
             <div className="dashboard-companion-heading"><h2>{text('我的页宠', 'My companion')}</h2><Link to="/pet" className="dashboard-icon-button" aria-label={text('页宠设置', 'Companion settings')}><Settings size={18} /></Link></div>
-            <div className="dashboard-pet-scene"><div className="dashboard-pet-speech">{text('你好呀～', 'Hello there!')}<br />{completed.length ? text('你今天的每一份努力，我都有看到！', 'I see every little effort you make!') : text('今天也一起收集灵感吧！', 'Let’s collect a little inspiration today!')}</div>{characterId === 'cloud' ? <img src={cloudArt} alt={nickname} /> : <div className="dashboard-custom-pet"><Character mood="happy" level={level} /></div>}<span className="dashboard-scene-sparkle">✧</span></div>
+            <div className="dashboard-pet-scene"><div className="dashboard-pet-speech">{text('你好呀～', 'Hello there!')}<br />{completed.length ? text('你今天的每一份努力，我都有看到！', 'I see every little effort you make!') : text('今天也一起收集灵感吧！', 'Let’s collect a little inspiration today!')}</div><div className="dashboard-pet-character"><Character mood="happy" level={level} /></div><span className="dashboard-scene-sparkle">✧</span></div>
             <div className="dashboard-pet-details"><div><h3>{nickname}</h3><span>Lv.{level}</span><Link to="/pet" aria-label={text('管理我的页宠', 'Manage companion')}><ChevronRight size={17} /></Link></div><div className="dashboard-growth-track" role="progressbar" aria-label={text('页宠成长进度', 'Companion growth')} aria-valuenow={Math.round(growth)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${growth}%` }} /></div><small>{level === 3 ? text('已到达最高成长阶段', 'Fully grown, always learning') : text(`好感度 ${affection} / ${nextLevel} · 陪伴中慢慢成长`, `Affection ${affection} / ${nextLevel} · Growing together`)}</small></div>
             <Link className="dashboard-affection" to="/pet"><span><Heart size={19} /></span><div><strong>{text('每一次陪伴，都算数', 'Little moments matter')}</strong><small>{text('记录、回顾，让我们一起成长', 'Write, review, and grow together')}</small></div><ChevronRight size={16} /></Link>
           </section>

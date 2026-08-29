@@ -5,10 +5,13 @@ import Pet from '../components/pet/Pet'
 import CommandPalette from '../components/common/CommandPalette'
 import { useUserStore } from '../stores/useUserStore'
 import { useSettingsSync } from '../hooks/useSettingsSync'
+import { useChatSocket } from '../hooks/useChatSocket'
+import { useChatStore } from '../stores/useChatStore'
 import '../styles/knowledge-pages.css'
 import '../styles/learning-pages.css'
 import '../styles/social-pages.css'
 import '../styles/note-authoring.css'
+import '../styles/account-pages.css'
 
 export default function MainLayout() {
   const isLogin = useUserStore((s) => s.isLogin)
@@ -26,10 +29,23 @@ export default function MainLayout() {
           ? ' is-learning'
           : ['/social', '/friends', '/messages', '/notifications'].includes(location.pathname)
             ? ' is-social'
-        : ''
+            : ['/profile', '/settings', '/pet', '/about'].includes(location.pathname)
+              ? ' is-account'
+              : ''
 
   // 养成数据上云同步（小卷 + 打卡；登录后拉取，变更防抖上传）
   useSettingsSync(isLogin)
+
+  // 全局 WS 连接（登录后任意页面保持在线）：在线状态事件写入全局 store，
+  // 好友列表/私信页实时可见"谁在线"；私聊消息事件由私信页订阅同一连接处理
+  const setOnlineUsers = useChatStore((s) => s.setOnlineUsers)
+  const addOnlineUser = useChatStore((s) => s.addOnlineUser)
+  const removeOnlineUser = useChatStore((s) => s.removeOnlineUser)
+  useChatSocket({
+    onOnline: addOnlineUser,
+    onOffline: removeOnlineUser,
+    onOnlineList: setOnlineUsers,
+  }, isLogin)
 
   if (!isLogin) {
     return <Navigate to="/login" replace />

@@ -1,13 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Camera, Lock, Save, X, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Camera, Lock, Save, X, Eye, EyeOff, Loader2, Pencil } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { authApi } from '../api/auth'
 import { useUserStore } from '../stores/useUserStore'
 import type { UserInfo } from '../types/api'
+import AccountLayout, { AccountHeader } from '../components/account/AccountLayout'
 
 // 用户未填写个人简介时的默认简介
 const DEFAULT_BIO = '短短的简介介绍不了我(=^▽^=)'
+
+/** 把后端返回的 date_joined 格式化为 YYYY-MM-DD；非法值返回空串 */
+function formatDate(value?: string): string {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
 
 export default function Profile() {
   const { t } = useTranslation()
@@ -80,6 +91,8 @@ export default function Profile() {
             bio: data.bio as string || '',
             id: data.id as string,
             avatar: data.avatar as string,
+            // 注册时间：后端 /user/detail/ 已返回 date_joined
+            date_joined: data.date_joined || '',
           }
           setUserInfo(info)
         }
@@ -182,135 +195,150 @@ export default function Profile() {
     { key: 'phone', label: t('profile.phone'), type: 'tel' },
   ]
 
+  const genderText = form.gender
+    ? t(`profile.${Number(form.gender) === 1 ? 'male' : 'female'}`)
+    : t('account.notSet')
+  const joinedText = formatDate(userInfo?.date_joined) || t('account.notSet')
+
   return (
-    <div className="max-w-2xl mx-auto py-8 px-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-xl font-semibold text-[var(--color-text)]">{t('profile.title')}</h1>
-        {!editing ? (
-          <button onClick={() => setEditing(true)} className="secondary-button">
-            {t('profile.edit')}
-          </button>
-        ) : (
-          <div className="flex gap-2">
-            <button onClick={() => setEditing(false)} className="secondary-button">
-              <X size={14} className="inline mr-1" />{t('profile.cancel')}
+    <AccountLayout>
+      <AccountHeader
+        breadcrumb={t('account.breadcrumb')}
+        title={t('profile.title')}
+        subtitle={t('account.profileSubtitle')}
+        actions={
+          editing ? (
+            <>
+              <button onClick={() => setEditing(false)} className="secondary-button">
+                <X size={14} />{t('profile.cancel')}
+              </button>
+              <button onClick={handleSave} disabled={loading} className="primary-button">
+                <Save size={14} />{t('profile.save')}
+              </button>
+            </>
+          ) : (
+            <button onClick={() => setEditing(true)} className="secondary-button">
+              <Pencil size={14} />{t('profile.edit')}
             </button>
-            <button onClick={handleSave} disabled={loading} className="px-4 py-2 text-sm rounded-md bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors">
-              <Save size={14} className="inline mr-1" />{t('profile.save')}
-            </button>
-          </div>
-        )}
-      </div>
+          )
+        }
+      />
 
       {message && (
-        <div className="mb-4 px-4 py-2 rounded-md text-sm bg-[var(--color-success-bg)] text-[var(--color-success)]">{message}</div>
+        <div className="account-message">{message}</div>
       )}
 
-      <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] divide-y divide-[var(--color-divider)]">
-        <div className="flex items-center gap-4 p-6">
-          <div className="relative w-16 h-16 rounded-full bg-[var(--color-accent-bg)] flex items-center justify-center text-[var(--color-accent)] text-xl font-medium overflow-hidden shrink-0">
-            {userInfo?.avatar ? (
-              <img
-                src={userInfo.avatar}
-                alt="avatar"
-                className="w-full h-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-              />
-            ) : (
-              <span>{userInfo?.username ? (userInfo.username as string)[0].toUpperCase() : '?'}</span>
-            )}
-            {editing && (
-              <div
+      <div className="account-body">
+        <section className="account-panel">
+          <div className={`account-identity${editing ? ' is-editing' : ''}`}>
+            <div className="account-identity-avatar">
+              {userInfo?.avatar
+                ? <img src={userInfo.avatar} alt="" />
+                : <span>{(userInfo?.username as string)?.slice(0, 1).toUpperCase() || '?'}</span>}
+              <button
+                className="account-identity-camera"
                 onClick={handleAvatarClick}
-                className="absolute inset-0 rounded-full bg-black/30 flex items-center justify-center cursor-pointer hover:bg-black/40 transition-colors"
                 title={t('profile.changeAvatar')}
+                aria-label={t('profile.changeAvatar')}
               >
-                {uploadingAvatar ? (
-                  <Loader2 size={18} className="text-white animate-spin" />
-                ) : (
-                  <Camera size={18} className="text-white" />
-                )}
-              </div>
-            )}
+                {uploadingAvatar ? <Loader2 size={18} className="animate-spin" /> : <Camera size={18} />}
+              </button>
+            </div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+            <div className="account-identity-copy">
+              <div className="account-identity-name">{(userInfo?.username as string) || '-'}</div>
+              <div className="account-identity-mail">{(userInfo?.email as string) || '-'}</div>
+              {editing ? (
+                <textarea
+                  className="account-bio-input"
+                  value={form.bio}
+                  onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
+                  rows={2}
+                  placeholder={t('profile.bio')}
+                  aria-label={t('profile.bio')}
+                />
+              ) : (
+                <div className="account-identity-bio">
+                  <em>{t('profile.bio')}</em>
+                  <span>{form.bio || DEFAULT_BIO}</span>
+                </div>
+              )}
+            </div>
           </div>
-          <input
-            ref={avatarInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleAvatarChange}
-          />
-          <div>
-            <p className="text-sm font-medium text-[var(--color-text)]">{userInfo?.username as string}</p>
-            <p className="text-xs text-[var(--color-text-tertiary)]">{userInfo?.email as string}</p>
-          </div>
-        </div>
+          {editing && <p className="account-panel-hint">{t('account.identityHint')}</p>}
+        </section>
 
-        {fields.map(({ key, label, type = 'text' }) => (
-          <div key={key} className="flex items-center justify-between px-6 py-4">
-            <span className="text-sm text-[var(--color-text-secondary)]">{label}</span>
-            {editing ? (
-              <input
-                type={type}
-                value={form[key as keyof typeof form]}
-                onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                className="w-48 px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-              />
-            ) : (
-              <span className="text-sm text-[var(--color-text)]">{form[key as keyof typeof form] || '-'}</span>
-            )}
-          </div>
-        ))}
+        <section className="account-panel">
+          <h2 className="account-panel-title">{t('account.basicInfo')}</h2>
+          {fields.map(({ key, label, type = 'text' }) => (
+            <div key={key} className="account-info-row">
+              <span className="account-info-label">{label}</span>
+              {editing ? (
+                <input
+                  className="account-info-input"
+                  type={type}
+                  value={form[key as keyof typeof form]}
+                  onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                  aria-label={label}
+                />
+              ) : (
+                <span className={`account-info-value${form[key as keyof typeof form] ? '' : ' is-muted'}`}>
+                  {form[key as keyof typeof form] || t('account.notSet')}
+                </span>
+              )}
+            </div>
+          ))}
 
-        <div className="px-6 py-4">
-          <div className="flex items-start justify-between">
-            <span className="text-sm text-[var(--color-text-secondary)]">{t('profile.gender')}</span>
+          <div className="account-info-row">
+            <span className="account-info-label">{t('profile.gender')}</span>
             {editing ? (
-              <div className="flex gap-3">
+              <div className="account-gender-group">
                 {[1, 2].map((g) => (
-                  <label key={g} className="flex items-center gap-1.5 cursor-pointer">
+                  <label key={g}>
                     <input
                       type="radio"
                       name="gender"
                       value={g}
                       checked={Number(form.gender) === g}
                       onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}
-                      className="text-[var(--color-accent)]"
                     />
-                    <span className="text-sm text-[var(--color-text)]">{t(`profile.${g === 1 ? 'male' : 'female'}`)}</span>
+                    {t(`profile.${g === 1 ? 'male' : 'female'}`)}
                   </label>
                 ))}
               </div>
             ) : (
-              <span className="text-sm text-[var(--color-text)]">{form.gender ? t(`profile.${Number(form.gender) === 1 ? 'male' : 'female'}`) : '-'}</span>
+              <span className={`account-info-value${form.gender ? '' : ' is-muted'}`}>{genderText}</span>
             )}
           </div>
-        </div>
 
-        <div className="px-6 py-4">
-          <div className="flex items-start justify-between">
-            <span className="text-sm text-[var(--color-text-secondary)]">{t('profile.bio')}</span>
-            {editing ? (
-              <textarea
-                value={form.bio}
-                onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
-                rows={3}
-                className="w-48 px-3 py-1.5 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] resize-none"
-              />
-            ) : (
-              <span className="text-sm text-[var(--color-text)] max-w-48 text-right">{form.bio || DEFAULT_BIO}</span>
-            )}
+          <div className="account-info-row">
+            <span className="account-info-label">{t('profile.memberSince')}</span>
+            <span className={`account-info-value${formatDate(userInfo?.date_joined) ? '' : ' is-muted'}`}>
+              {joinedText}
+            </span>
           </div>
-        </div>
+        </section>
+
+        <section className="account-panel">
+          <h2 className="account-panel-title">{t('account.security')}</h2>
+          <div className="account-info-row">
+            <span className="account-info-label">{t('account.password')}</span>
+            <button
+              className="secondary-button is-compact"
+              onClick={() => { setPwdOpen(true); setPwdError('') }}
+            >
+              <Lock size={14} />
+              {t('profile.changePassword')}
+            </button>
+          </div>
+        </section>
       </div>
-
-      <button
-        onClick={() => { setPwdOpen(true); setPwdError('') }}
-        className="secondary-button"
-      >
-        <Lock size={14} />
-        {t('profile.changePassword')}
-      </button>
 
       <Dialog.Root open={pwdOpen} onOpenChange={(open) => { setPwdOpen(open); if (!open) setPwdError('') }}>
         <Dialog.Portal>
@@ -364,7 +392,7 @@ export default function Profile() {
               <button
                 onClick={handlePasswordChange}
                 disabled={pwdLoading}
-                className="flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm rounded-md bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
               >
                 {pwdLoading ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -377,6 +405,6 @@ export default function Profile() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-    </div>
+    </AccountLayout>
   )
 }

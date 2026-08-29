@@ -1,40 +1,53 @@
 import { useTranslation } from 'react-i18next'
+import AccountLayout, { AccountHeader } from '../components/account/AccountLayout'
+
+const TECH_STACK = ['React 19', 'TypeScript', 'Vite', 'Tailwind CSS', 'FastAPI', 'LangChain', 'MySQL', 'Redis', 'ChromaDB']
+
+const FEATURE_KEYS = ['aiChat', 'noteTaking', 'knowledgeBase', 'review'] as const
 
 export default function AboutUs() {
   const { t } = useTranslation()
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-6">
-      <h1 className="font-heading text-xl font-semibold text-[var(--color-text)] mb-6">{t('about.title')}</h1>
+    <AccountLayout>
+      <AccountHeader
+        breadcrumb={t('account.breadcrumb')}
+        title={t('about.title')}
+        subtitle={t('account.aboutSubtitle')}
+      />
 
-      <div className="bg-[var(--color-card)] rounded-lg border border-[var(--color-border)] p-6 space-y-6">
-        <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-          {t('about.description')}
-        </p>
+      <div className="account-body">
+        <section className="account-about-hero">
+          <div className="account-about-hero-copy">
+            <h2>云舒卷</h2>
+            <p>{t('about.description')}</p>
+          </div>
+          <div className="account-about-hero-art">
+            <img src="/illustrations/study-cloud.png" alt="" />
+          </div>
+        </section>
 
-        <div>
-          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">{t('about.techStack')}</h3>
-          <div className="flex flex-wrap gap-2">
-            {['React', 'FastAPI', 'LangChain', 'MySQL', 'Redis', 'ChromaDB'].map((tech) => (
-              <span key={tech} className="px-2.5 py-1 text-xs rounded-full bg-[var(--color-accent-bg)] text-[var(--color-accent)]">
-                {tech}
-              </span>
+        <section className="account-panel">
+          <h2 className="account-panel-title">{t('about.techStack')}</h2>
+          <div className="account-tech-chips">
+            {TECH_STACK.map((tech) => (
+              <span key={tech} className="account-tech-chip">{tech}</span>
             ))}
           </div>
-        </div>
+        </section>
 
-        <div>
-          <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">{t('about.features')}</h3>
-          <ul className="space-y-2">
-            {['aiChat', 'noteTaking', 'knowledgeBase', 'review'].map((key) => (
-              <li key={key} className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
+        <section className="account-panel">
+          <h2 className="account-panel-title">{t('about.features')}</h2>
+          <div className="account-feature-list">
+            {FEATURE_KEYS.map((key) => (
+              <div key={key} className="account-feature-item">
+                <i />
                 {t(`about.featureList.${key}`)}
-              </li>
+              </div>
             ))}
-          </ul>
-        </div>
+          </div>
+        </section>
       </div>
-    </div>
+    </AccountLayout>
   )
 }
