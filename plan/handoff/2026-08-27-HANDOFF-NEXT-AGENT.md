@@ -1,7 +1,9 @@
 # 云舒卷（RAG Notebook）开发交接文档（给下一个 Agent）
 
-> 更新：2026-08-29（最新一轮：AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
+> 更新：2026-08-29（最新一轮：体验打磨四项——笔记导出增强 + AI 对话细节 + 首页周报/月报 + 移动端响应式；上一轮：AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
+> - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
+> - `plan/records/2026-08-29-experience-polish-delivery.md` —— 体验打磨交付（导出增强/AI 对话细节/首页周报月报/移动端抽屉，含验证）
 > - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
 > - `plan/records/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
 > - `plan/records/2026-08-29-ai-chat-latency-interview-qa.md` —— 同上项目的面试问答素材（数据怎么测的、预判追问应对）
@@ -22,18 +24,18 @@
 - 后端：FastAPI + LangChain + ChromaDB + MySQL + Redis（`backend/`）
 - 前端：React 19 + TypeScript + Vite 8 + **Tailwind CSS 4**（CSS-first）+ **React Router 7** + Zustand + framer-motion（`front/`）
 - **✅ 已是 git 仓库**（2026-08-28 初始化）：远程 `origin → https://github.com/Oyh2005/yunshujuan.git`（分支 `main`）
-- **⚠️ 本地领先远程 2 个提交未推送**——开新会话后提醒用户 `git push`（凭据/PAT 由用户本机操作，沙箱无凭据）
+- **✅ 本地与 origin/main 已同步**（08-29 核对：0 ahead / 0 behind，工作区干净）——旧文档「2 个提交未推送」已过时
 - 用户会手动改代码，开工前先 `git status` 核对最近改动
 
 ## 2. 当前已完成功能总览（勿重复开发）
 
 | 模块 | 说明 | 位置 |
 | --- | --- | --- |
-| 首页 Dashboard | 登录后进入 `/`：欢迎横幅/快捷操作/最近记录/图谱预览/页宠成长卡，部分失败可重试 | `pages/Dashboard.tsx`、`styles/dashboard.css` |
+| 首页 Dashboard | 登录后进入 `/`：欢迎横幅/快捷操作/最近记录/图谱预览/页宠成长卡，部分失败可重试；**周报/月报卡片 + 订阅提醒**（`/stats/period`） | `pages/Dashboard.tsx`、`styles/dashboard.css` |
 | 笔记 | Tiptap 编辑器、双链 `[[标题]]`、标签/分类/置顶、语义搜索、批量操作、导出 zip/HTML、打印 PDF、知识卡片图、公开分享 | `pages/NoteEditor.tsx`、`components/note/NoteCard.tsx` |
 | 笔记列表 | **网格/列表双视图**（localStorage 记忆）、长按多选、排序、无限滚动、分类管理 | `pages/NoteList.tsx`、`notePresentation.ts` |
-| 知识库 | 多格式上传（SSE）、切片详情、网页剪藏（防 SSRF）、多模态 PDF | `pages/KnowledgeBase.tsx` |
-| AI 对话 | Agent + RAG + SSE 流式（思考步骤/引用来源）；**知识库工具**（`get_knowledge_docs_tool`/`get_knowledge_content_tool`，总结知识库可读文档列表与内容） | `pages/AIChat.tsx`、`components/ai/AiWorkspace.tsx`、`agent_tools.py` |
+| 知识库 | 多格式上传（SSE）、切片详情、网页剪藏（防 SSRF）、多模态 PDF、**整库导出 zip**（切片重建 + README 清单） | `pages/KnowledgeBase.tsx` |
+| AI 对话 | Agent + RAG + SSE 流式（思考步骤/引用来源）；**知识库工具**（`get_knowledge_docs_tool`/`get_knowledge_content_tool`，总结知识库可读文档列表与内容）；**侧栏会话乐观更新**（onDone 即时插入 + 800ms 校准）；思考面板折叠动画/进行中状态 | `pages/AIChat.tsx`、`components/ai/AiWorkspace.tsx`、`agent_tools.py` |
 | 会话管理 | 列表/历史/删除（**历史截断 60 条子查询倒序取 id 再正序，勿改回**）；**自定义名称 + 置顶**（`PATCH /chat/session/{id}`，custom_title 优先于自动标题，置顶排序 pinned_at 降序） | `pages/Sessions.tsx`、`api/sessions.ts`、`components/common/PromptDialog.tsx` |
 | 回顾/打卡/番茄钟 | 艾宾浩斯 + LLM 出题；streak + 每日任务；25+5 番茄钟（页宠联动） | `DailyReview/HabitPage/PomodoroPage.tsx`、`components/learning/LearningLayout.tsx` |
 | 仪表盘/图谱 | 热力图/趋势/环形图（自绘 SVG）+ 排行榜；d3-force 知识图谱（语义关联按需加载） | `StatsPage/GraphPage.tsx` |
@@ -85,6 +87,13 @@
 27. **⚠️ AIChat 新会话首问防闪屏**：首问回答完 onDone 自动 `navigate('/chat/:id')`。**真正的闪屏根因（08-29 深挖）**：`MainLayout` 的 `<div key={location.pathname}>` 在路径变化时强制卸载重挂载整个页面——AIChat 的守卫 ref 随组件销毁重置、消息清空、历史重载、淡入动画重播。**修复双层**：① MainLayout key 归一化（`/chat` 与 `/chat/:id` 同 key `/chat`，会话切换不重挂载；其他页面不变）② AIChat 内 `activeSessionRef`（内存消息归属）+ `messagesRef`（effect 同步快照）守卫，历史加载 effect 开头判断「内存消息即该会话刚聊的」则跳过重载。**改 AIChat 历史加载逻辑时保留此守卫**；渲染期写 ref 会触发 eslint refs 规则，同步 ref 必须放 effect 里。⚠️ **守卫误判修复**：activeSessionRef 必须在**历史加载成功后**才更新（切到其他会话再切回时不误判跳过加载，导致会话内容"消失"）；加载失败时置 null 禁止守卫命中
 28. **⚠️ 回答落库不依赖客户端连接**（08-29）：`add_message` 原在主生成器里——用户切出页面（SSE 断开 → 生成器 close）后永不执行，会话创建但 0 条消息（标题仍"新的对话"）。**已移到 `run_agent` 内（agent_done.set() 之前）**：独立任务不随连接取消，断开后回答照常完整入库。**完整管线已独立**：`chat.py stream_with_rag_thinking` 重构为 `run_pipeline` 独立任务（RAG 前置 → Agent 流式 → 落库全在任务内），主生成器只转发队列事件——**RAG 阶段断开（Agent 未启动）也会跑完入库**（实测：2s 断开 → 60s 后历史完整；RAG 失败不阻断 Agent）。错误路径仍不写历史。改这两处时勿把落库移回生成器
 
+### 体验打磨踩坑（08-29 晚）
+29. **知识库 zip 导出不落盘**：上传的原文件临时切片后即删，导出只能从 Chroma 切片**重建**文本（README 注明与原文差异）；多模态 PDF 按 `page` 排序，其余按入库顺序；重建文本总量 >80MB 拒绝（413 防内存）
+30. **Dashboard 增强接口失败要静默**：`/stats/period`（周报/月报）请求失败不参与页面级 failed 判定（否则首页整页报错横幅）；卡片显示 — 即可
+31. **移动端抽屉 CSS 特异性**：`.app-shell > .app-sidebar.is-mobile-open`（0,3,0）必须覆盖各域 `> .app-sidebar` 的宽度强制（`.is-ai > .app-sidebar`、`.is-knowledge > .app-sidebar`、`.is-note-authoring > .app-sidebar` 均 0,2,0，同特异性后加载者胜——曾被压成 56px）
+32. **onDone 侧栏刷新时机**：MainLayout key 归一化后页面**不重挂载**，「延到下次挂载」不可行——必须主动刷新；实现 = 乐观更新（新会话即时插入）+ 800ms 延迟校准（原 250ms 会先闪旧列表）
+33. **`counter(pages)` Chrome 不支持**：打印页码只用 `counter(page)`，勿写「共 N 页」（会显示残缺）
+
 ## 4. 剩余任务（按优先级）
 
 ### ⚠️ 立即事项
@@ -134,6 +143,12 @@
 
 **⑦ 次级页面 UI 优化（08-29，用户完成）**：社交三页（SocialFeed/Friends/Notifications）统一 `SocialLayout` + `social-pages.css`（`components/social/SocialLayout.tsx`）；笔记编辑页 `note-authoring.css`；`MainLayout` shellVariant 扩展 `is-social`/`is-note-authoring`；附带 verify 脚本（`front/scripts/verify-*.cjs`）。详见 `plan/records/2026-08-29-secondary-pages-ui-plan.md`
 
+**⑧ 体验打磨四项（08-29 晚，全部验证）**：详见 `plan/records/2026-08-29-experience-polish-delivery.md`
+- **笔记导出增强**：知识库整库导出 zip（`GET /knowledge/export/zip`，切片重建 + README 清单，探针 8017 验证）；`buildHtmlDoc` 排版重做（@page A4 / break-inside: avoid / fixed 页脚 counter(page) 页码）；工具栏 3 导出按钮合并为「导出」下拉
+- **AI 对话细节**：侧栏 onDone 乐观更新 + 800ms 校准（踩坑 32）；思考面板折叠动画 + 进行中步骤 spinner/pulse（含侧栏进度卡）
+- **首页仪表盘**：`GET /stats/period` 周/月聚合（探针 8018 验证）；「最近积累」周报/月报卡片（笔记/字数/回顾 + 环比 badge）；周报订阅提醒（localStorage 跨周检测，无定时任务）
+- **移动端响应式**：Sidebar 小屏抽屉（菜单按钮 + 遮罩 + 覆盖式 fixed，踩坑 31）；note-authoring 600px 断点；图谱 600px 节点字号/图例紧凑
+
 ### 🔜 待办（按触发条件）
 | 项 | 触发条件 | 参考 |
 | --- | --- | --- |
@@ -143,7 +158,7 @@
 | 微信小程序版（Taro + 微信登录） | 用户决定开工 | `plan/roadmap/2026-08-27-wechat-mini-program-plan.md` |
 | PWA 化（Service Worker，承接缓存方案 3）/ 年度报告页 | 有空 | `plan/records/2026-08-29-client-cache-plan.md`、`plan/roadmap/2026-08-29-next-steps-plan.md` |
 | 游标分页（笔记/动态深翻页）、社交列表缓存、静态资源 gzip 上线 | 有空 | `plan/roadmap/2026-08-29-next-steps-plan.md` |
-| 导出增强 / AI 对话细节 / 移动端响应式 | 有空 | `plan/roadmap/2026-08-29-next-steps-plan.md` |
+| ~~导出增强 / AI 对话细节 / 移动端响应式~~（**已完成 08-29**） | — | `plan/records/2026-08-29-experience-polish-delivery.md` |
 
 ## 5. 设计约定（新体系）
 
@@ -154,6 +169,7 @@
 - 新功能文案必须中英双语（`i18n/locales/zh-CN.ts` + `en-US.ts` 结构一致，改后跑 tsc）；笔记相关文案放 `note.ui.*`
 - 删除类操作必须二次确认（`ConfirmDialog`）
 - 页面入口：Sidebar `navGroups`（分组）+ router lazy + i18n `nav.*`
+- **移动端（≤767px）**：Sidebar 自动折叠为 56px 图标栏 + 菜单按钮展开覆盖式抽屉（`is-mobile-open` + `sidebar-mobile-backdrop` 遮罩，点击遮罩/导航项关闭）；各页面域 CSS 已有 1280/980/767/600 断点，新页面接入对应域 CSS 并保持断点体系
 - 与页宠联动：成功回调里 `usePetStore.getState().trigger('事件')`（事件类型见 usePetStore.ts，含 note_saved/review_done/doc_uploaded/ai_done/post_created/pomodoro_done）
 - 动画：framer-motion（舒展/弹窗）或 CSS transform/opacity；页面入场 `FadeIn`
 
