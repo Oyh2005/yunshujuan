@@ -1,8 +1,11 @@
 # 云舒卷（RAG Notebook）开发交接文档（给下一个 Agent）
 
-> 更新：2026-08-29（最新一轮：性能优化三批 + 限流调整 + libmagic 修复 + 首页/AI/学习页 UI 改版 + Git 接入）
+> 更新：2026-08-29（最新一轮：性能优化三批 + 限流调整 + libmagic 修复 + 首页/AI/学习页 UI 改版 + Git 接入 + **AI 对话延迟优化（HyDE 限长 + RAG 上下文截断 + Agent 真流式）**）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
 > - `plan/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
+> - `plan/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
+> - `plan/2026-08-29-ai-chat-latency-interview-qa.md` —— 同上项目的面试问答素材（数据怎么测的、预判追问应对）
+> - `plan/2026-08-29-ai-chat-flash-fix.md` —— 新会话首问闪屏排查全记录（MainLayout key 重挂载根因 + 双层修复）
 > - `plan/2026-08-26-feature-expansion-plan.md` —— 六方向企划
 > - `plan/2026-08-27-scale-up-plan.md` —— 高并发升级路线（方向 D 阶段二/三）
 > - `plan/2026-08-27-wechat-mini-program-plan.md` —— 微信小程序版规划（未开工）
@@ -28,8 +31,8 @@
 | 笔记 | Tiptap 编辑器、双链 `[[标题]]`、标签/分类/置顶、语义搜索、批量操作、导出 zip/HTML、打印 PDF、知识卡片图、公开分享 | `pages/NoteEditor.tsx`、`components/note/NoteCard.tsx` |
 | 笔记列表 | **网格/列表双视图**（localStorage 记忆）、长按多选、排序、无限滚动、分类管理 | `pages/NoteList.tsx`、`notePresentation.ts` |
 | 知识库 | 多格式上传（SSE）、切片详情、网页剪藏（防 SSRF）、多模态 PDF | `pages/KnowledgeBase.tsx` |
-| AI 对话 | Agent + RAG + SSE 流式（思考步骤/引用来源） | `pages/AIChat.tsx`、`components/ai/AiWorkspace.tsx` |
-| 会话管理 | 列表/历史/删除（**历史截断 60 条子查询倒序取 id 再正序，勿改回**） | `pages/Sessions.tsx` |
+| AI 对话 | Agent + RAG + SSE 流式（思考步骤/引用来源）；**知识库工具**（`get_knowledge_docs_tool`/`get_knowledge_content_tool`，总结知识库可读文档列表与内容） | `pages/AIChat.tsx`、`components/ai/AiWorkspace.tsx`、`agent_tools.py` |
+| 会话管理 | 列表/历史/删除（**历史截断 60 条子查询倒序取 id 再正序，勿改回**）；**自定义名称 + 置顶**（`PATCH /chat/session/{id}`，custom_title 优先于自动标题，置顶排序 pinned_at 降序） | `pages/Sessions.tsx`、`api/sessions.ts`、`components/common/PromptDialog.tsx` |
 | 回顾/打卡/番茄钟 | 艾宾浩斯 + LLM 出题；streak + 每日任务；25+5 番茄钟（页宠联动） | `DailyReview/HabitPage/PomodoroPage.tsx`、`components/learning/LearningLayout.tsx` |
 | 仪表盘/图谱 | 热力图/趋势/环形图（自绘 SVG）+ 排行榜；d3-force 知识图谱（语义关联按需加载） | `StatsPage/GraphPage.tsx` |
 | 社交 | 好友/关注、动态流（图文/点赞评论）、通知红点、知识广场、个人主页成就墙 | `pages/SocialFeed/FriendsPage/NotificationsPage/PlazaPage/UserProfilePage.tsx`、`backend/app/router/social_router.py` |
@@ -64,6 +67,7 @@
 14. **⚠️ 项目路径含中文**（`D:\项目\...`）：libmagic 等 C 库的 fopen 用 ANSI 解释 UTF-8 路径 → 打不开文件。知识库上传已做修复（`_get_magic_mime` 复制 mgc 到英文临时路径），**新接入 C 库依赖时注意**；详见 `plan/2026-08-29-libmagic-chinese-path-fix.md`
 15. **Redis 容错已全面铺开**：限流/缓存装饰器/`get_user_info_from_redis` 全部 try/except 降级；连接池 `socket_connect_timeout=0.5s` + `socket_timeout=2s`（Redis 挂时快速失败，不拖慢请求）
 16. **redis_config 必须保留自身的 `load_dotenv()`**（曾因 import 顺序导致 REDIS_DB 静默用默认值 3 而非 .env 的 0，配置漂移难排查）
+16b. **⚠️ 限流 key TTL 兜底（08-29）**：`rate_limit.py` 的 `incr` 不更新 TTL——若 key 过期时间意外丢失（Redis 重启恢复旧数据等），计数永久累积（TTL=-1）→ **全站永久 429「请求过于频繁」**。已修复：incr 后查 TTL，<0 时补 `expire`（保留计数）。**遇全站 429 先查 `redis-cli KEYS "rate_limit:*"` 的 TTL，-1 即此问题，DEL 即可恢复**
 17. **⚠️ PowerShell `Get-Content` 默认 GBK 解码**：改 `.env` 等含中文注释的文件会永久乱码（曾踩坑，已手动重建 .env）。**改配置文件用编辑器或 Python/.NET 显式 UTF-8**
 18. 探针脚本注意：`call(method, path, token)` 位置参数会把 token 传成 body 导致 401 假象——用关键字 `token=token`
 
@@ -76,6 +80,8 @@
 24. `usePetStore` 内部不要 `getState()` 自引用（TS7022）；`pet.config`/`habit.config` 双写云端（`useSettingsSync`，3s 防抖 + 登出 flush）
 25. 修改 vite.config.ts 后 dev server 自动重启，浏览器需刷新
 26. **429 前端提示已直白化**：拦截器全局 toast「请求过于频繁」；各页面错误横幅区分 429（`error === 'rate'`）显示限流文案而非「加载失败」
+27. **⚠️ AIChat 新会话首问防闪屏**：首问回答完 onDone 自动 `navigate('/chat/:id')`。**真正的闪屏根因（08-29 深挖）**：`MainLayout` 的 `<div key={location.pathname}>` 在路径变化时强制卸载重挂载整个页面——AIChat 的守卫 ref 随组件销毁重置、消息清空、历史重载、淡入动画重播。**修复双层**：① MainLayout key 归一化（`/chat` 与 `/chat/:id` 同 key `/chat`，会话切换不重挂载；其他页面不变）② AIChat 内 `activeSessionRef`（内存消息归属）+ `messagesRef`（effect 同步快照）守卫，历史加载 effect 开头判断「内存消息即该会话刚聊的」则跳过重载。**改 AIChat 历史加载逻辑时保留此守卫**；渲染期写 ref 会触发 eslint refs 规则，同步 ref 必须放 effect 里。⚠️ **守卫误判修复**：activeSessionRef 必须在**历史加载成功后**才更新（切到其他会话再切回时不误判跳过加载，导致会话内容"消失"）；加载失败时置 null 禁止守卫命中
+28. **⚠️ 回答落库不依赖客户端连接**（08-29）：`add_message` 原在主生成器里——用户切出页面（SSE 断开 → 生成器 close）后永不执行，会话创建但 0 条消息（标题仍"新的对话"）。**已移到 `run_agent` 内（agent_done.set() 之前）**：独立任务不随连接取消，断开后回答照常完整入库。**完整管线已独立**：`chat.py stream_with_rag_thinking` 重构为 `run_pipeline` 独立任务（RAG 前置 → Agent 流式 → 落库全在任务内），主生成器只转发队列事件——**RAG 阶段断开（Agent 未启动）也会跑完入库**（实测：2s 断开 → 60s 后历史完整；RAG 失败不阻断 Agent）。错误路径仍不写历史。改这两处时勿把落库移回生成器
 
 ## 4. 剩余任务（按优先级）
 
@@ -97,11 +103,36 @@
 
 **③ AI/学习页布局（08-29）**：`AiWorkspace`/`LearningLayout` + `ai-pages.css`/`learning-pages.css`（AIChat/Sessions/DailyReview/HabitPage/PomodoroPage）
 
+**④ AI 对话延迟优化（08-29，实测验证）**：
+- **HyDE 限长**：`rag_service.generate_hypothetical_document` 提示词改「简短假设性回答（150字以内）」+ `self.chat_model.bind(max_tokens=150)`。不限长时 DeepSeek 生成 1000~2000 字假设文档耗时 8~40s，限长后 ~1.8s（检索质量不受影响，实测仍返回 1 笔记 + 4 知识库文档）
+- **RAG 上下文截断**：`chat.py` 注入 Agent 的 `rag_context` 每文档截断至 600 字（重排序仍用全文）
+- 实测对比（带 RAG 典型问题）：总耗时 24.0s→12.6~15.1s、最坏 49.3s→8.7s（HyDE 40.4s→2.6s）
+- **Agent 真流式（08-29 晚）**：`agent.py get_agent_stream_response` 弃用 `astream` 假流式（完整响应生成后按 15 字/30ms 播放），改用 `astream_events(version="v1")` 监听 `on_chat_model_stream` 逐 token 转发（planning 阶段无 content 不会误转发；DeepSeek 推理内容在 reasoning_content 不进 content）；完整回答仍拼接供会话落库；工具日志改监听 `on_tool_end`。前端零改动（useSSE 已有 3 条缓冲 + rAF 合并）。实测同查询：总耗时 15.1s→7.9s，reorder 后到首字 8.7s→2.9s，回答 token 级实时播放
+- **剩余瓶颈**：Agent 首轮 tool-calling LLM 调用 2.7~11.2s（DeepSeek 服务端波动为主，非本地可控）；路由判断偶发 2~3.8s（Chroma 波动）
+- 探针脚本（可复用复测）：`backend/.probe_ai_perf.py`（SSE 时间线）、`backend/.probe_verify*.py`（DeepSeek 对照实验）
+
+**⑤ 会话自定义名称 + 置顶（08-29，实测验证）**：
+- **表结构**：`chat_sessions` 新增 `custom_title`（用户自定义名，优先于自动标题）、`is_pinned`、`pinned_at`（重启自动 ALTER 迁移）
+- **API**：`PATCH /chat/session/{id}`，body 支持 `{title?, is_pinned?}`——只更新显式传入字段（Pydantic `model_fields_set` 判断）；`title=''` 清除自定义名回退自动标题；无字段更新返回 400；越权 404
+- **列表排序**：`get_user_sessions` 置顶优先（pinned_at 降序）→ 其余 updated_at 降序；返回 `title`（展示名）+ `custom_title`/`is_pinned`/`pinned_at`
+- **前端**：Sessions 页每行置顶/重命名/删除三按钮（hover 显示，置顶态高亮+淡紫底）；重命名弹窗 = 新组件 `components/common/PromptDialog.tsx`（通用输入弹窗，可复用）；AIChat 侧栏最近会话同步置顶排序 + 置顶标记
+- **踩坑**：`run_sync` 提交后访问过期属性触发 MissingGreenlet → commit 后需 `await db.refresh(session)`；`func` 需显式 import
+
+**⑥ Agent 知识库工具（08-29，实测验证）**：
+- **背景**：「总结我的知识库」只输出笔记、漏掉 4 份知识库文档且文档名靠模型猜测——根因是 Agent 工具集只有笔记工具，拿不到知识库数据
+- **新增**：`agent_tools.py` 加 `get_knowledge_docs_tool`（文档列表：文件名/切片数/预览）+ `get_knowledge_content_tool`（按文档取切片内容，`max_chunks` 默认 5，超出提示剩余切片数）；`agent.py` 默认工具集注册（现共 10 个）
+- **`get_note_stats_tool` 扩展**：附带返回知识库文档数（标注与笔记不同源）
+- **`main_prompt.txt`**：明确「笔记 vs 知识库文档」两个独立数据源，总结知识库须两部分覆盖；回答风格要求「直接给结论、不叙述工具调用过程」
+- 实测：问「总结我的知识库」→ Agent 依次调 docs 工具 + 4 次 content 工具，完整总结 4 份文档（内容准确，含各文档要点/价值判断），不再编造文档名
+- **AI 消息 HTML 渲染（08-29 追加）**：LLM 会输出 `<details><summary>答案</summary>` 折叠结构，AIChat 原 ReactMarkdown 无 rehype-raw → 标签以纯文本显示。修复：新增 `AssistantMarkdown` 组件（AIChat.tsx）——DOMPurify 白名单清洗（允许 details/summary/常用标签，禁 data/aria 属性）+ `rehypeRaw` 渲染；`main_prompt` 正向引导折叠结构可用 details。**注意：新渲染 AI 消息一律走 AssistantMarkdown（sanitize + raw），勿直接用 ReactMarkdown**
+- **GFM 表格渲染（08-29 追加）**：react-markdown 默认不支持 GFM 表格——AI/笔记里的 markdown 表格被当普通段落，行内换行按段落 soft-break 规则渲染为空格（看起来像单行 `|` 拼接）。**已装 `remark-gfm`**：AIChat `AssistantMarkdown` 与 TiptapEditor preview 均加 `remarkPlugins={[remarkGfm]}`（表格/删除线/任务列表）。**新增 markdown 渲染处记得带 remarkGfm**
+
 ### 🔜 待办（按触发条件）
 | 项 | 触发条件 | 参考 |
 | --- | --- | --- |
 | 方向 D 阶段二：模型服务拆分（embedding/reranker 独立 + 任务队列） | 活跃用户接近 1000 | `scale-up-plan.md` |
 | 方向 D 阶段三：大规模架构 | 几千用户 | `scale-up-plan.md` |
+| 路由阈值 0.5 过松：「你好」类闲聊也触发 RAG 白等 HyDE；合并 `compute_route_score` 与 Top-1 检索（省一次 embedding）；路由判断偶发 2~3.8s 待定位 | 有空 | 交接文档 §4 ④ |
 | 微信小程序版（Taro + 微信登录） | 用户决定开工 | `wechat-mini-program-plan.md` |
 | PWA 化 / 年度报告页 | 有空 | — |
 | 游标分页（笔记/动态深翻页）、社交列表缓存、静态资源 gzip 上线 | 有空 | 性能优化建议清单 |

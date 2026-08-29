@@ -104,6 +104,12 @@ ehthumbs_vista.db
 *.tmp
 *.temp
 
+# Local probe/verify scripts (dev tools, not for repo)
+.probe_*.py
+.verify_*.py
+.verify_*_out.txt
+.dbcheck*.txt
+
 # AI agent/Claude config
 .agents/
 .claude/
