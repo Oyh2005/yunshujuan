@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, Bell, BookOpen, Check, ChevronRight, Circle, FileText, Flame, Heart, Library, Network, Plus, RefreshCw, Search, Settings, Sparkles, Upload } from 'lucide-react'
+import { ArrowRight, Bell, BookOpen, Check, ChevronRight, Circle, FileText, Flame, Heart, Library, Network, Plus, RefreshCw, Search, Settings, Sparkles, Upload, X } from 'lucide-react'
 import { notesApi } from '../api/notes'
 import { knowledgeApi } from '../api/knowledge'
 import { reviewApi } from '../api/review'
+import { statsApi, type PeriodBlock } from '../api/stats'
 import { useUserStore } from '../stores/useUserStore'
 import { getPetLevel, LEVEL_THRESHOLDS, usePetStore } from '../stores/usePetStore'
 import { useHabitStore } from '../stores/useHabitStore'
@@ -15,6 +16,17 @@ import '../styles/dashboard.css'
 
 const cloudArt = '/illustrations/study-cloud.png'
 const positions = [[22, 24], [67, 18], [84, 48], [70, 82], [29, 82], [12, 52]]
+// 周报订阅/已读状态（localStorage；跨周检测用，无定时任务依赖）
+const WEEKLY_SUB_KEY = 'weekly_report_subscribed'
+const WEEKLY_SEEN_KEY = 'weekly_report_seen'
+
+function growthBadge(current: number, previous: number): { up: boolean; label: string } | null {
+  if (previous > 0) {
+    const pct = Math.round(((current - previous) / previous) * 100)
+    return { up: pct >= 0, label: pct === 0 ? 'FLAT' : `${pct > 0 ? '+' : ''}${pct}%` }
+  }
+  return current > 0 ? { up: true, label: 'NEW' } : null
+}
 
 export default function Dashboard() {
   const { i18n } = useTranslation()
@@ -35,18 +47,26 @@ export default function Dashboard() {
   const [failed, setFailed] = useState<boolean | 'rate'>(false)
   const [reload, setReload] = useState(0)
   const [tab, setTab] = useState<'all' | 'note' | 'document'>('all')
+  const [period, setPeriod] = useState<{ week: PeriodBlock; month: PeriodBlock } | null>(null)
+  const [subscribed, setSubscribed] = useState(() => {
+    try { return localStorage.getItem(WEEKLY_SUB_KEY) === '1' } catch { return false }
+  })
+  const [showWeeklyBanner, setShowWeeklyBanner] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     Promise.allSettled([
       notesApi.list({ page: 1, page_size: 20, sort_by: 'updated_at' }),
       knowledgeApi.list(), notesApi.graph({ include_semantic: false }), reviewApi.today(),
-    ]).then(([noteResult, docResult, graphResult, reviewResult]) => {
+      // 周报/月报聚合：增强功能，失败不影响页面其他数据（不参与 failed 判定）
+      statsApi.period(),
+    ]).then(([noteResult, docResult, graphResult, reviewResult, periodResult]) => {
       if (cancelled) return
       setNotes(noteResult.status === 'fulfilled' ? noteResult.value.data : null)
       setDocuments(docResult.status === 'fulfilled' ? docResult.value.data : null)
       setGraph(graphResult.status === 'fulfilled' ? graphResult.value.data : null)
       setReview(reviewResult.status === 'fulfilled' ? reviewResult.value : null)
+      setPeriod(periodResult.status === 'fulfilled' ? periodResult.value.data : null)
       const results = [noteResult, docResult, graphResult, reviewResult]
       const anyRejected = results.some((result) => result.status === 'rejected')
       const rateLimited = results.some((result) =>
@@ -56,6 +76,33 @@ export default function Dashboard() {
     })
     return () => { cancelled = true }
   }, [reload])
+
+  // 周报订阅提醒：每周首次打开首页且上周有数据时显示横幅（跨周检测，无定时任务）
+  useEffect(() => {
+    if (!period || !subscribed) return
+    const timer = window.setTimeout(() => {
+      try {
+        const monday = new Date()
+        monday.setHours(0, 0, 0, 0)
+        monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+        const lastSeen = localStorage.getItem(WEEKLY_SEEN_KEY)
+        const hasPrevWeek = period.week.prev_notes > 0 || period.week.prev_chars > 0 || period.week.prev_reviews > 0
+        if (hasPrevWeek && (!lastSeen || Date.parse(lastSeen) < monday.getTime())) setShowWeeklyBanner(true)
+      } catch { /* localStorage 不可用时静默 */ }
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [period, subscribed])
+
+  const toggleSubscribe = () => {
+    const next = !subscribed
+    try { localStorage.setItem(WEEKLY_SUB_KEY, next ? '1' : '0') } catch { /* ignore */ }
+    setSubscribed(next)
+  }
+  const dismissWeeklyBanner = () => {
+    try { localStorage.setItem(WEEKLY_SEEN_KEY, new Date().toISOString()) } catch { /* ignore */ }
+    setShowWeeklyBanner(false)
+  }
+  const formatChars = (value: number) => value >= 10000 ? `${(value / 10000).toFixed(1)}w` : value >= 1000 ? `${(value / 1000).toFixed(1)}k` : String(value)
 
   const level = getPetLevel(affection)
   const previousLevel = level === 1 ? 0 : LEVEL_THRESHOLDS[level === 2 ? 1 : 2]
@@ -95,6 +142,15 @@ export default function Dashboard() {
       </header>
 
       {failed && <div className="dashboard-error" role="alert">{failed === 'rate' ? text('请求过于频繁，请稍后再试。', 'Too many requests, please try again later.') : text('部分数据暂时未能加载，其他功能可以正常使用。', 'Some data could not be loaded. Your other tools are still available.')}<button disabled={loading} onClick={() => { setLoading(true); setReload((value) => value + 1) }}><RefreshCw size={14} />{text('重试', 'Retry')}</button></div>}
+
+      {showWeeklyBanner && period && (
+        <div className="dashboard-banner" role="status">
+          <Bell size={16} />
+          <span>{text(`上周你写了 ${period.week.prev_notes} 篇笔记、${formatChars(period.week.prev_chars)} 字，本周继续加油！`, `Last week: ${period.week.prev_notes} notes · ${formatChars(period.week.prev_chars)} chars. Keep the momentum!`)}</span>
+          <Link to="/stats" onClick={dismissWeeklyBanner}>{text('查看统计', 'View stats')}</Link>
+          <button onClick={dismissWeeklyBanner} aria-label={text('关闭提醒', 'Dismiss')}><X size={14} /></button>
+        </div>
+      )}
 
       <div className="dashboard-grid">
         <div className="dashboard-main">
@@ -145,6 +201,43 @@ export default function Dashboard() {
             <div className="dashboard-pet-details"><div><h3>{nickname}</h3><span>Lv.{level}</span><Link to="/pet" aria-label={text('管理我的页宠', 'Manage companion')}><ChevronRight size={17} /></Link></div><div className="dashboard-growth-track" role="progressbar" aria-label={text('页宠成长进度', 'Companion growth')} aria-valuenow={Math.round(growth)} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${growth}%` }} /></div><small>{level === 3 ? text('已到达最高成长阶段', 'Fully grown, always learning') : text(`好感度 ${affection} / ${nextLevel} · 陪伴中慢慢成长`, `Affection ${affection} / ${nextLevel} · Growing together`)}</small></div>
             <Link className="dashboard-affection" to="/pet"><span><Heart size={19} /></span><div><strong>{text('每一次陪伴，都算数', 'Little moments matter')}</strong><small>{text('记录、回顾，让我们一起成长', 'Write, review, and grow together')}</small></div><ChevronRight size={16} /></Link>
           </section>
+
+          <div className="dashboard-period">
+            <div className="dashboard-period-bar">
+              <h2>{text('最近积累', 'Recent progress')}</h2>
+              <button className={subscribed ? 'is-on' : ''} onClick={toggleSubscribe} aria-pressed={subscribed} title={text('开启后每周首次打开首页提醒查看上周数据', 'Remind you of last week\u2019s progress on the first visit each week')}>
+                <Bell size={13} />{text(subscribed ? '周报提醒已开' : '订阅周报提醒', subscribed ? 'Weekly reminder on' : 'Subscribe to weekly report')}
+              </button>
+            </div>
+            <div className="dashboard-period-grid">
+              {([{ key: 'week', title: text('本周概览', 'This week'), block: period?.week }, { key: 'month', title: text('本月概览', 'This month'), block: period?.month }] as const).map(({ key, title, block }) => {
+                const rows = [
+                  { label: text('笔记', 'Notes'), value: block?.notes, prev: block?.prev_notes },
+                  { label: text('字数', 'Chars'), value: block?.chars, prev: block?.prev_chars },
+                  { label: text('回顾', 'Reviews'), value: block?.reviews, prev: block?.prev_reviews },
+                ]
+                return (
+                  <section key={key} className="dashboard-period-card" aria-label={title}>
+                    <h3>{title}</h3>
+                    <ul>
+                      {rows.map((row) => {
+                        const badge = row.value !== undefined && row.prev !== undefined ? growthBadge(row.value, row.prev) : null
+                        const badgeLabel = badge?.label === 'FLAT' ? text('持平', 'Flat') : badge?.label === 'NEW' ? text('新增', 'New') : badge?.label
+                        return (
+                          <li key={row.label}>
+                            <span>{row.label}</span>
+                            <strong>{row.value === undefined ? '—' : row.label === text('字数', 'Chars') ? formatChars(row.value) : row.value}</strong>
+                            {badge && <em className={badge.up ? 'up' : 'down'}>{badgeLabel}</em>}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                    <Link className="dashboard-period-link" to="/stats">{text('查看统计', 'View stats')}<ArrowRight size={13} /></Link>
+                  </section>
+                )
+              })}
+            </div>
+          </div>
 
           <div className="dashboard-learning-cards">
             <section className="dashboard-review"><span className="dashboard-card-kicker">DAILY REVIEW</span><h2>{text('温故，知新', 'A fresh look back')}</h2><p>{review ? text(`今天有 ${review.total_count} 篇笔记等待回顾`, `${review.total_count} notes to revisit today`) : text('回到那些值得记住的想法', 'Return to ideas worth remembering')}</p><BookOpen size={43} className="dashboard-review-book" /><Link to="/review">{text('去回顾', 'Review')}<ArrowRight size={15} /></Link></section>

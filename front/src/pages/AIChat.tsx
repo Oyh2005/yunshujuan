@@ -279,13 +279,31 @@ export default function AIChat() {
         }
         flushContent()
         usePetStore.getState().trigger('ai_done')
+        const targetSessionId = nextSessionId || sessionId
+        if (targetSessionId) {
+          // 乐观更新侧栏：新会话立即出现、既有会话时间戳即时刷新，
+          // 不再等网络往返（250ms 延迟刷新会先闪旧列表）
+          setRecentSessions((previous) => {
+            const now = new Date().toISOString()
+            const base = previous.map((s) => s.id === targetSessionId ? { ...s, updated_at: now } : s)
+            const exists = base.some((s) => s.id === targetSessionId)
+            const next = exists ? base : [{ id: targetSessionId, title: text('新的对话', 'New conversation'), is_pinned: false, created_at: now, updated_at: now } as ChatSession, ...base]
+            return next
+              .sort((a, b) => {
+                if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
+                return validTime(b.updated_at || b.created_at) - validTime(a.updated_at || a.created_at)
+              })
+              .slice(0, 6)
+          })
+        }
         if (nextSessionId) {
           // 标记消息归属，跳转后 effect 跳过重载（防闪屏）
           activeSessionRef.current = nextSessionId
           sessionStorage.setItem('lastSessionId', nextSessionId)
         }
         if (nextSessionId && nextSessionId !== sessionId) navigate(`/chat/${nextSessionId}`, { replace: true })
-        window.setTimeout(loadRecentSessions, 250)
+        // 延迟校准：回答落库在独立任务内完成，稍候以服务端数据为准（置顶排序/自动标题）
+        window.setTimeout(loadRecentSessions, 800)
       },
       onError: () => {
         usePetStore.getState().setMood('idle')
@@ -369,6 +387,7 @@ export default function AIChat() {
                             detail={currentThinking}
                             label={text('思考过程', 'Thinking process')}
                             completeLabel={loading ? text('正在进行', 'In progress') : text('已完成', 'Complete')}
+                            busy={loading}
                           />
                         )}
                         {message.role === 'user' ? <p>{message.content}</p> : (
@@ -395,6 +414,7 @@ export default function AIChat() {
                         detail={currentThinking}
                         label={text('思考过程', 'Thinking process')}
                         completeLabel={text('正在进行', 'In progress')}
+                        busy={loading}
                       />
                     )}
                     <StreamingDots />
@@ -426,7 +446,7 @@ export default function AIChat() {
           <section className="ai-progress-card">
             <div className="ai-panel-heading"><h2>{text('本次思考', 'Current process')}</h2><Sparkles size={16} /></div>
             {completedStages.length ? (
-              <ol>{completedStages.map((stage) => <li key={stage}><span><Check size={12} /></span>{stage}</li>)}</ol>
+              <ol>{completedStages.map((stage, index) => <li key={stage} className={loading && index === completedStages.length - 1 ? 'is-current' : ''}><span>{loading && index === completedStages.length - 1 ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}</span>{stage}</li>)}</ol>
             ) : (
               <div className="ai-progress-empty"><MessageSquare size={23} /><p>{text('提问后，这里会显示真实的检索和思考阶段。', 'Your real retrieval and reasoning stages will appear here.')}</p></div>
             )}
@@ -437,20 +457,25 @@ export default function AIChat() {
   )
 }
 
-function ThinkingPanel({ expanded, onToggle, steps, detail, label, completeLabel }: { expanded: boolean; onToggle: () => void; steps: string[]; detail: string; label: string; completeLabel: string }) {
+function ThinkingPanel({ expanded, onToggle, steps, detail, label, completeLabel, busy }: { expanded: boolean; onToggle: () => void; steps: string[]; detail: string; label: string; completeLabel: string; busy?: boolean }) {
   return (
-    <div className="ai-thinking-panel">
+    <div className={`ai-thinking-panel${expanded ? ' is-expanded' : ''}`}>
       <button onClick={onToggle} aria-expanded={expanded}>
         <span><Sparkles size={15} />{label}</span>
         <small>{steps.length} · {completeLabel}</small>
         {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
       </button>
-      {expanded && (
-        <div className="ai-thinking-detail">
-          <div>{steps.map((step) => <span key={step}><Check size={11} />{step}</span>)}</div>
+      <div className="ai-thinking-detail">
+        <div className="ai-thinking-detail-inner">
+          <div>{steps.map((step, index) => (
+            <span key={step} className={busy && index === steps.length - 1 ? 'is-current' : ''}>
+              {busy && index === steps.length - 1 ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+              {step}
+            </span>
+          ))}</div>
           {detail && <p>{detail}</p>}
         </div>
-      )}
+      </div>
     </div>
   )
 }

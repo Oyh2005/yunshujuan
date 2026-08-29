@@ -170,6 +170,79 @@ async def get_dashboard_stats(
     )
 
 
+@stats_router.get("/period")
+async def get_period_stats(
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    周报/月报聚合（首页周报/月报卡片用，用户隔离）：
+
+    - week:  本周（周一 00:00 起）笔记数/字数/回顾次数 + 上周对应值（prev_*）
+    - month: 本月（1 号 00:00 起）笔记数/字数/回顾次数 + 上月对应值（prev_*）
+    环比由前端计算（本期/上期差值百分比）。
+    """
+    now = datetime.now()
+    monday = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    prev_monday = monday - timedelta(days=7)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    prev_month_start = (month_start - timedelta(days=1)).replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
+
+    async def _note_stats(start) -> dict:
+        """start 起至今的笔记数/字数（上期统计额外传入 end 上界）"""
+        row = (await db.execute(select(
+            func.count(Note.id),
+            func.coalesce(func.sum(func.char_length(Note.content)), 0),
+        ).where(Note.user_id == user_id, Note.created_at >= start))).one()
+        return {"notes": int(row[0] or 0), "chars": int(row[1] or 0)}
+
+    async def _note_stats_range(start, end) -> dict:
+        """[start, end) 区间的笔记数/字数（用于上期对比）"""
+        row = (await db.execute(select(
+            func.count(Note.id),
+            func.coalesce(func.sum(func.char_length(Note.content)), 0),
+        ).where(Note.user_id == user_id, Note.created_at >= start, Note.created_at < end))).one()
+        return {"notes": int(row[0] or 0), "chars": int(row[1] or 0)}
+
+    async def _review_count(start, end=None) -> int:
+        """回顾次数：last_reviewed_at 在 [start, end)（end 为 None 时无上界）"""
+        stmt = select(func.count(ReviewRecord.id)).where(
+            ReviewRecord.user_id == user_id,
+            ReviewRecord.last_reviewed_at >= start,
+        )
+        if end is not None:
+            stmt = stmt.where(ReviewRecord.last_reviewed_at < end)
+        return int((await db.execute(stmt)).scalar() or 0)
+
+    week = await _note_stats(monday)
+    prev_week = await _note_stats_range(prev_monday, monday)
+    month = await _note_stats(month_start)
+    prev_month = await _note_stats_range(prev_month_start, month_start)
+
+    return success_response(
+        data={
+            "week": {
+                **week,
+                "reviews": await _review_count(monday),
+                "prev_notes": prev_week["notes"],
+                "prev_chars": prev_week["chars"],
+                "prev_reviews": await _review_count(prev_monday, monday),
+            },
+            "month": {
+                **month,
+                "reviews": await _review_count(month_start),
+                "prev_notes": prev_month["notes"],
+                "prev_chars": prev_month["chars"],
+                "prev_reviews": await _review_count(prev_month_start, month_start),
+            },
+        }
+    )
+
+
 @stats_router.get("/leaderboard")
 async def get_leaderboard(
     user_id: str = Depends(get_current_user_id),
