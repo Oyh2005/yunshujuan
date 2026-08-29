@@ -22,6 +22,11 @@ export const sessionsApi = {
     return res.data
   },
 
+  update: async (id: string, payload: { title?: string; is_pinned?: boolean }) => {
+    const res = await client.patch<ApiResponse<ChatSession>>(endpoints.updateSession(id), payload)
+    return res.data
+  },
+
   delete: async (id: string) => {
     const res = await client.delete<ApiResponse<null>>(endpoints.deleteSession(id))
     return res.data

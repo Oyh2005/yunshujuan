@@ -71,6 +71,9 @@ export interface ChatSession {
   id: string
   user_id?: string
   title: string
+  custom_title?: string | null
+  is_pinned?: boolean
+  pinned_at?: string | null
   metadata?: Record<string, unknown>
   created_at: string
   updated_at: string

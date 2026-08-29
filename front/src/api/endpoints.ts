@@ -18,6 +18,7 @@ export const endpoints = {
   // Sessions
   getSession: (id: string) => `/chat/session/${id}`,
   deleteSession: (id: string) => `/chat/session/${id}`,
+  updateSession: (id: string) => `/chat/session/${id}`,
   getAllSessions: '/chat/sessions',
   getUserSessions: (userId: string) => `/chat/sessions/${userId}`,
 

@@ -1,6 +1,6 @@
 import asyncio
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.core.logger_handler import logger
 from app.db.db_config import AsyncSessionLocal
@@ -179,23 +179,71 @@ class DatabaseSessionManager:
             return [session.id for session in sessions]
 
     async def get_user_sessions(self, user_id: str) -> list[dict]:
-        """获取用户所有会话详细信息，按更新时间降序排列"""
+        """获取用户所有会话详细信息：置顶优先（置顶组内按置顶时间降序），其余按更新时间降序"""
         async with AsyncSessionLocal() as db:
             sessions = await db.run_sync(
                 lambda session: session.query(ChatSession)
                 .filter(ChatSession.user_id == user_id)
-                .order_by(ChatSession.updated_at.desc())
                 .all()
             )
+            # 排序：置顶的在前（pinned_at 越新越前），非置顶按 updated_at 降序
+            sessions.sort(key=lambda s: (
+                not s.is_pinned,
+                -(s.pinned_at.timestamp() if s.pinned_at else 0),
+                -(s.updated_at.timestamp() if s.updated_at else 0),
+            ))
             return [
                 {
                     "id": session.id,
-                    "title": session.title,
+                    # 展示名：自定义名称优先，回退自动标题
+                    "title": session.custom_title or session.title,
+                    "custom_title": session.custom_title,
+                    "is_pinned": session.is_pinned,
+                    "pinned_at": session.pinned_at.isoformat() if session.pinned_at else None,
                     "created_at": session.created_at.isoformat() if session.created_at else None,
                     "updated_at": session.updated_at.isoformat() if session.updated_at else None
                 }
                 for session in sessions
             ]
+
+    async def rename_session(self, session_id: str, user_id: str, title: str | None) -> dict:
+        """重命名会话：写入 custom_title；传 None 或空字符串 = 清除自定义名称（回退自动标题）
+        :return: {"custom_title": ..., "title": 展示名}
+        """
+        async with AsyncSessionLocal() as db:
+            session = await db.run_sync(
+                lambda s: s.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user_id).first()
+            )
+            if not session:
+                from fastapi import HTTPException, status
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在或不属于你")
+            session.custom_title = (title or "").strip()[:255] or None
+            await db.commit()
+            logger.info(f"【数据库会话管理】重命名会话: {session_id} 属于用户: {user_id} -> {session.custom_title!r}")
+            return {
+                "custom_title": session.custom_title,
+                "title": session.custom_title or session.title,
+            }
+
+    async def set_session_pinned(self, session_id: str, user_id: str, is_pinned: bool):
+        """置顶/取消置顶会话"""
+        async with AsyncSessionLocal() as db:
+            session = await db.run_sync(
+                lambda s: s.query(ChatSession).filter(ChatSession.id == session_id, ChatSession.user_id == user_id).first()
+            )
+            if not session:
+                from fastapi import HTTPException, status
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在或不属于你")
+            session.is_pinned = is_pinned
+            session.pinned_at = func.now() if is_pinned else None
+            await db.commit()
+            await db.refresh(session)
+            logger.info(f"【数据库会话管理】置顶状态: {session_id} 属于用户: {user_id} -> {is_pinned}")
+            return {
+                "id": session.id,
+                "is_pinned": session.is_pinned,
+                "pinned_at": session.pinned_at.isoformat() if session.pinned_at else None,
+            }
 
 
 # 全局数据库会话管理器实例

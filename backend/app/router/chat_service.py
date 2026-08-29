@@ -55,6 +55,27 @@ class ChatService:
         sessions = await sm.session_manager.get_user_sessions(user_id)
         return sessions
 
+    async def handle_update_session(self, session_id: str, user_id: str, payload: Any) -> dict:
+        """处理会话更新逻辑（重命名 / 置顶切换）"""
+        result: dict = {"id": session_id}
+        fields_set = getattr(payload, "model_fields_set", set())
+        updated = False
+
+        if "title" in fields_set and payload.title is not None:
+            updated = True
+            rename_result = await sm.session_manager.rename_session(session_id, user_id, payload.title)
+            result["title"] = rename_result["title"]
+            result["custom_title"] = rename_result["custom_title"]
+
+        if "is_pinned" in fields_set and payload.is_pinned is not None:
+            updated = True
+            pin_result = await sm.session_manager.set_session_pinned(session_id, user_id, payload.is_pinned)
+            result.update(pin_result)
+
+        if not updated:
+            raise HTTPException(status_code=400, detail="没有可更新的字段")
+        return result
+
     async def handle_reorder(self, query: str, documents: list[str]) -> list[dict[str, Any]]:
         """
         使用本地Ollama重排序模型对文档进行中文重排序

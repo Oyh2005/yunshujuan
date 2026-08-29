@@ -10,7 +10,9 @@ import {
   History,
   MessageSquare,
   MessagesSquare,
+  Pencil,
   Pin,
+  PinOff,
   Plus,
   Search,
   Sparkles,
@@ -21,6 +23,7 @@ import { useSessionStore } from '../stores/useSessionStore'
 import { useUserStore } from '../stores/useUserStore'
 import type { ChatSession } from '../types/api'
 import ConfirmDialog from '../components/common/ConfirmDialog'
+import PromptDialog from '../components/common/PromptDialog'
 import { AiCompanionCard, AiTopbar } from '../components/ai/AiWorkspace'
 import '../styles/ai-pages.css'
 
@@ -50,13 +53,20 @@ export default function Sessions() {
   const text = useCallback((zh: string, en: string) => english ? en : zh, [english])
   const navigate = useNavigate()
   const userId = useUserStore((state) => state.userInfo?.uuid || state.userInfo?.user_id || state.userInfo?.id || '')
-  const { sessions, setSessions, removeSession, setLoading, loading } = useSessionStore()
+  const { sessions, setSessions, removeSession, updateSession, setLoading, loading } = useSessionStore()
   const [deleteTarget, setDeleteTarget] = useState<ChatSession | null>(null)
+  const [renameTarget, setRenameTarget] = useState<ChatSession | null>(null)
+  const [renameValue, setRenameValue] = useState('')
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<SessionFilter>('all')
   const [sort, setSort] = useState<SessionSort>('recent')
   const [page, setPage] = useState(1)
   const [failed, setFailed] = useState(false)
+
+  const sessionTitle = useCallback(
+    (session: ChatSession) => session.title || text('新的对话', 'New conversation'),
+    [text],
+  )
 
   const loadSessions = useCallback(async () => {
     if (!userId) {
@@ -96,10 +106,15 @@ export default function Sessions() {
 
   const filteredSessions = useMemo(() => {
     const keyword = query.trim().toLocaleLowerCase()
+    const pinnedTime = (session: ChatSession) => {
+      const value = session.pinned_at || session.updated_at || session.created_at
+      const time = value ? Date.parse(value) : Number.NaN
+      return Number.isFinite(time) ? time : 0
+    }
     return sessions
       .filter((session) => {
         const time = sessionTime(session)
-        const matchesQuery = !keyword || (session.title || '').toLocaleLowerCase().includes(keyword)
+        const matchesQuery = !keyword || sessionTitle(session).toLocaleLowerCase().includes(keyword)
         const matchesFilter =
           filter === 'all' ||
           (filter === 'today' && time >= today) ||
@@ -107,8 +122,13 @@ export default function Sessions() {
           (filter === 'older' && time < week)
         return matchesQuery && matchesFilter
       })
-      .sort((a, b) => sort === 'recent' ? sessionTime(b) - sessionTime(a) : sessionTime(a) - sessionTime(b))
-  }, [filter, query, sessions, sort, today, week])
+      .sort((a, b) => {
+        // 置顶会话永远优先（置顶组内按置顶时间降序），其余按用户选择的排序
+        if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
+        if (a.is_pinned) return pinnedTime(b) - pinnedTime(a)
+        return sort === 'recent' ? sessionTime(b) - sessionTime(a) : sessionTime(a) - sessionTime(b)
+      })
+  }, [filter, query, sessions, sort, today, week, sessionTitle])
 
   const totalPages = Math.max(1, Math.ceil(filteredSessions.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -130,6 +150,41 @@ export default function Sessions() {
       toast.error(text('删除会话失败', 'Could not delete conversation'))
     } finally {
       setDeleteTarget(null)
+    }
+  }
+
+  const openRename = (session: ChatSession) => {
+    setRenameValue(session.custom_title ?? session.title ?? '')
+    setRenameTarget(session)
+  }
+
+  const handleRename = async () => {
+    if (!renameTarget) return
+    const title = renameValue.trim()
+    if (!title) return
+    try {
+      await sessionsApi.update(renameTarget.id, { title })
+      updateSession(renameTarget.id, { title, custom_title: title })
+      toast.success(text('会话已重命名', 'Conversation renamed'))
+    } catch {
+      toast.error(text('重命名失败', 'Could not rename conversation'))
+    } finally {
+      setRenameTarget(null)
+    }
+  }
+
+  const handleTogglePin = async (session: ChatSession) => {
+    const nextPinned = !session.is_pinned
+    try {
+      const response = await sessionsApi.update(session.id, { is_pinned: nextPinned })
+      const data = response.data as { data?: { is_pinned?: boolean; pinned_at?: string | null } } | undefined
+      updateSession(session.id, {
+        is_pinned: data?.data?.is_pinned ?? nextPinned,
+        pinned_at: data?.data?.pinned_at ?? null,
+      })
+      toast.success(nextPinned ? text('会话已置顶', 'Conversation pinned') : text('已取消置顶', 'Conversation unpinned'))
+    } catch {
+      toast.error(text('操作失败', 'Could not update conversation'))
     }
   }
 
@@ -201,18 +256,46 @@ export default function Sessions() {
             <div className="ai-session-skeletons">{Array.from({ length: 6 }, (_, index) => <div key={index}><span /><p /><small /></div>)}</div>
           ) : visibleSessions.length ? (
             <div className="ai-session-list">
-              {visibleSessions.map((session, index) => (
-                <article key={session.id} className="ai-session-row">
+              {visibleSessions.map((session) => (
+                <article key={session.id} className={`ai-session-row${session.is_pinned ? ' is-pinned' : ''}`}>
                   <button className="ai-session-main" onClick={() => navigate(`/chat/${session.id}`)}>
-                    <span className={`ai-session-icon tone-${index % 4}`}><MessageSquare size={19} /></span>
+                    <span className="ai-session-icon"><MessageSquare size={19} /></span>
                     <span className="ai-session-copy">
-                      <strong>{session.title || text('新的对话', 'New conversation')}{index === 0 && sort === 'recent' && <Pin size={13} />}</strong>
-                      <small>{text('继续这段对话，回到之前的思考', 'Continue from your earlier question')}</small>
+                      <strong>
+                        {sessionTitle(session)}
+                        {session.is_pinned && <Pin size={13} className="ai-session-pin-mark" />}
+                      </strong>
+                      <small>{session.is_pinned ? text('已置顶 · 继续这段对话', 'Pinned · continue this conversation') : text('继续这段对话，回到之前的思考', 'Continue from your earlier question')}</small>
                     </span>
                     <time dateTime={session.updated_at || session.created_at}>{formatDate(session)}</time>
                     <span className="ai-session-continue">{text('继续对话', 'Continue')}<ArrowRight size={14} /></span>
                   </button>
-                  <button className="ai-session-delete" onClick={() => setDeleteTarget(session)} aria-label={text('删除会话', 'Delete conversation')} title={text('删除会话', 'Delete conversation')}><Trash2 size={16} /></button>
+                  <div className="ai-session-actions">
+                    <button
+                      className={`ai-session-action${session.is_pinned ? ' is-active' : ''}`}
+                      onClick={() => handleTogglePin(session)}
+                      aria-label={session.is_pinned ? text('取消置顶', 'Unpin conversation') : text('置顶会话', 'Pin conversation')}
+                      title={session.is_pinned ? text('取消置顶', 'Unpin conversation') : text('置顶会话', 'Pin conversation')}
+                    >
+                      {session.is_pinned ? <Pin size={16} /> : <PinOff size={16} />}
+                    </button>
+                    <button
+                      className="ai-session-action"
+                      onClick={() => openRename(session)}
+                      aria-label={text('重命名会话', 'Rename conversation')}
+                      title={text('重命名会话', 'Rename conversation')}
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
+                      className="ai-session-action"
+                      onClick={() => setDeleteTarget(session)}
+                      aria-label={text('删除会话', 'Delete conversation')}
+                      title={text('删除会话', 'Delete conversation')}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
@@ -252,6 +335,19 @@ export default function Sessions() {
           />
         </aside>
       </div>
+
+      <PromptDialog
+        open={!!renameTarget}
+        onOpenChange={(open) => { if (!open) setRenameTarget(null) }}
+        title={text('重命名会话', 'Rename conversation')}
+        label={text('会话名称', 'Conversation name')}
+        value={renameValue}
+        onChange={setRenameValue}
+        placeholder={text('输入新的会话名称…', 'Enter a new name…')}
+        confirmText={text('保存', 'Save')}
+        cancelText={text('取消', 'Cancel')}
+        onConfirm={handleRename}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

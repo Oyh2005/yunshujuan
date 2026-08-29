@@ -1,4 +1,4 @@
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
@@ -12,6 +12,9 @@ class ChatSession(Base):
     user_id = Column(String(64), index=True, nullable=False)
 
     title = Column(String(255), default="新的对话")
+    custom_title = Column(String(255), nullable=True, comment="用户自定义会话名称（优先于自动标题；NULL=未自定义）")
+    is_pinned = Column(Boolean, default=False, nullable=False, comment="是否置顶")
+    pinned_at = Column(DateTime(timezone=True), nullable=True, comment="置顶时间（置顶排序用）")
     metadata_ = Column(JSON, name="metadata")  # metadata 是 SQL 保留字，加下划线
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

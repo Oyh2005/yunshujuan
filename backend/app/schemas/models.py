@@ -13,6 +13,12 @@ class RAGRequest(BaseModel):
     query: str
 
 
+class SessionUpdateRequest(BaseModel):
+    """会话更新请求：title 传 None=不改，传空字符串=清除自定义名称；is_pinned 传 None=不改"""
+    title: str | None = None
+    is_pinned: bool | None = None
+
+
 class SessionResponse(BaseModel):
     """会话响应模型"""
     session_id: str
