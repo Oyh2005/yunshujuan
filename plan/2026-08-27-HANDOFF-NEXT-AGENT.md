@@ -52,6 +52,7 @@
 11. 全局异常处理器把业务 404 改写为「接口不存在」——调试看后端日志而非响应文案
 12. `note_router.dependencies = [Depends(ensure_note_service)]`：笔记路由等后台初始化；`/note/graph` 必须注册在 `/{note_id}` 之前
 13. LLM 审核：JSON 解析须容忍代码块/前后文本；审核前 `await init_manager.models_ready.wait()`
+14. **⚠️ 项目路径含中文**（`D:\项目\...`）：libmagic 等 C 库的 fopen 用 ANSI 解释 UTF-8 路径 → 打不开文件。知识库上传已做修复（`_get_magic_mime` 复制 mgc 到英文临时路径），**新接入 C 库依赖时注意**；详见 `plan/2026-08-29-libmagic-chinese-path-fix.md`
 
 ### 前端踩坑（重要）
 14. **⚠️ vite 代理 key 绝不能写成 SPA 页面路径本身**：`'/social'` 会连页面 `/social` 一起代理到后端 404（白屏）。现用正则子路径：`'^/social/'`、`'^/stats/'`、`'^/user/(login|logout|...)'`；分享 API 走 `/public` 别名（与页面 `/share/:id` 同形，代理无法区分）。**新增 API 前缀时先检查是否与页面路由冲突**
