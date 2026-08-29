@@ -110,6 +110,9 @@ ehthumbs_vista.db
 .verify_*_out.txt
 .dbcheck*.txt
 
+# pytest 残留目录（含沙箱外创建的 ACL 受限目录）
+pytest-of-*/
+
 # AI agent/Claude config
 .agents/
 .claude/

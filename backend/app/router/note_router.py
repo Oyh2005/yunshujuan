@@ -65,7 +65,7 @@ async def list_notes(
     sort_by: str = Query("updated_at", pattern="^(updated_at|created_at|title)$"),
 ):
     """
-    笔记列表：分页查询，支持按分类筛选和排序。tag 筛选在内存层完成。
+    笔记列表：分页查询，支持按分类筛选和排序（tag 过滤已下沉 SQL，分页基于过滤后数据）。
     客户端缓存：private 30s + ETag 版本化（304 短路），写操作自动失效。
     """
     from app.core.http_cache import apply_http_cache, is_not_modified

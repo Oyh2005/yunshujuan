@@ -1,17 +1,24 @@
 {
   "openapi": "3.1.0",
-  "info": { "title": "FastAPI", "version": "0.1.0" },
+  "info": {
+    "title": "FastAPI",
+    "version": "0.1.0"
+  },
   "paths": {
     "/chat/agent/query/stream": {
       "post": {
-        "tags": ["chat"],
+        "tags": [
+          "chat"
+        ],
         "summary": "Query Stream",
         "description": "查询Agent流式响应",
         "operationId": "query_stream_chat_agent_query_stream_post",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/QueryRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
             }
           },
           "required": true
@@ -19,30 +26,44 @@
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/chat/rag/query": {
       "post": {
-        "tags": ["chat"],
+        "tags": [
+          "chat"
+        ],
         "summary": "Query Rag",
         "description": "RAG检索",
         "operationId": "query_rag_chat_rag_query_post",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/RAGRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/RAGRequest"
+              }
             }
           },
           "required": true
@@ -52,7 +73,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/RAGResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/RAGResponse"
+                }
               }
             }
           },
@@ -60,27 +83,42 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/chat/session/{session_id}": {
       "get": {
-        "tags": ["chat"],
+        "tags": [
+          "chat"
+        ],
         "summary": "Get Session",
         "description": "获取会话信息，使用user_id验证",
         "operationId": "get_session_chat_session__session_id__get",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "session_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "Session Id" }
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
           }
         ],
         "responses": {
@@ -88,7 +126,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SessionResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
               }
             }
           },
@@ -96,36 +136,107 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
         }
       },
       "delete": {
-        "tags": ["chat"],
+        "tags": [
+          "chat"
+        ],
         "summary": "Delete Session",
         "description": "删除会话",
         "operationId": "delete_session_chat_session__session_id__delete",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "session_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "Session Id" }
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "Update Session",
+        "description": "更新会话：重命名（title）或置顶切换（is_pinned），可同时传，只更新显式传入的字段",
+        "operationId": "update_session_chat_session__session_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -134,43 +245,69 @@
     },
     "/chat/sessions": {
       "get": {
-        "tags": ["chat"],
+        "tags": [
+          "chat"
+        ],
         "summary": "Get All Sessions",
-        "description": "获取所有会话ID",
+        "description": "获取当前用户的所有会话ID（需 JWT 认证，仅返回本人会话）",
         "operationId": "get_all_sessions_chat_sessions_get",
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/chat/sessions/{user_id}": {
       "get": {
-        "tags": ["chat"],
+        "tags": [
+          "chat"
+        ],
         "summary": "Get User Sessions",
-        "description": "获取用户所有会话ID",
+        "description": "获取用户所有会话（客户端缓存：private 30s + ETag 版本化，\n会话写操作 add_message/重命名/置顶/删除 自动失效）。",
         "operationId": "get_user_sessions_chat_sessions__user_id__get",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "user_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "User Id" }
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -179,14 +316,18 @@
     },
     "/chat/reorder": {
       "post": {
-        "tags": ["chat"],
+        "tags": [
+          "chat"
+        ],
         "summary": "Reorder Documents",
         "description": "使用Ollama本地的嵌入模型对文档进行中文重排序",
         "operationId": "reorder_documents_chat_reorder_post",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/ReorderRequest" }
+              "schema": {
+                "$ref": "#/components/schemas/ReorderRequest"
+              }
             }
           },
           "required": true
@@ -196,7 +337,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ReorderResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/ReorderResponse"
+                }
               }
             }
           },
@@ -204,7 +347,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -213,7 +358,9 @@
     },
     "/knowledge/add/single": {
       "post": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Add Vector Single",
         "description": "上传文件，将文件保存到向量数据库，仅支持TXT和PDF",
         "operationId": "add_vector_single_knowledge_add_single_post",
@@ -230,23 +377,35 @@
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/knowledge/add/multiple": {
       "post": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Add Vector Multiple",
         "description": "上传多个文件，将文件保存到向量数据库，仅支持TXT和PDF",
         "operationId": "add_vector_multiple_knowledge_add_multiple_post",
@@ -263,23 +422,35 @@
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/knowledge/add/multiple/stream": {
       "post": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Add Vector Multiple Stream",
         "description": "上传多个文件，流式返回处理进度，仅支持TXT、PDF、MD、PPTX、DOCX",
         "operationId": "add_vector_multiple_stream_knowledge_add_multiple_stream_post",
@@ -296,42 +467,68 @@
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/knowledge/clean": {
       "delete": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Clean User Vectors",
         "description": "删除用户上传的所有向量",
         "operationId": "clean_user_vectors_knowledge_clean_delete",
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/knowledge/md5/clear": {
       "delete": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Clear User Md5",
         "description": "清空用户的MD5记录\n:param delete_documents: 是否同时删除知识库文档（默认True）",
         "operationId": "clear_user_md5_knowledge_md5_clear_delete",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "delete_documents",
@@ -347,13 +544,19 @@
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -362,17 +565,26 @@
     },
     "/knowledge/md5/delete/{md5_value}": {
       "delete": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Delete Single Md5",
         "description": "删除单个MD5记录及其对应的知识库内容\n:param md5_value: 要删除的MD5值\n:param delete_documents: 是否同时删除知识库文档（默认True）",
         "operationId": "delete_single_md5_knowledge_md5_delete__md5_value__delete",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "md5_value",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "Md5 Value" }
+            "schema": {
+              "type": "string",
+              "title": "Md5 Value"
+            }
           },
           {
             "name": "delete_documents",
@@ -388,13 +600,19 @@
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -403,17 +621,26 @@
     },
     "/knowledge/delete/filename": {
       "delete": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Delete By Filename",
         "description": "通过文件名删除MD5记录及其对应的知识库文档\n:param filename: 要删除的文件名\n:param delete_documents: 是否同时删除知识库文档（默认True）",
         "operationId": "delete_by_filename_knowledge_delete_filename_delete",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "filename",
             "in": "query",
             "required": true,
-            "schema": { "type": "string", "title": "Filename" }
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
           },
           {
             "name": "delete_documents",
@@ -429,13 +656,19 @@
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -444,7 +677,9 @@
     },
     "/knowledge/md5/list": {
       "get": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Get All Md5 Records",
         "description": "获取用户的所有MD5记录",
         "operationId": "get_all_md5_records_knowledge_md5_list_get",
@@ -453,27 +688,42 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/MD5ListResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/MD5ListResponse"
+                }
               }
             }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/knowledge/md5/{md5_value}": {
       "get": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Get Md5 Info",
         "description": "获取MD5对应的文档信息\n:param md5_value: MD5值",
         "operationId": "get_md5_info_knowledge_md5__md5_value__get",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "md5_value",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "Md5 Value" }
+            "schema": {
+              "type": "string",
+              "title": "Md5 Value"
+            }
           }
         ],
         "responses": {
@@ -481,7 +731,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/MD5Record" }
+                "schema": {
+                  "$ref": "#/components/schemas/MD5Record"
+                }
               }
             }
           },
@@ -489,7 +741,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -498,7 +752,9 @@
     },
     "/knowledge/list": {
       "get": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Get User Knowledge List",
         "description": "获取用户的知识库文档列表",
         "operationId": "get_user_knowledge_list_knowledge_list_get",
@@ -514,22 +770,35 @@
             }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/knowledge/detail": {
       "get": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Get Document Detail",
         "description": "获取文档详情内容",
         "operationId": "get_document_detail_knowledge_detail_get",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "filename",
             "in": "query",
             "required": true,
-            "schema": { "type": "string", "title": "Filename" }
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
           }
         ],
         "responses": {
@@ -547,7 +816,9 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -556,17 +827,26 @@
     },
     "/knowledge/chunks": {
       "get": {
-        "tags": ["knowledge"],
+        "tags": [
+          "knowledge"
+        ],
         "summary": "Get Document Chunks",
         "description": "获取文档切片信息",
         "operationId": "get_document_chunks_knowledge_chunks_get",
-        "security": [{ "HTTPBearer": [] }],
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "filename",
             "in": "query",
             "required": true,
-            "schema": { "type": "string", "title": "Filename" }
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
           }
         ],
         "responses": {
@@ -584,54 +864,3137 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
         }
       }
     },
+    "/knowledge/image/{md5}/{filename}": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Serve Knowledge Image",
+        "description": "返回PDF中提取的原始图片（需JWT鉴权）\n图片存储在 data/extracted_images/{user_id}/{md5}/{filename}",
+        "operationId": "serve_knowledge_image_knowledge_image__md5___filename__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "md5",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Md5"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/images/all/{md5}": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Serve Batch Images",
+        "description": "返回指定PDF的所有图片（单次请求，JSON + base64）",
+        "operationId": "serve_batch_images_knowledge_images_all__md5__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "md5",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Md5"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/knowledge/clip": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Clip Webpage",
+        "description": "网页剪藏：抓取 URL → 提取正文 → 走切片/向量化管线入库。\n安全：仅 http/https + 拒绝内网地址（防 SSRF）+ 超时 + 大小限制。",
+        "operationId": "clip_webpage_knowledge_clip_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClipRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/health/live": {
       "get": {
-        "tags": ["健康检查"],
+        "tags": [
+          "健康检查"
+        ],
         "summary": "健康检查",
         "description": "健康检查-存活",
         "operationId": "get_health_application_status_health_live_get",
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           }
         }
       }
     },
     "/health/ready": {
       "get": {
-        "tags": ["健康检查"],
+        "tags": [
+          "健康检查"
+        ],
         "summary": "健康检查",
         "description": "健康检查-就绪",
         "operationId": "get_health_readiness_health_ready_get",
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/login/": {
+      "post": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Login",
+        "operationId": "login_user_login__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/register/": {
+      "post": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Register",
+        "operationId": "register_user_register__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/reset-password/": {
+      "post": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Reset Password",
+        "operationId": "reset_password_user_reset_password__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/user/refresh-token/": {
+      "post": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Refresh Token",
+        "operationId": "refresh_token_user_refresh_token__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
     },
     "/user/detail/": {
       "get": {
-        "tags": ["user"],
+        "tags": [
+          "user"
+        ],
         "summary": "Get User Info",
-        "description": "获取用户信息",
         "operationId": "get_user_info_user_detail__get",
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           }
         },
-        "security": [{ "HTTPBearer": [] }]
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/user/update/": {
+      "put": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Update User",
+        "operationId": "update_user_user_update__put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/user/logout/": {
+      "post": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_user_logout__post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/user/settings/": {
+      "get": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Get User Settings",
+        "description": "获取云端偏好/养成数据（小卷养成 + 打卡任务）。\n仅查 MySQL，不依赖 Redis；无记录时返回 None。",
+        "operationId": "get_user_settings_user_settings__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "user"
+        ],
+        "summary": "Put User Settings",
+        "description": "保存云端偏好/养成数据（upsert：仅更新非 None 字段）。",
+        "operationId": "put_user_settings_user_settings__put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/file/upload/": {
+      "post": {
+        "tags": [
+          "file"
+        ],
+        "summary": "Upload File",
+        "operationId": "upload_file_file_upload__post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_file_file_upload__post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note/create": {
+      "post": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Create Note",
+        "description": "创建笔记：\n1. MySQL 写入 + ChromaDB 向量化\n2. 立即返回笔记（tags/category 初始为空）\n3. 后台异步生成标签和回顾记录",
+        "operationId": "create_note_note_create_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note/list": {
+      "get": {
+        "tags": [
+          "note"
+        ],
+        "summary": "List Notes",
+        "description": "笔记列表：分页查询，支持按分类筛选和排序（tag 过滤已下沉 SQL，分页基于过滤后数据）。\n客户端缓存：private 30s + ETag 版本化（304 短路），写操作自动失效。",
+        "operationId": "list_notes_note_list_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Category"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Tag"
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(updated_at|created_at|title)$",
+              "default": "updated_at",
+              "title": "Sort By"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/search": {
+      "get": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Search Notes",
+        "description": "全文语义搜索：走 ChromaDB notes_collection 向量检索，\n返回当前用户的语义相似笔记。",
+        "operationId": "search_notes_note_search_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "搜索关键词",
+              "title": "Q"
+            },
+            "description": "搜索关键词"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/batch/delete": {
+      "post": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Batch Delete Notes",
+        "description": "批量删除笔记：按 ID 列表删除笔记及其向量。",
+        "operationId": "batch_delete_notes_note_batch_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchIdsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note/batch/download": {
+      "post": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Batch Download Notes",
+        "description": "批量下载笔记为 ZIP 压缩包（内含 .md 文件）。",
+        "operationId": "batch_download_notes_note_batch_download_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchIdsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note/batch/category": {
+      "put": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Batch Update Category",
+        "description": "批量更新笔记分类。",
+        "operationId": "batch_update_category_note_batch_category_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note/batch/pin": {
+      "put": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Batch Pin Notes",
+        "description": "批量置顶/取消置顶笔记。",
+        "operationId": "batch_pin_notes_note_batch_pin_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchPinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note/stats": {
+      "get": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Get Stats",
+        "description": "获取用户笔记分类统计。\n返回各分类下的笔记数量及总数。\n客户端缓存：private 60s + ETag 版本化。",
+        "operationId": "get_stats_note_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note/graph": {
+      "get": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Get Note Graph",
+        "description": "知识图谱数据（Top N 节点限制）：\n- nodes: 最近更新的笔记（id/title/category）\n- links: 已有双链；include_semantic=true 时额外计算语义关联\n- semantic_status: not_requested / complete / partial / unavailable\n\n注意：本路由必须注册在 /{note_id} 之前，否则会被路径参数吞掉。",
+        "operationId": "get_note_graph_note_graph_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 2,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "include_semantic",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "按需计算语义关联；默认仅查询已有双链",
+              "default": false,
+              "title": "Include Semantic"
+            },
+            "description": "按需计算语义关联；默认仅查询已有双链"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/category/{category}": {
+      "delete": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Delete Category",
+        "description": "删除某个分类及其下所有笔记。\n返回被删除的笔记数量。",
+        "operationId": "delete_category_note_category__category__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "category",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Category"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/autocomplete": {
+      "post": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Autocomplete",
+        "description": "AI 内联补全。基于光标前上下文，调用本地 Ollama qwen3:0.8b 快速返回续写文本。\n非流式，目标延迟 300-500ms。",
+        "operationId": "autocomplete_note_autocomplete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutocompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note/assist/stream": {
+      "post": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Assist Stream",
+        "description": "AI 写作辅助 SSE 流式输出。支持三种模式：\n- continue：续写\n- expand：扩写\n- summarize：缩写",
+        "operationId": "assist_stream_note_assist_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note/{note_id}": {
+      "put": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Update Note",
+        "description": "更新笔记：修改 title/content，content 变更时同步更新 ChromaDB 向量。",
+        "operationId": "update_note_note__note_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Delete Note",
+        "description": "删除笔记：联删 MySQL 记录、ChromaDB 向量、以及级联的 review_records。",
+        "operationId": "delete_note_note__note_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Get Note",
+        "description": "获取笔记详情（5 分钟客户端缓存 + ETag 版本化，写操作自动失效；Redis 不可用时直查数据库）。",
+        "operationId": "get_note_note__note_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/{note_id}/pin": {
+      "put": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Toggle Pin",
+        "description": "切换笔记置顶状态。",
+        "operationId": "toggle_pin_note__note_id__pin_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/{note_id}/auto-tag": {
+      "post": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Regenerate Tags",
+        "description": "手动触发重新生成标签。",
+        "operationId": "regenerate_tags_note__note_id__auto_tag_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/{note_id}/related": {
+      "get": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Get Related Notes",
+        "description": "获取当前笔记的语义相似笔记和知识库文档（Top 3），\n标注来源：note（笔记库）或 knowledge_base（知识库）。",
+        "operationId": "get_related_notes_note__note_id__related_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/{note_id}/backlinks": {
+      "get": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Get Backlinks",
+        "description": "双链查询：\n- backlinks: 引用当前笔记标题（[[标题]]）的其他笔记列表\n- outlinks: 当前笔记引用的 [[标题]] 列表\n链接按标题精确匹配，限定当前用户。",
+        "operationId": "get_backlinks_note__note_id__backlinks_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/{note_id}/export": {
+      "get": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Export Note",
+        "description": "导出单篇笔记为 Markdown 格式纯文本。",
+        "operationId": "export_note_note__note_id__export_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note/{note_id}/download": {
+      "get": {
+        "tags": [
+          "note"
+        ],
+        "summary": "Download Note",
+        "description": "下载笔记为 Markdown 文件（浏览器触发下载）。\n返回 Content-Disposition: attachment 的 markdown 文件响应。",
+        "operationId": "download_note_note__note_id__download_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/note-template/list": {
+      "get": {
+        "tags": [
+          "note-template"
+        ],
+        "summary": "List Templates",
+        "description": "列出当前用户的所有模板。",
+        "operationId": "list_templates_note_template_list_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note-template/create": {
+      "post": {
+        "tags": [
+          "note-template"
+        ],
+        "summary": "Create Template",
+        "description": "创建自定义模板。",
+        "operationId": "create_template_note_template_create_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteTemplateCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note-template/reorder": {
+      "put": {
+        "tags": [
+          "note-template"
+        ],
+        "summary": "Reorder Templates",
+        "description": "重新排序模板。",
+        "operationId": "reorder_templates_note_template_reorder_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteTemplateReorder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/note-template/{template_id}": {
+      "put": {
+        "tags": [
+          "note-template"
+        ],
+        "summary": "Update Template",
+        "description": "更新自定义模板。",
+        "operationId": "update_template_note_template__template_id__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteTemplateUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "note-template"
+        ],
+        "summary": "Delete Template",
+        "description": "删除自定义模板。",
+        "operationId": "delete_template_note_template__template_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/review/today": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Get Today Reviews",
+        "description": "获取今日待回顾的笔记列表。\n返回关联的笔记标题、内容预览、回顾次数、间隔天数等信息。",
+        "operationId": "get_today_reviews_review_today_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/review/done/{note_id}": {
+      "post": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Mark Reviewed",
+        "description": "标记笔记已回顾。更新 review_count 并根据艾宾浩斯算法计算下次回顾时间。",
+        "operationId": "mark_reviewed_review_done__note_id__post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/review/question/{note_id}": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Get Review Question",
+        "description": "根据笔记内容生成一道回顾选择题。\n返回 {question, choices, answer} 结构。",
+        "operationId": "get_review_question_review_question__note_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stats/dashboard": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "Get Dashboard Stats",
+        "description": "知识仪表盘聚合统计（用户隔离）：\n\n- summary:\n    total_notes     笔记总数\n    total_chars     总字数（CHAR_LENGTH 按字符数）\n    total_reviews   累计回顾次数\n    week_reviews    本周回顾次数（last_reviewed_at >= 本周一 00:00）\n    today_reviews   今日待回顾（next_review_at <= 当前时间）\n    ai_messages     AI 对话消息数（ChatMessage 无 user_id，JOIN chat_sessions）\n    kb_docs         知识库文档数（MD5 记录数）\n- heatmap: 近 365 天每日笔记数 {\"2026-08-26\": 3}\n- trend:   近 30 天每日写作字数 [{\"date\": \"2026-08-26\", \"chars\": 128}]\n- categories: 分类计数 [{\"category\": \"work\", \"count\": 5}]（不含未分类）\n- uncategorized: 未分类笔记数",
+        "operationId": "get_dashboard_stats_stats_dashboard_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/stats/leaderboard": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "Get Leaderboard",
+        "description": "排行榜（方向 C 一期）：\n- writing: 本周写作字数 Top 10（按 created_at >= 本周一 的 CHAR_LENGTH 合计）\n- review: 本周回顾次数 Top 10（按 last_reviewed_at >= 本周一 计数）\n每项含 username/avatar。",
+        "operationId": "get_leaderboard_stats_leaderboard_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/share/{note_id}": {
+      "get": {
+        "tags": [
+          "share"
+        ],
+        "summary": "Get Public Note",
+        "description": "获取公开笔记（免鉴权，无登录态）。浏览计数 +1。",
+        "operationId": "get_public_note_share__note_id__get",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/note/{note_id}": {
+      "get": {
+        "tags": [
+          "share"
+        ],
+        "summary": "Get Public Note Api",
+        "description": "公开笔记数据 API（前端分享页数据源，经 /public 代理）。",
+        "operationId": "get_public_note_api_public_note__note_id__get",
+        "parameters": [
+          {
+            "name": "note_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Note Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/plaza": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Plaza Notes",
+        "description": "知识广场：所有用户公开分享的笔记（is_public=True），按更新时间倒序。\n点击条目跳转公开分享页 /share/{id}。单机量级用 offset 分页即可。\nRedis 缓存 60 秒（方向 D 阶段一；Redis 不可用时自动降级直查）。",
+        "operationId": "plaza_notes_social_plaza_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/users/search": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Search Users",
+        "description": "按用户名/邮箱模糊搜索用户（排除自己）。",
+        "operationId": "search_users_social_users_search_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/friends/list": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Friend List",
+        "description": "好友列表（已接受）。",
+        "operationId": "friend_list_social_friends_list_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/social/friends/requests": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Friend Requests",
+        "description": "我收到的待处理好友申请。",
+        "operationId": "friend_requests_social_friends_requests_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/social/friends/request": {
+      "post": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Send Friend Request",
+        "description": "发送好友申请（自动给接收方创建通知）。",
+        "operationId": "send_friend_request_social_friends_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FriendRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/social/friends/respond": {
+      "post": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Respond Friend Request",
+        "description": "同意/拒绝好友申请（同意时通知申请方）。",
+        "operationId": "respond_friend_request_social_friends_respond_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FriendRespondIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/social/friends/{friend_id}": {
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Remove Friend",
+        "description": "删除好友（双向记录一并删除）。",
+        "operationId": "remove_friend_social_friends__friend_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "friend_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Friend Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/posts": {
+      "post": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Create Post",
+        "description": "发布动态（文字 + 图片 + 可选引用笔记）。",
+        "operationId": "create_post_social_posts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/social/posts/feed": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Post Feed",
+        "description": "好友时间线：自己 + 好友的动态（游标分页 id < cursor）。",
+        "operationId": "post_feed_social_posts_feed_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/posts/mine": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "My Posts",
+        "description": "我的动态（游标分页）。",
+        "operationId": "my_posts_social_posts_mine_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/posts/{post_id}": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Post Detail",
+        "description": "动态详情（含评论列表，作者信息）。",
+        "operationId": "post_detail_social_posts__post_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Post Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Delete Post",
+        "description": "删除自己的动态（级联清理点赞与评论）。",
+        "operationId": "delete_post_social_posts__post_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Post Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/posts/{post_id}/like": {
+      "post": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Toggle Like",
+        "description": "点赞/取消点赞（切换），点赞时通知作者。",
+        "operationId": "toggle_like_social_posts__post_id__like_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Post Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/posts/{post_id}/comments": {
+      "post": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Add Comment",
+        "description": "评论动态（评论时通知作者）。",
+        "operationId": "add_comment_social_posts__post_id__comments_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Post Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/posts/comments/{comment_id}": {
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Delete Comment",
+        "description": "删除自己的评论。",
+        "operationId": "delete_comment_social_posts_comments__comment_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/notifications": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "List Notifications",
+        "description": "我的通知列表（含触发者信息，倒序）。",
+        "operationId": "list_notifications_social_notifications_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/notifications/unread-count": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Unread Count",
+        "description": "未读通知数（侧边栏红点）。",
+        "operationId": "unread_count_social_notifications_unread_count_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/social/notifications/read": {
+      "post": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Mark All Read",
+        "description": "全部标记为已读。",
+        "operationId": "mark_all_read_social_notifications_read_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/social/users/{target_id}/profile": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "User Profile",
+        "description": "公开个人主页：资料 + 统计 + 成就 + 关注关系（任意登录用户可看）。",
+        "operationId": "user_profile_social_users__target_id__profile_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Target Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/users/{target_id}/follow": {
+      "post": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Follow User",
+        "description": "关注用户（幂等；不能关注自己；通知被关注方）。",
+        "operationId": "follow_user_social_users__target_id__follow_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Target Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "social"
+        ],
+        "summary": "Unfollow User",
+        "description": "取消关注。",
+        "operationId": "unfollow_user_social_users__target_id__follow_delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Target Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/users/{target_id}/followers": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "User Followers",
+        "description": "粉丝列表。",
+        "operationId": "user_followers_social_users__target_id__followers_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Target Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/users/{target_id}/following": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "User Following",
+        "description": "关注列表。",
+        "operationId": "user_following_social_users__target_id__following_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Target Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/social/users/{target_id}/public-notes": {
+      "get": {
+        "tags": [
+          "social"
+        ],
+        "summary": "User Public Notes",
+        "description": "某用户的公开笔记列表（复用广场结构）。",
+        "operationId": "user_public_notes_social_users__target_id__public_notes_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "target_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Target Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 10,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/": {
@@ -641,7 +4004,11 @@
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           }
         }
       }
@@ -655,19 +4022,28 @@
             "name": "name",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "title": "Name" }
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Successful Response",
-            "content": { "application/json": { "schema": {} } }
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -677,75 +4053,339 @@
   },
   "components": {
     "schemas": {
+      "AssistRequest": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "default": "continue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "AssistRequest",
+        "description": "写作辅助请求模型"
+      },
+      "AutocompleteRequest": {
+        "properties": {
+          "context": {
+            "type": "string",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "context"
+        ],
+        "title": "AutocompleteRequest",
+        "description": "内联补全请求模型"
+      },
+      "BatchCategoryRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids",
+          "category"
+        ],
+        "title": "BatchCategoryRequest",
+        "description": "批量更新分类请求模型"
+      },
+      "BatchIdsRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "BatchIdsRequest",
+        "description": "批量操作请求模型（按 ID 列表）"
+      },
+      "BatchPinRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids"
+          },
+          "is_pinned": {
+            "type": "boolean",
+            "title": "Is Pinned"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids",
+          "is_pinned"
+        ],
+        "title": "BatchPinRequest",
+        "description": "批量置顶请求模型"
+      },
       "Body_add_vector_multiple_knowledge_add_multiple_post": {
         "properties": {
           "files": {
-            "items": { "type": "string", "format": "binary" },
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
             "type": "array",
             "title": "Files",
             "description": "要上传的文件列表，仅支持PDF和TXT格式"
           }
         },
         "type": "object",
-        "required": ["files"],
+        "required": [
+          "files"
+        ],
         "title": "Body_add_vector_multiple_knowledge_add_multiple_post"
       },
       "Body_add_vector_multiple_stream_knowledge_add_multiple_stream_post": {
         "properties": {
           "files": {
-            "items": { "type": "string", "format": "binary" },
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
             "type": "array",
             "title": "Files",
             "description": "要上传的文件列表，仅支持PDF、TXT、MD、PPTX、DOCX格式"
           }
         },
         "type": "object",
-        "required": ["files"],
+        "required": [
+          "files"
+        ],
         "title": "Body_add_vector_multiple_stream_knowledge_add_multiple_stream_post"
       },
       "Body_add_vector_single_knowledge_add_single_post": {
         "properties": {
-          "file": { "type": "string", "format": "binary", "title": "File" }
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
         },
         "type": "object",
-        "required": ["file"],
+        "required": [
+          "file"
+        ],
         "title": "Body_add_vector_single_knowledge_add_single_post"
+      },
+      "Body_upload_file_file_upload__post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_file_file_upload__post"
+      },
+      "ChunkDetail": {
+        "properties": {
+          "chunk_id": {
+            "type": "string",
+            "title": "Chunk Id"
+          },
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "chunk_id",
+          "index",
+          "content"
+        ],
+        "title": "ChunkDetail",
+        "description": "文档切片详情（含对应图片）。\nimages 字段保存该切片所涉及的所有图片URL，前端可据此在切片旁边展示图片。"
       },
       "ChunkInfo": {
         "properties": {
-          "chunk_id": { "type": "string", "title": "Chunk Id" },
-          "index": { "type": "integer", "title": "Index" },
-          "content": { "type": "string", "title": "Content" },
+          "chunk_id": {
+            "type": "string",
+            "title": "Chunk Id"
+          },
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
           "metadata": {
             "additionalProperties": true,
             "type": "object",
             "title": "Metadata"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images",
+            "default": []
           }
         },
         "type": "object",
-        "required": ["chunk_id", "index", "content", "metadata"],
+        "required": [
+          "chunk_id",
+          "index",
+          "content",
+          "metadata"
+        ],
         "title": "ChunkInfo",
-        "description": "文档切片信息模型"
+        "description": "文档切片信息模型。\nimages 字段保存该切片关联的图片URL，前端在\"查看切片\"页面中可以按切片展示对应的图片。"
+      },
+      "ClipRequest": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "ClipRequest",
+        "description": "网页剪藏请求模型"
+      },
+      "CommentIn": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "CommentIn",
+        "description": "评论请求模型"
       },
       "DocumentChunksResponse": {
         "properties": {
-          "filename": { "type": "string", "title": "Filename" },
-          "total_chunks": { "type": "integer", "title": "Total Chunks" },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "total_chunks": {
+            "type": "integer",
+            "title": "Total Chunks"
+          },
           "chunks": {
-            "items": { "$ref": "#/components/schemas/ChunkInfo" },
+            "items": {
+              "$ref": "#/components/schemas/ChunkInfo"
+            },
             "type": "array",
             "title": "Chunks"
           }
         },
         "type": "object",
-        "required": ["filename", "total_chunks", "chunks"],
+        "required": [
+          "filename",
+          "total_chunks",
+          "chunks"
+        ],
         "title": "DocumentChunksResponse",
         "description": "文档切片列表响应模型"
+      },
+      "FriendRequestIn": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id"
+        ],
+        "title": "FriendRequestIn",
+        "description": "发送好友申请请求模型"
+      },
+      "FriendRespondIn": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "accept": {
+            "type": "boolean",
+            "title": "Accept"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "accept"
+        ],
+        "title": "FriendRespondIn",
+        "description": "响应好友申请请求模型"
       },
       "HTTPValidationError": {
         "properties": {
           "detail": {
-            "items": { "$ref": "#/components/schemas/ValidationError" },
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
             "type": "array",
             "title": "Detail"
           }
@@ -755,157 +4395,742 @@
       },
       "KnowledgeDocument": {
         "properties": {
-          "id": { "type": "string", "title": "Id" },
-          "filename": { "type": "string", "title": "Filename" },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
           "original_filename": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Original Filename"
           },
           "user_id": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "User Id"
           },
-          "chunk_count": { "type": "integer", "title": "Chunk Count" },
-          "preview": { "type": "string", "title": "Preview" },
+          "chunk_count": {
+            "type": "integer",
+            "title": "Chunk Count"
+          },
+          "preview": {
+            "type": "string",
+            "title": "Preview"
+          },
           "created_at": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Created At"
           }
         },
         "type": "object",
-        "required": ["id", "filename", "chunk_count", "preview"],
+        "required": [
+          "id",
+          "filename",
+          "chunk_count",
+          "preview"
+        ],
         "title": "KnowledgeDocument",
         "description": "知识库文档信息模型"
       },
       "KnowledgeDocumentDetail": {
         "properties": {
-          "id": { "type": "string", "title": "Id" },
-          "filename": { "type": "string", "title": "Filename" },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
           "user_id": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "User Id"
           },
-          "chunk_count": { "type": "integer", "title": "Chunk Count" },
-          "content": { "type": "string", "title": "Content" },
+          "chunk_count": {
+            "type": "integer",
+            "title": "Chunk Count"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "chunks": {
+            "items": {
+              "$ref": "#/components/schemas/ChunkDetail"
+            },
+            "type": "array",
+            "title": "Chunks",
+            "default": []
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images",
+            "default": []
+          },
           "created_at": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Created At"
           }
         },
         "type": "object",
-        "required": ["id", "filename", "chunk_count", "content"],
+        "required": [
+          "id",
+          "filename",
+          "chunk_count",
+          "content"
+        ],
         "title": "KnowledgeDocumentDetail",
-        "description": "知识库文档详情响应模型"
+        "description": "知识库文档详情响应模型。\n相比旧版本新增了 chunks（切片级详情，包含每段文本对应的图片）和 images（文档全量图片列表）字段，\n前端可以在文档详情页同时展示文本和图片。"
       },
       "KnowledgeListResponse": {
         "properties": {
           "documents": {
-            "items": { "$ref": "#/components/schemas/KnowledgeDocument" },
+            "items": {
+              "$ref": "#/components/schemas/KnowledgeDocument"
+            },
             "type": "array",
             "title": "Documents"
           },
-          "total_count": { "type": "integer", "title": "Total Count" }
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count"
+          }
         },
         "type": "object",
-        "required": ["documents", "total_count"],
+        "required": [
+          "documents",
+          "total_count"
+        ],
         "title": "KnowledgeListResponse",
         "description": "知识库文档列表响应模型"
+      },
+      "LoginRequest": {
+        "properties": {
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 6,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "LoginRequest"
       },
       "MD5ListResponse": {
         "properties": {
           "records": {
-            "items": { "$ref": "#/components/schemas/MD5Record" },
+            "items": {
+              "$ref": "#/components/schemas/MD5Record"
+            },
             "type": "array",
             "title": "Records"
           },
-          "total_count": { "type": "integer", "title": "Total Count" }
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count"
+          }
         },
         "type": "object",
-        "required": ["records", "total_count"],
+        "required": [
+          "records",
+          "total_count"
+        ],
         "title": "MD5ListResponse",
         "description": "MD5记录列表响应模型"
       },
       "MD5Record": {
         "properties": {
-          "md5": { "type": "string", "title": "Md5" },
+          "md5": {
+            "type": "string",
+            "title": "Md5"
+          },
           "filename": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Filename"
           },
           "original_filename": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Original Filename"
           },
           "upload_time": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Upload Time"
           }
         },
         "type": "object",
-        "required": ["md5"],
+        "required": [
+          "md5"
+        ],
         "title": "MD5Record",
         "description": "MD5记录模型"
+      },
+      "NoteCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "is_public": {
+            "type": "boolean",
+            "title": "Is Public",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "content"
+        ],
+        "title": "NoteCreate",
+        "description": "创建笔记请求模型"
+      },
+      "NoteTemplateCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon",
+            "default": "FileText"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "default": ""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": ""
+          },
+          "content": {
+            "type": "string",
+            "title": "Content",
+            "default": ""
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "NoteTemplateCreate",
+        "description": "创建笔记模板请求模型"
+      },
+      "NoteTemplateReorder": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "NoteTemplateReorder",
+        "description": "笔记模板重新排序请求模型"
+      },
+      "NoteTemplateUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icon"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "title": "NoteTemplateUpdate",
+        "description": "更新笔记模板请求模型"
+      },
+      "NoteUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "is_pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Pinned"
+          },
+          "is_public": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Public"
+          }
+        },
+        "type": "object",
+        "title": "NoteUpdate",
+        "description": "更新笔记请求模型（所有字段可选）"
+      },
+      "PostCreate": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "images": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Images"
+          },
+          "note_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "PostCreate",
+        "description": "发布动态请求模型"
       },
       "QueryRequest": {
         "properties": {
           "session_id": {
-            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Session Id"
           },
-          "query": { "type": "string", "title": "Query" }
+          "query": {
+            "type": "string",
+            "title": "Query"
+          }
         },
         "type": "object",
-        "required": ["query"],
+        "required": [
+          "query"
+        ],
         "title": "QueryRequest",
         "description": "查询请求模型"
       },
       "RAGRequest": {
-        "properties": { "query": { "type": "string", "title": "Query" } },
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          }
+        },
         "type": "object",
-        "required": ["query"],
+        "required": [
+          "query"
+        ],
         "title": "RAGRequest",
         "description": "RAG检索请求模型"
       },
       "RAGResponse": {
-        "properties": { "response": { "type": "string", "title": "Response" } },
+        "properties": {
+          "response": {
+            "type": "string",
+            "title": "Response"
+          }
+        },
         "type": "object",
-        "required": ["response"],
+        "required": [
+          "response"
+        ],
         "title": "RAGResponse",
         "description": "RAG检索响应模型"
       },
+      "RegisterRequest": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 6,
+            "title": "Password"
+          },
+          "confirm_password": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 6,
+            "title": "Confirm Password"
+          },
+          "telephone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telephone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "email",
+          "password",
+          "confirm_password"
+        ],
+        "title": "RegisterRequest"
+      },
       "ReorderRequest": {
         "properties": {
-          "query": { "type": "string", "title": "Query" },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
           "documents": {
-            "items": { "type": "string" },
+            "items": {
+              "type": "string"
+            },
             "type": "array",
             "title": "Documents"
           }
         },
         "type": "object",
-        "required": ["query", "documents"],
+        "required": [
+          "query",
+          "documents"
+        ],
         "title": "ReorderRequest",
         "description": "重排序请求模型"
       },
       "ReorderResponse": {
         "properties": {
           "documents": {
-            "items": { "additionalProperties": true, "type": "object" },
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
             "type": "array",
             "title": "Documents"
           }
         },
         "type": "object",
-        "required": ["documents"],
+        "required": [
+          "documents"
+        ],
         "title": "ReorderResponse",
         "description": "重排序响应模型"
       },
+      "ResetPasswordRequest": {
+        "properties": {
+          "old_password": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 6,
+            "title": "Old Password"
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 6,
+            "title": "New Password"
+          },
+          "confirm_password": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 6,
+            "title": "Confirm Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "old_password",
+          "new_password",
+          "confirm_password"
+        ],
+        "title": "ResetPasswordRequest"
+      },
       "SessionResponse": {
         "properties": {
-          "session_id": { "type": "string", "title": "Session Id" },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
           "history": {
             "items": {
-              "prefixItems": [{ "type": "string" }, { "type": "string" }],
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
               "type": "array",
               "maxItems": 2,
               "minItems": 2
@@ -915,25 +5140,186 @@
           }
         },
         "type": "object",
-        "required": ["session_id", "history"],
+        "required": [
+          "session_id",
+          "history"
+        ],
         "title": "SessionResponse",
         "description": "会话响应模型"
+      },
+      "SessionUpdateRequest": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "is_pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Pinned"
+          }
+        },
+        "type": "object",
+        "title": "SessionUpdateRequest",
+        "description": "会话更新请求：title 传 None=不改，传空字符串=清除自定义名称；is_pinned 传 None=不改"
+      },
+      "SettingsUpdateRequest": {
+        "properties": {
+          "pet_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pet Config"
+          },
+          "habit_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Habit Config"
+          }
+        },
+        "type": "object",
+        "title": "SettingsUpdateRequest",
+        "description": "云端设置更新请求：字段为 None 表示不更新"
+      },
+      "TokenRefreshRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "TokenRefreshRequest"
+      },
+      "UserUpdateRequest": {
+        "properties": {
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "telephone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telephone"
+          },
+          "avatar": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar"
+          },
+          "gender": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gender"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          }
+        },
+        "type": "object",
+        "title": "UserUpdateRequest"
       },
       "ValidationError": {
         "properties": {
           "loc": {
-            "items": { "anyOf": [{ "type": "string" }, { "type": "integer" }] },
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
             "type": "array",
             "title": "Location"
           },
-          "msg": { "type": "string", "title": "Message" },
-          "type": { "type": "string", "title": "Error Type" }
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
         },
         "type": "object",
-        "required": ["loc", "msg", "type"],
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
         "title": "ValidationError"
       }
     },
-    "securitySchemes": { "HTTPBearer": { "type": "http", "scheme": "bearer" } }
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
   }
 }

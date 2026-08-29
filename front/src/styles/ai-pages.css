@@ -177,9 +177,6 @@
 .ai-session-row.is-pinned { background: linear-gradient(90deg, var(--color-accent-surface), transparent 70%); }
 .ai-session-main { display: grid; grid-template-columns: auto minmax(0,1fr) auto auto; align-items: center; width: 100%; min-width: 0; gap: 13px; padding: 15px 118px 15px 17px; text-align: left; }
 .ai-session-icon { display: grid; place-items: center; width: 42px; height: 42px; flex-shrink: 0; border-radius: 12px; color: var(--color-accent); background: var(--color-accent-bg); }
-.ai-session-icon.tone-1 { color: var(--category-mint-text); background: var(--category-mint-bg); }
-.ai-session-icon.tone-2 { color: #3E73B9; background: #E9F2FF; }
-.ai-session-icon.tone-3 { color: var(--category-rose-text); background: var(--category-rose-bg); }
 .ai-session-copy { min-width: 0; }
 .ai-session-copy strong,.ai-session-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-session-copy strong { color: var(--color-text); font-size: 13px; font-weight: 650; }
@@ -223,7 +220,6 @@
 .dark .ai-companion-bubble { color: var(--color-text-secondary); background: #24202Edd; border-color: #ffffff14; }
 .dark .ai-sessions-hero { background: linear-gradient(120deg,#302746,#332949,#422D43); }
 .dark .ai-sessions-hero-copy > span,.dark .ai-sessions-hero p,.dark .ai-sessions-hero small { color: #C2B6D6; }
-.dark .ai-session-icon.tone-2 { color: #91BDFC; background: #26364C; }
 
 @keyframes ai-spin { to { transform: rotate(360deg); } }
 @keyframes ai-dot { 0%,100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-4px); } }
