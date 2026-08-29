@@ -1,8 +1,9 @@
 # 云舒卷（RAG Notebook）开发交接文档（给下一个 Agent）
 
-> 更新：2026-08-29（最新一轮：稳定性三件套 + PWA 化——备份脚本/错误监控/日志巡检/vite-plugin-pwa；上几轮：体验打磨四项、AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
+> 更新：2026-08-29（最新一轮：社交私聊 P0——仅好友私聊 + WebSocket 实时；上几轮：稳定性三件套 + PWA、体验打磨四项、AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
 > - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
+> - `plan/records/2026-08-29-social-chat-delivery.md` —— 社交私聊 P0 交付（好友私聊 + WebSocket 实时，含验证）
 > - `plan/records/2026-08-29-stability-pwa-delivery.md` —— 稳定性三件套 + PWA 交付（备份/错误监控/日志巡检/Service Worker，含验证）
 > - `plan/records/2026-08-29-experience-polish-delivery.md` —— 体验打磨交付（导出增强/AI 对话细节/首页周报月报/移动端抽屉，含验证）
 > - `plan/records/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
@@ -39,7 +40,7 @@
 | 会话管理 | 列表/历史/删除（**历史截断 60 条子查询倒序取 id 再正序，勿改回**）；**自定义名称 + 置顶**（`PATCH /chat/session/{id}`，custom_title 优先于自动标题，置顶排序 pinned_at 降序） | `pages/Sessions.tsx`、`api/sessions.ts`、`components/common/PromptDialog.tsx` |
 | 回顾/打卡/番茄钟 | 艾宾浩斯 + LLM 出题；streak + 每日任务；25+5 番茄钟（页宠联动） | `DailyReview/HabitPage/PomodoroPage.tsx`、`components/learning/LearningLayout.tsx` |
 | 仪表盘/图谱 | 热力图/趋势/环形图（自绘 SVG）+ 排行榜；d3-force 知识图谱（语义关联按需加载） | `StatsPage/GraphPage.tsx` |
-| 社交 | 好友/关注、动态流（图文/点赞评论）、通知红点、知识广场、个人主页成就墙 | `pages/SocialFeed/FriendsPage/NotificationsPage/PlazaPage/UserProfilePage.tsx`、`backend/app/router/social_router.py` |
+| 社交 | 好友/关注、动态流（图文/点赞评论）、通知红点、知识广场、个人主页成就墙；**好友私聊**（仅好友 403 校验、会话/历史/已读、**WebSocket 实时推送** `/ws/chat`） | `pages/SocialFeed/FriendsPage/NotificationsPage/PlazaPage/UserProfilePage/MessagesPage.tsx`、`backend/app/router/social_router.py`、`ws_router.py`、`core/ws_manager.py` |
 | 分享 | 免登录分享页 `/share/:id` + 浏览计数 | `PublicSharePage.tsx`、`share_router.py`（含 `/public` API） |
 | 页宠「小卷」 | 9 情绪、拖拽、好感度等级、形象切换、**养成数据云端同步** | `components/pet/`、`stores/usePetStore.ts`、`hooks/useSettingsSync.ts` |
 | 稳定性三件套 | **备份脚本**（MySQL dump + media + data 打包，`deploy/backup.ps1`）；**前端错误监控**（`POST /telemetry/error` 匿名可上报 + ErrorBoundary/全局 error 监听，30s 节流）；**日志巡检**（`deploy/check-logs.ps1`，ERROR/慢查询统计 + 计划任务告警） | `models/error_report.py`、`router/telemetry_router.py`、`api/telemetry.ts` |
@@ -104,6 +105,14 @@
 37. **错误上报独立 axios 实例**：不走全局拦截器——401 跳登录、429 toast 都不适合监控上报场景；前端 30s 同类节流 + 后端 30/60 限流双保险
 38. **PWA 缓存边界**：SW 只预缓存构建产物 + /media（CacheFirst 1 天）；**API 一律不缓存**（浏览器 HTTP 缓存 + ETag/304 已保证新鲜度，SW 缓存会污染数据）；`navigateFallback` 只影响 navigate 请求，API fetch 不受影响
 
+### 私聊/WebSocket 踩坑（08-29 晚）
+39. **⚠️ 表名 `chat_messages` 已被 AI 对话占用**：SQLAlchemy 报 "Table already defined"——私聊消息表必须改名（现为 `private_messages`/`PrivateMessage`）。**新表命名前先 grep 现有模型**
+40. **浏览器 WS 无法带 Authorization 头**：token 走 query（`/ws/chat?token=`，校验失败 close 4001）；注意 token 会进访问日志，公网部署建议短时 token 或接受现状
+41. **WS 心跳**：前端 30s ping / 服务端 60s 超时断开（`asyncio.wait_for`）；发送推送失败必须静默（连接失效由心跳清理，推送不能成为故障源）
+42. **vite 代理 ws 需显式 `ws: true`**：`'/ws/'` 新前缀（`'^/social/'` 正则代理没开 ws）；nginx 侧需 `map $http_upgrade` + `proxy_set_header Upgrade/Connection`（示例已补）
+43. **私聊好友校验**：复用 `_friend_ids`（双向 accepted）；非好友 403（前端在好友列表/主页 is_friend 才显示私信入口，双保险）
+44. **前端 WS 事件回调用 ref 同步**（渲染期禁写 ref 规则）：`eventsRef` 在 effect 中更新，`onMessage` 里读 `selectedPeerRef` 判断是否当前会话
+
 ## 4. 剩余任务（按优先级）
 
 ### ⚠️ 立即事项
@@ -166,6 +175,12 @@
 - **日志巡检**：`deploy/check-logs.ps1`（ERROR/WARN/慢查询统计 + 最慢 5 条 + 错误样例 + -FailOnErrors 告警退出码；实测 24h 178 ERROR/498 WARN）
 - **PWA**：vite-plugin-pwa 1.3.0（manifest + SW + /media CacheFirst；API 不缓存与 ETag 协同）；⚠️ build 需本机验证（沙箱 spawn EPERM）
 
+**⑩ 社交私聊 P0（08-29 晚，全部验证）**：详见 `plan/records/2026-08-29-social-chat-delivery.md` 与 `plan/roadmap/2026-08-29-social-messaging-plan.md`
+- **仅好友私聊**：`chat_conversations`（归一化配对 UNIQUE）+ `private_messages`（游标分页）；REST 六接口（会话列表/历史/发送/已读/未读总数/profile is_friend）；非好友 403 + 敏感词拦截
+- **WebSocket 实时**：`/ws/chat?token=` + `ws_manager` 连接管理；message/read/unread 三类推送；30s 心跳/60s 超时；离线落库重连补拉
+- **前端**：`useChatSocket`（指数退避重连）+ `MessagesPage`（会话列表/聊天窗/已读状态/移动端两栏）+ Sidebar 私信入口与未读徽标（WS 即时 + 30s 轮询兜底）+ 好友列表/主页私信入口
+- **验证**：探针 15 项 ALL PASS（websockets 客户端实测推送/已读/分页/敏感词/非法 token）；nginx 示例补 WS upgrade；⚠️ 双账号实时互聊需本机验证
+
 ### 🔜 待办（按触发条件）
 | 项 | 触发条件 | 参考 |
 | --- | --- | --- |
@@ -179,6 +194,10 @@
 | ~~导出增强 / AI 对话细节 / 移动端响应式~~（**已完成 08-29**） | — | `plan/records/2026-08-29-experience-polish-delivery.md` |
 | ~~稳定性三项（备份/错误监控/日志巡检）~~（**已完成 08-29**，备份与巡检脚本在 `deploy/`，建议挂计划任务） | — | `plan/records/2026-08-29-stability-pwa-delivery.md` |
 | ~~PWA 化~~（**已完成 08-29**，⚠️ 待本机 `npm run build` 验证 SW） | — | `plan/records/2026-08-29-stability-pwa-delivery.md` |
+| ~~社交私聊 P0~~（**已完成 08-29**，⚠️ 双账号实时互聊待本机验证） | — | `plan/records/2026-08-29-social-chat-delivery.md` |
+| 社交 P1：动态收藏/@提及/图片查看器/动态编辑 | 有空（约 1 天） | `plan/roadmap/2026-08-29-social-messaging-plan.md` |
+| 社交 P2：好友备注名/拉黑/已读回执完善 | 按需 | `plan/roadmap/2026-08-29-social-messaging-plan.md` |
+| 社交 P3：群聊/图片语音消息/消息搜索 | 远期 | `plan/roadmap/2026-08-29-social-messaging-plan.md` |
 
 ## 5. 设计约定（新体系）
 

@@ -5,7 +5,14 @@
 #   2. 将本文件按需修改后放入 nginx conf.d/（如 /etc/nginx/conf.d/ragnotebook.conf）
 #   3. nginx -t 校验后 nginx -s reload
 #
-# 说明：后端 8000 为 uvicorn 多 worker（见 backend/start_prod.ps1）
+# 说明：后端 8000 为 uvicorn 多 worker（见 backend/start_prod.ps1）；
+#       WebSocket（私聊 /ws/chat）依赖 http 模块的 map 指令（见下方 http 上下文）
+
+# ── http 上下文（放在 nginx.conf 的 http { } 内）：WebSocket 升级判定 ──
+# map $http_upgrade $connection_upgrade {
+#     default upgrade;
+#     ''      close;
+# }
 
 server {
     listen 80;
@@ -47,6 +54,17 @@ server {
         proxy_read_timeout 120s;                # SSE 流式对话需要较长超时
         proxy_buffering off;                    # SSE 必须关闭缓冲
         proxy_cache off;
+    }
+
+    # 私聊 WebSocket（/ws/chat，需 http 上下文的 map 指令）
+    location /ws/ {
+        proxy_pass http://127.0.0.1:8000/ws/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;     # WebSocket 升级
+        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 300s;                    # 心跳 30s，读超时放宽
     }
 
     # 公开分享页数据 API（/public/note/{id}）
