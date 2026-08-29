@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, Bell, BookOpen, Check, ChevronRight, Circle, FileText, Flame, Heart, Library, Network, Plus, RefreshCw, Search, Settings, Sparkles, Upload, X } from 'lucide-react'
+import { ArrowRight, Bell, BookOpen, Check, ChevronRight, Circle, Cloud, FileText, Flame, Heart, Library, Network, Plus, RefreshCw, Search, Settings, Sparkles, Upload, X } from 'lucide-react'
 import { notesApi } from '../api/notes'
 import { knowledgeApi } from '../api/knowledge'
 import { reviewApi } from '../api/review'
@@ -34,6 +34,8 @@ export default function Dashboard() {
   const english = i18n.resolvedLanguage?.startsWith('en')
   const text = (zh: string, en: string) => english ? en : zh
   const user = useUserStore((s) => s.userInfo)
+  const petVisible = usePetStore((s) => s.visible)
+  const setPetVisible = usePetStore((s) => s.setVisible)
   const nickname = usePetStore((s) => s.nickname)
   const affection = usePetStore((s) => s.affection)
   const characterId = usePetStore((s) => s.characterId)
@@ -139,7 +141,7 @@ export default function Dashboard() {
         <button className="dashboard-search" onClick={() => window.dispatchEvent(new Event('open-command-palette'))}>
           <Search size={18} /><span>{text('搜索笔记，或快速前往你的知识空间…', 'Search notes or jump to your workspace…')}</span><kbd>⌘ K</kbd>
         </button>
-        <div className="dashboard-top-actions"><Link to="/notifications" className="dashboard-icon-button" aria-label={text('通知', 'Notifications')}><Bell size={21} /></Link><Link to="/profile" className="dashboard-profile" aria-label={text('个人信息', 'Profile')}>{user?.avatar ? <AuthImage src={user.avatar} alt={user.username || ''} className="w-full h-full object-cover" /> : (user?.username?.slice(0, 1) || <CloudAvatar />)}</Link></div>
+        <div className="dashboard-top-actions"><button className="workspace-icon-button" aria-label={text(petVisible ? '隐藏页宠' : '显示页宠', petVisible ? 'Hide companion' : 'Show companion')} title={text(petVisible ? '隐藏页宠' : '显示页宠', petVisible ? 'Hide companion' : 'Show companion')} aria-pressed={petVisible} onClick={() => setPetVisible(!petVisible)}><Cloud size={20} /></button><Link to="/notifications" className="dashboard-icon-button" aria-label={text('通知', 'Notifications')}><Bell size={21} /></Link><Link to="/profile" className="dashboard-profile" aria-label={text('个人信息', 'Profile')}>{user?.avatar ? <AuthImage src={user.avatar} alt={user.username || ''} className="w-full h-full object-cover" /> : (user?.username?.slice(0, 1) || <CloudAvatar />)}</Link></div>
       </header>
 
       {failed && <div className="dashboard-error" role="alert">{failed === 'rate' ? text('请求过于频繁，请稍后再试。', 'Too many requests, please try again later.') : text('部分数据暂时未能加载，其他功能可以正常使用。', 'Some data could not be loaded. Your other tools are still available.')}<button disabled={loading} onClick={() => { setLoading(true); setReload((value) => value + 1) }}><RefreshCw size={14} />{text('重试', 'Retry')}</button></div>}
