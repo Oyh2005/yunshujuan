@@ -82,7 +82,9 @@ async function run() {
 
   try {
     await page.goto(base + '/chat')
-    await page.getByRole('heading', { name: 'AI 助手', exact: true }).waitFor()
+    await page.locator('.ai-chat-layout').waitFor()
+    assert.equal(await page.locator('.ai-page-header').count(), 0)
+    assert.equal(await page.getByRole('heading', { name: 'AI 助手', exact: true }).count(), 0)
     await page.locator('.pet-root').waitFor()
     await page.locator('.ai-recent-item').first().waitFor()
     assert.equal(await page.locator('.ai-recent-item').count(), 6)
@@ -116,7 +118,8 @@ async function run() {
 
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto(base + '/chat')
-    await page.getByRole('heading', { name: 'AI 助手', exact: true }).waitFor()
+    await page.locator('.ai-chat-layout').waitFor()
+    assert.equal(await page.locator('.ai-page-header').count(), 0)
     await noOverflow()
     await page.screenshot({ path: path.join(output, 'chat-mobile.png'), fullPage: true, animations: 'disabled' })
     await page.goto(base + '/sessions')

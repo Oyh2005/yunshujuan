@@ -433,24 +433,25 @@ ${body}
 
   if (showTemplatePicker) {
     return (
-      <div className="h-full flex flex-col bg-[var(--color-bg)]">
-        <header className="flex items-center flex-shrink-0 h-11 px-6 border-b border-[var(--color-border-light)]">
+      <div className="note-authoring-page note-template-picker h-full flex flex-col bg-[var(--color-bg)]">
+        <header className="note-authoring-topbar note-template-picker-topbar flex items-center flex-shrink-0 h-11 px-6 border-b border-[var(--color-border-light)]">
           <button
             onClick={() => navigate('/notes')}
-            className="flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] rounded-lg transition-colors"
+            className="note-authoring-back flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] rounded-lg transition-colors"
+            aria-label="返回笔记列表"
           >
             <ArrowLeft size={18} />
           </button>
-          <span className="ml-3 text-sm font-medium text-[var(--color-text)]">选择笔记模板</span>
+          <span className="note-template-picker-title ml-3 text-sm font-medium text-[var(--color-text)]">选择笔记模板</span>
           <button
             onClick={() => setShowTemplateManager(true)}
-            className="secondary-button"
+            className="note-template-manage secondary-button"
           >
             管理模板
           </button>
         </header>
-        <div className="flex-1 overflow-auto p-8">
-          <div className="max-w-2xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="note-template-content flex-1 overflow-auto p-8">
+          <div className="note-template-grid max-w-2xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4">
             {templates?.map((tpl) => {
               const Icon = ICON_MAP[tpl.icon] || FileText
               return (
@@ -458,16 +459,16 @@ ${body}
                   key={tpl.id}
                   aria-label={`使用模板：${tpl.name}`}
                   onClick={() => applyTemplate(tpl)}
-                  className="flex min-w-0 flex-col items-start p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] hover:border-[var(--color-accent)] hover:shadow-sm transition-all text-left group"
+                  className="note-template-card flex min-w-0 flex-col items-start p-5 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] hover:border-[var(--color-accent)] hover:shadow-sm transition-all text-left group"
                 >
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="w-9 h-9 rounded-lg bg-[var(--color-bg-secondary)] flex items-center justify-center text-[var(--color-text-secondary)] group-hover:text-[var(--color-accent)] group-hover:bg-[var(--color-accent-bg)] transition-colors">
+                    <div className="note-template-card-icon w-9 h-9 rounded-lg bg-[var(--color-bg-secondary)] flex items-center justify-center text-[var(--color-text-secondary)] group-hover:text-[var(--color-accent)] group-hover:bg-[var(--color-accent-bg)] transition-colors">
                       <Icon size={18} />
                     </div>
-                    <span className="text-sm font-medium text-[var(--color-text)]">{tpl.name}</span>
+                    <span className="note-template-card-name text-sm font-medium text-[var(--color-text)]">{tpl.name}</span>
                   </div>
                   {tpl.category && (
-                    <span className="text-xs text-[var(--color-text-tertiary)]">{CATEGORY_LABEL_MAP[tpl.category] || tpl.category}</span>
+                    <span className="note-template-card-category text-xs text-[var(--color-text-tertiary)]">{CATEGORY_LABEL_MAP[tpl.category] || tpl.category}</span>
                   )}
                   {tpl.content && (
                     <TemplatePreview content={tpl.content} />
@@ -480,8 +481,8 @@ ${body}
 
         {showTemplateManager && (
           <>
-            <div className="fixed inset-0 bg-black/40 z-50" onClick={() => { setShowTemplateManager(false); setEditingTemplate(null); setShowNewTemplateForm(false) }} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[var(--color-card)] rounded-lg shadow-xl w-[600px] max-w-[90vw] max-h-[80vh] flex flex-col">
+            <div className="note-authoring-backdrop fixed inset-0 bg-black/40 z-50" onClick={() => { setShowTemplateManager(false); setEditingTemplate(null); setShowNewTemplateForm(false) }} />
+            <div className="note-authoring-dialog note-template-manager fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[var(--color-card)] rounded-lg shadow-xl w-[600px] max-w-[90vw] max-h-[80vh] flex flex-col">
               <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
                 <h3 className="text-base font-medium text-[var(--color-text)]">管理模板</h3>
                 <div className="flex items-center gap-2">
@@ -629,12 +630,12 @@ ${body}
   }
 
   return (
-    <div className="h-full flex flex-col bg-[var(--color-bg)]">
+    <div className="note-authoring-page note-writing-page h-full flex flex-col bg-[var(--color-bg)]">
       {/* ====== Top bar ====== */}
-      <header className="flex items-center justify-between flex-shrink-0 h-11 px-6 border-b border-[var(--color-border-light)]">
+      <header className="note-authoring-topbar note-writing-topbar flex items-center justify-between flex-shrink-0 h-11 px-6 border-b border-[var(--color-border-light)]">
         <button
           onClick={() => navigate('/notes')}
-          className="flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] rounded-lg transition-colors"
+          className="note-authoring-back flex items-center justify-center w-8 h-8 text-[var(--color-text-tertiary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] rounded-lg transition-colors"
           title="返回"
         >
           <ArrowLeft size={18} />
@@ -644,7 +645,7 @@ ${body}
           <span className="text-xs text-[var(--color-text-tertiary)] ml-3 select-none">草稿已保存</span>
         )}
 
-        <div className="flex items-center gap-1">
+        <div className="note-writing-actions flex items-center gap-1">
           <button
             onClick={() => setShowOutline((v) => !v)}
             className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${
@@ -753,7 +754,7 @@ ${body}
           <button
             onClick={handleSave}
             disabled={saving}
-            className="primary-button"
+            className="note-writing-save primary-button"
           >
             <Save size={15} />
             {saving ? '保存中' : t('note.save')}
@@ -761,36 +762,36 @@ ${body}
         </div>
       </header>
 
-      <div className="flex-1 flex min-h-0">
+      <div className="note-writing-body flex-1 flex min-h-0">
         <OutlinePanel
           content={content}
           open={showOutline}
           onClose={() => setShowOutline(false)}
           onHeadingClick={(text, level) => editorRef.current?.scrollToHeading(text, level)}
         />
-        <div className="flex flex-col flex-1 min-w-0">
+        <div className="note-writing-document flex flex-col flex-1 min-w-0">
           {/* ====== Title ====== */}
-          <div className="flex-shrink-0 px-10 pt-10 pb-4">
+          <div className="note-writing-title flex-shrink-0 px-10 pt-10 pb-4">
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="未命名笔记"
-              className="w-full text-[30px] font-bold font-heading leading-tight tracking-tight text-[var(--color-text)] bg-transparent border-none outline-none placeholder:text-[var(--color-text-placeholder)]"
+              className="note-writing-title-input w-full text-[30px] font-bold font-heading leading-tight tracking-tight text-[var(--color-text)] bg-transparent border-none outline-none placeholder:text-[var(--color-text-placeholder)]"
             />
           </div>
 
           {/* ====== Category pills + Tags ====== */}
-          <div className="flex-shrink-0 px-10 pb-6">
+          <div className="note-writing-meta flex-shrink-0 px-10 pb-6">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1">
+              <div className="note-writing-categories flex items-center gap-1">
                 {CATEGORIES.map((cat) => (
                   <button
                     key={cat.value}
                     onClick={() => setCategory(category === cat.value ? '' : cat.value)}
-                    className={`px-3 py-1 text-xs rounded-full font-medium transition-all ${
+                    className={`note-writing-category px-3 py-1 text-xs rounded-full font-medium transition-all ${
                       category === cat.value
-                        ? 'bg-[var(--color-accent)] text-[var(--color-accent-foreground)] shadow-sm'
+                        ? 'is-active bg-[var(--color-accent)] text-[var(--color-accent-foreground)] shadow-sm'
                         : 'bg-[var(--color-bg-secondary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]'
                     }`}
                   >
@@ -798,14 +799,14 @@ ${body}
                   </button>
                 ))}
               </div>
-              <div className="flex-1 min-w-[180px]">
+              <div className="note-writing-tags flex-1 min-w-[180px]">
                 <TagInput tags={tags} onChange={setTags} placeholder="添加标签..." />
               </div>
             </div>
           </div>
 
           {/* ====== Crepe WYSIWYG Editor ====== */}
-          <div className="flex-1 min-h-0">
+          <div className="note-writing-editor flex-1 min-h-0">
             <TiptapEditor
               ref={editorRef}
               key={id || 'new'}
@@ -851,8 +852,8 @@ ${body}
       {/* 公开分享弹窗 */}
       {shareOpen && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-50" onClick={() => !sharing && setShareOpen(false)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[var(--color-card)] rounded-lg shadow-xl p-6 w-[480px] max-w-[90vw] border border-[var(--color-border)]">
+          <div className="note-authoring-backdrop fixed inset-0 bg-black/40 z-50" onClick={() => !sharing && setShareOpen(false)} />
+          <div className="note-authoring-dialog note-share-dialog fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[var(--color-card)] rounded-lg shadow-xl p-6 w-[480px] max-w-[90vw] border border-[var(--color-border)]">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-medium text-[var(--color-text)] flex items-center gap-2">
                 <ExternalLink size={16} className="text-[var(--color-accent)]" />
@@ -944,8 +945,8 @@ ${body}
 
       {showSaveAsTemplate && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-50" onClick={() => setShowSaveAsTemplate(false)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[var(--color-card)] rounded-lg shadow-xl p-6 w-[400px] max-w-[90vw]">
+          <div className="note-authoring-backdrop fixed inset-0 bg-black/40 z-50" onClick={() => setShowSaveAsTemplate(false)} />
+          <div className="note-authoring-dialog note-save-template-dialog fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[var(--color-card)] rounded-lg shadow-xl p-6 w-[400px] max-w-[90vw]">
             <h3 className="text-base font-medium text-[var(--color-text)] mb-4">保存为模板</h3>
             <input
               type="text"

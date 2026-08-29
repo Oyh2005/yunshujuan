@@ -2,18 +2,21 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Users, Search, UserPlus, UserCheck, X, Trash2, Loader2, Inbox } from 'lucide-react'
+import { Search, UserPlus, UserCheck, X, Trash2, Loader2, Inbox, ChevronRight, MessageSquare, Contact } from 'lucide-react'
 import { socialApi } from '../api/social'
 import type { FriendRequestItem, SocialUser } from '../types/api'
-import { FadeIn } from '../components/common/motion'
 import ConfirmDialog from '../components/common/ConfirmDialog'
+import SocialLayout, { SocialAvatar, SocialHeader, SocialPetCard } from '../components/social/SocialLayout'
 
 export default function FriendsPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const english = i18n.resolvedLanguage?.startsWith('en')
+  const text = (zh: string, en: string) => english ? en : zh
   const navigate = useNavigate()
   const [friends, setFriends] = useState<SocialUser[]>([])
   const [requests, setRequests] = useState<FriendRequestItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
 
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
@@ -30,9 +33,13 @@ export default function FriendsPage() {
         if (cancelled) return
         setFriends(f.data ?? [])
         setRequests(r.data ?? [])
+        setLoadFailed(false)
       })
       .catch(() => {
-        if (!cancelled) toast.error(t('common.error'))
+        if (!cancelled) {
+          setLoadFailed(true)
+          toast.error(t('common.error'))
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -105,155 +112,81 @@ export default function FriendsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-6">
-      <FadeIn>
-        <h1 className="font-heading text-xl font-semibold text-[var(--color-text)] flex items-center gap-2 mb-6">
-          <Users size={22} className="text-[var(--color-accent)]" />
-          {t('friends.title')}
-        </h1>
-
-        {/* 搜索用户 */}
-        <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-4 mb-5">
-          <div className="flex items-center gap-2">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
-              placeholder={t('friends.searchPlaceholder')}
-              className="flex-1 px-3 py-2 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text)] placeholder:text-[var(--color-text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-            />
-            <button
-              onClick={handleSearch}
-              disabled={searching || !query.trim()}
-              className="primary-button"
-            >
-              {searching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-              {t('friends.search')}
-            </button>
-          </div>
-          {searched && (
-            <div className="mt-3 space-y-1">
-              {results.length === 0 ? (
-                <p className="py-4 text-center text-xs text-[var(--color-text-tertiary)]">{t('friends.noResults')}</p>
-              ) : (
-                results.map((u) => (
-                  <div key={u.user_id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--color-bg-secondary)] transition-colors">
-                    <UserPlus size={18} className="text-[var(--color-text-tertiary)] shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-[var(--color-text)]">{u.username}</p>
-                      {u.bio && <p className="text-xs text-[var(--color-text-tertiary)] truncate">{u.bio}</p>}
-                    </div>
-                    <button
-                      onClick={() => handleSendRequest(u.user_id)}
-                      disabled={busyId === u.user_id}
-                      className="px-3 h-7 text-xs rounded-md border border-[var(--color-accent)] text-[var(--color-accent)] hover:bg-[var(--color-accent-bg)] disabled:opacity-50 transition-colors shrink-0"
-                    >
-                      {busyId === u.user_id ? t('common.loading') : t('friends.add')}
-                    </button>
-                  </div>
-                ))
-              )}
+    <SocialLayout className="social-friends-page">
+      <SocialHeader title={text('我的好友', 'My friends')} subtitle={text('和志同道合的人一起分享、学习与成长', 'Share, learn, and grow with people who inspire you')} />
+      <div className="social-friends-layout">
+        <main className="social-friends-main">
+          <section className="social-card social-friends-hero">
+            <div className="social-friends-hero-copy">
+              <h2>{text('知识因为交流而', 'Knowledge grows')}<em>{text('更有温度', ' warmer through connection')}</em></h2>
+              <p>{text('找到伙伴，让彼此的灵感发生连接', 'Find companions and connect your ideas')}</p>
+              <div className="social-friends-stats">
+                <div className="social-friends-stat"><span><Contact size={18} /></span><small>{t('friends.myFriends')}</small><strong>{friends.length}</strong></div>
+                <div className="social-friends-stat"><span><UserPlus size={18} /></span><small>{t('friends.requests')}</small><strong>{requests.length}</strong></div>
+              </div>
             </div>
-          )}
-        </div>
+            <img src="/illustrations/study-cloud.png" alt="" />
+          </section>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 size={22} className="animate-spin text-[var(--color-text-tertiary)]" />
-          </div>
-        ) : (
-          <>
-            {/* 收到的申请 */}
-            <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-4 mb-5">
-              <h2 className="text-sm font-medium text-[var(--color-text)] mb-3">
-                {t('friends.requests')}
-                {requests.length > 0 && (
-                  <span className="ml-1.5 text-xs text-[var(--color-text-tertiary)]">({requests.length})</span>
-                )}
-              </h2>
-              {requests.length === 0 ? (
-                <p className="py-3 text-center text-xs text-[var(--color-text-tertiary)] flex items-center justify-center gap-1.5">
-                  <Inbox size={13} /> {t('friends.noRequests')}
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {requests.map((r) => (
-                    <div key={r.request_id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border-light)]">
-                      <UserPlus size={18} className="text-[var(--color-accent)] shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-[var(--color-text)]">{r.username}</p>
-                        <p className="text-[11px] text-[var(--color-text-tertiary)]">{t('friends.wantsToAdd')}</p>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={() => handleRespond(r.request_id, true)}
-                          disabled={busyId === r.request_id}
-                          className="p-2 rounded-lg bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:opacity-90 disabled:opacity-50"
-                          title={t('friends.accept')}
-                        >
-                          {busyId === r.request_id ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
-                        </button>
-                        <button
-                          onClick={() => handleRespond(r.request_id, false)}
-                          disabled={busyId === r.request_id}
-                          className="p-2 rounded-lg border border-[var(--color-border)] text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)] disabled:opacity-50"
-                          title={t('friends.reject')}
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+          <section className="social-card social-search-card">
+            <div className="social-card-heading"><h2>{text('查找新朋友', 'Find new friends')}</h2></div>
+            <div className="social-search-row">
+              <label className="social-search-field"><Search size={16} /><input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }} placeholder={t('friends.searchPlaceholder')} /></label>
+              <button onClick={handleSearch} disabled={searching || !query.trim()} className="social-search-button">{searching ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}{t('friends.search')}</button>
+            </div>
+            {searched && <div className="social-search-results">
+              {results.length === 0 ? <div className="social-empty"><Search size={22} /><p>{t('friends.noResults')}</p></div> : results.map((user) => (
+                <div key={user.user_id} className="social-user-row">
+                  <SocialAvatar username={user.username} avatar={user.avatar} size={38} />
+                  <div className="social-user-copy"><strong>{user.username}</strong>{user.bio && <small>{user.bio}</small>}</div>
+                  <button onClick={() => handleSendRequest(user.user_id)} disabled={busyId === user.user_id} className="social-add-button">{busyId === user.user_id ? t('common.loading') : t('friends.add')}</button>
                 </div>
-              )}
-            </div>
+              ))}
+            </div>}
+          </section>
 
-            {/* 好友列表 */}
-            <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-4">
-              <h2 className="text-sm font-medium text-[var(--color-text)] mb-3">
-                {t('friends.myFriends')}
-                <span className="ml-1.5 text-xs text-[var(--color-text-tertiary)]">({friends.length})</span>
-              </h2>
-              {friends.length === 0 ? (
-                <p className="py-3 text-center text-xs text-[var(--color-text-tertiary)]">{t('friends.empty')}</p>
-              ) : (
-                <div className="space-y-2">
-                  {friends.map((f) => (
-                    <div key={f.user_id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border-light)]">
-                      <UserCheck size={18} className="text-[var(--color-success)] shrink-0" />
-                      <button
-                        onClick={() => navigate(`/user/${f.user_id}`)}
-                        className="min-w-0 flex-1 text-left hover:opacity-80 transition-opacity"
-                      >
-                        <p className="text-sm text-[var(--color-text)]">{f.username}</p>
-                        {f.bio && <p className="text-xs text-[var(--color-text-tertiary)] truncate">{f.bio}</p>}
-                      </button>
-                      <button
-                        onClick={() => setRemoveTarget(f)}
-                        disabled={busyId === f.user_id}
-                        className="p-2 rounded-lg text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger-bg)] disabled:opacity-50 transition-colors shrink-0"
-                        title={t('friends.remove')}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
+          <section className="social-card social-friend-list-card">
+            <div className="social-card-heading"><h2>{t('friends.myFriends')}</h2><small>{friends.length} {text('位', 'total')}</small></div>
+            {loading ? <div className="social-loading"><Loader2 size={22} />{t('common.loading')}</div> : loadFailed ? <div className="social-inline-error"><p>{text('好友数据暂时加载失败', 'Friends could not be loaded')}</p></div> : friends.length === 0 ? <div className="social-empty"><Contact size={26} /><p>{t('friends.empty')}</p></div> : (
+              <div className="social-friend-grid">{friends.map((friend) => (
+                <article key={friend.user_id} className="social-friend-card">
+                  <SocialAvatar username={friend.username} avatar={friend.avatar} size={42} />
+                  <button onClick={() => navigate(`/user/${friend.user_id}`)} className="social-friend-open"><strong>{friend.username}</strong><small>{friend.bio || text('查看公开主页', 'View public profile')}</small></button>
+                  <ChevronRight size={15} />
+                  <button onClick={() => setRemoveTarget(friend)} disabled={busyId === friend.user_id} className="social-friend-remove" title={t('friends.remove')} aria-label={t('friends.remove')}><Trash2 size={13} /></button>
+                </article>
+              ))}</div>
+            )}
+          </section>
+        </main>
+
+        <aside className="social-friends-rail">
+          <section className="social-card social-request-card">
+            <div className="social-card-heading"><h2>{t('friends.requests')}</h2>{requests.length > 0 && <span className="social-request-count">{requests.length}</span>}</div>
+            {loading ? <div className="social-loading"><Loader2 size={20} /></div> : requests.length === 0 ? <div className="social-empty"><Inbox size={24} /><p>{t('friends.noRequests')}</p></div> : requests.map((request) => (
+              <div key={request.request_id} className="social-request-row">
+                <SocialAvatar username={request.username} avatar={request.avatar} size={40} />
+                <div className="social-user-copy"><strong>{request.username}</strong><small>{t('friends.wantsToAdd')}</small></div>
+                <div className="social-request-actions">
+                  <button onClick={() => handleRespond(request.request_id, true)} disabled={busyId === request.request_id} title={t('friends.accept')} aria-label={t('friends.accept')}>{busyId === request.request_id ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}</button>
+                  <button onClick={() => handleRespond(request.request_id, false)} disabled={busyId === request.request_id} title={t('friends.reject')} aria-label={t('friends.reject')}><X size={14} /></button>
                 </div>
-              )}
+              </div>
+            ))}
+          </section>
+          <section className="social-card social-tips-card">
+            <h2>{text('好友小贴士', 'Friend tips')}</h2>
+            <div className="social-tips-list">
+              <div className="social-tip"><span className="social-tip-icon blue"><Contact size={17} /></span>{text('点击好友可查看公开主页', 'Open a friend to view their public profile')}</div>
+              <div className="social-tip"><span className="social-tip-icon mint"><MessageSquare size={17} /></span>{text('好友动态会出现在动态页', 'Friends’ posts appear in your feed')}</div>
+              <div className="social-tip"><span className="social-tip-icon rose"><Trash2 size={17} /></span>{text('可以随时移除好友', 'You can remove a friend at any time')}</div>
             </div>
-          </>
-        )}
+          </section>
+          <SocialPetCard title={text('小卷也认识新朋友啦', 'Xiao Juan loves new friends')} message={text('一起交流，会发现更多有趣的想法～', 'Connect and discover more interesting ideas~')} />
+        </aside>
+      </div>
 
-        <ConfirmDialog
-          open={!!removeTarget}
-          onOpenChange={() => setRemoveTarget(null)}
-          title={t('friends.removeTitle')}
-          message={t('friends.removeConfirm', { username: removeTarget?.username ?? '' })}
-          variant="danger"
-          confirmText={t('friends.remove')}
-          onConfirm={handleRemove}
-        />
-      </FadeIn>
-    </div>
+      <ConfirmDialog open={!!removeTarget} onOpenChange={() => setRemoveTarget(null)} title={t('friends.removeTitle')} message={t('friends.removeConfirm', { username: removeTarget?.username ?? '' })} variant="danger" confirmText={t('friends.remove')} onConfirm={handleRemove} />
+    </SocialLayout>
   )
 }

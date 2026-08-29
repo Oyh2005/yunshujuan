@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
-  Rss,
   Heart,
   MessageCircle,
   Trash2,
@@ -15,13 +14,18 @@ import {
   Search,
   Quote,
   ShieldAlert,
+  Bell,
+  ChevronRight,
+  Lightbulb,
+  PenLine,
+  Users,
 } from 'lucide-react'
 import { socialApi } from '../api/social'
 import { notesApi } from '../api/notes'
 import client from '../api/client'
 import type { Note, Post, PostDetail } from '../types/api'
-import { FadeIn } from '../components/common/motion'
 import ConfirmDialog from '../components/common/ConfirmDialog'
+import SocialLayout, { SocialAvatar, SocialHeader, SocialPetCard } from '../components/social/SocialLayout'
 import { usePetStore } from '../stores/usePetStore'
 import { useUserStore } from '../stores/useUserStore'
 
@@ -34,31 +38,15 @@ function formatTime(iso: string | null): string {
     : d.toLocaleDateString()
 }
 
-function Avatar({ username, avatar, size = 36 }: { username: string; avatar: string | null; size?: number }) {
-  return avatar ? (
-    <img
-      src={avatar}
-      alt={username}
-      loading="lazy"
-      className="rounded-full object-cover shrink-0"
-      style={{ width: size, height: size }}
-    />
-  ) : (
-    <div
-      className="rounded-full bg-[var(--color-accent-bg)] text-[var(--color-accent)] font-medium flex items-center justify-center shrink-0"
-      style={{ width: size, height: size, fontSize: size * 0.42 }}
-    >
-      {username.slice(0, 1).toUpperCase()}
-    </div>
-  )
-}
-
 export default function SocialFeed() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const english = i18n.resolvedLanguage?.startsWith('en')
+  const text = (zh: string, en: string) => english ? en : zh
   const navigate = useNavigate()
   const [posts, setPosts] = useState<Post[]>([])
   const [nextCursor, setNextCursor] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
 
   // 发布框
@@ -90,9 +78,13 @@ export default function SocialFeed() {
         if (cancelled) return
         setPosts(res.data.posts)
         setNextCursor(res.data.next_cursor)
+        setLoadFailed(false)
       })
       .catch(() => {
-        if (!cancelled) toast.error(t('common.error'))
+        if (!cancelled) {
+          setLoadFailed(true)
+          toast.error(t('common.error'))
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -289,32 +281,47 @@ export default function SocialFeed() {
   }
 
   const myUserId = useUserStore((s) => s.userInfo?.user_id ?? s.userInfo?.uuid ?? '')
+  const currentUser = useUserStore((s) => s.userInfo)
+
+  const retryFeed = async () => {
+    setLoading(true)
+    setLoadFailed(false)
+    try {
+      const res = await socialApi.feed()
+      setPosts(res.data.posts)
+      setNextCursor(res.data.next_cursor)
+    } catch {
+      setLoadFailed(true)
+      toast.error(t('common.error'))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-6">
-      <FadeIn>
-        <h1 className="font-heading text-xl font-semibold text-[var(--color-text)] flex items-center gap-2 mb-6">
-          <Rss size={22} className="text-[var(--color-accent)]" />
-          {t('social.title')}
-        </h1>
-
-        {/* 发布框 */}
-        <div className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-4 mb-6">
+    <SocialLayout className="social-feed-page">
+      <SocialHeader title={text('知识动态', 'Knowledge feed')} subtitle={text('分享灵感，也看看朋友们最近在思考什么', 'Share ideas and see what your friends are exploring')} />
+      <div className="social-content-grid">
+        <main className="social-main-stack">
+          <section className="social-card social-composer">
+            <div className="social-composer-user">
+              <SocialAvatar username={currentUser?.username || text('我', 'Me')} avatar={currentUser?.avatar || null} size={38} />
+              <strong>{text('分享此刻的想法…', 'Share what is on your mind…')}</strong>
+            </div>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder={t('social.placeholder')}
+            placeholder={text('记录一个想法、学习收获或值得讨论的问题', 'Capture an idea, learning, or question worth discussing')}
             rows={3}
-            className="w-full resize-none bg-transparent text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-placeholder)] focus:outline-none"
           />
           {images.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
+            <div className="social-upload-preview">
               {images.map((url, i) => (
-                <div key={`${url}-${i}`} className="relative">
-                  <img src={url} alt="" loading="lazy" className="w-20 h-20 object-cover rounded-lg border border-[var(--color-border)]" />
+                <div key={`${url}-${i}`} className="social-upload-item">
+                  <img src={url} alt="" loading="lazy" />
                   <button
                     onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
-                    className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-[var(--color-danger)] text-white shadow"
+                    aria-label={text('移除图片', 'Remove image')}
                   >
                     <X size={12} />
                   </button>
@@ -323,257 +330,219 @@ export default function SocialFeed() {
             </div>
           )}
           {quoteNote && (
-            <div className="flex items-center gap-2 px-3 py-2 mb-3 rounded-lg bg-[var(--color-accent-bg)] text-[var(--color-accent)] text-xs">
+            <div className="social-quote-chip">
               <Quote size={13} />
-              <span className="truncate flex-1">{quoteNote.title}</span>
-              <button onClick={() => setQuoteNote(null)} className="hover:opacity-70">
+              <span>{quoteNote.title}</span>
+              <button onClick={() => setQuoteNote(null)} aria-label={text('取消引用', 'Remove quote')}>
                 <X size={13} />
               </button>
             </div>
           )}
-          <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border-light)]">
-            <div className="flex items-center gap-1">
+          <div className="social-composer-actions">
+            <div className="social-composer-tools">
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 multiple
-                className="hidden"
+                hidden
                 onChange={(e) => handleFilesSelected(e.target.files)}
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading || images.length >= 9}
-                className="p-2 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-bg)] transition-colors disabled:opacity-40"
+                className="social-tool-button"
                 title={t('social.addImage')}
               >
                 {uploading ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
+                <span>{t('social.addImage')}</span>
               </button>
               <button
                 onClick={() => setQuoteOpen(true)}
-                className="p-2 rounded-lg text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-bg)] transition-colors"
+                className="social-tool-button"
                 title={t('social.quoteNote')}
               >
                 <Quote size={16} />
+                <span>{t('social.quoteNote')}</span>
               </button>
             </div>
             <button
               onClick={handlePublish}
               disabled={publishing || (!draft.trim() && images.length === 0)}
-              className="primary-button"
+              className="social-publish-button"
             >
               {publishing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               {t('social.publish')}
             </button>
           </div>
-        </div>
+          </section>
 
-        {/* 引用笔记弹窗 */}
-        {quoteOpen && (
-          <>
-            <div className="fixed inset-0 bg-black/40 z-50" onClick={() => setQuoteOpen(false)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-[var(--color-card)] rounded-lg shadow-xl p-5 w-[420px] max-w-[90vw] border border-[var(--color-border)]">
-              <h3 className="text-sm font-medium text-[var(--color-text)] mb-3">{t('social.quoteNote')}</h3>
-              <div className="flex items-center gap-2 mb-3">
-                <input
-                  value={quoteQuery}
-                  onChange={(e) => setQuoteQuery(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleQuoteSearch() }}
-                  placeholder={t('social.searchNotePlaceholder')}
-                  className="flex-1 px-3 py-2 text-sm rounded-md border border-[var(--color-border)] bg-[var(--color-bg-secondary)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-                />
-                <button
-                  onClick={handleQuoteSearch}
-                  disabled={quoteSearching}
-                  className="p-2 rounded-md bg-[var(--color-accent)] text-[var(--color-accent-foreground)] disabled:opacity-50"
-                >
-                  {quoteSearching ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-                </button>
-              </div>
-              <div className="max-h-60 overflow-y-auto space-y-1">
-                {quoteResults.map((n) => (
-                  <button
-                    key={n.id}
-                    onClick={() => { setQuoteNote(n); setQuoteOpen(false) }}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-accent-bg)] transition-colors"
-                  >
-                    <FileText size={14} className="shrink-0 text-[var(--color-text-tertiary)]" />
-                    <span className="truncate">{n.title}</span>
-                  </button>
-                ))}
-                {quoteResults.length === 0 && !quoteSearching && (
-                  <p className="py-6 text-center text-xs text-[var(--color-text-tertiary)]">{t('social.noNotes')}</p>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* 动态列表 */}
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 size={22} className="animate-spin text-[var(--color-text-tertiary)]" />
-          </div>
-        ) : posts.length === 0 ? (
-          <div className="py-16 text-center text-sm text-[var(--color-text-tertiary)]">{t('social.empty')}</div>
-        ) : (
-          <div className="space-y-4">
+          <div className="social-feed-heading"><h2>{text('最新动态', 'Latest posts')}</h2><p>{text('与朋友一起交流和成长', 'Learn and grow with friends')}</p></div>
+          {loading ? (
+            <div className="social-card social-loading"><Loader2 size={22} />{text('正在加载动态', 'Loading feed')}</div>
+          ) : loadFailed ? (
+            <div className="social-card social-inline-error"><p>{text('动态暂时加载失败', 'The feed could not be loaded')}</p><button onClick={retryFeed}>{text('重新加载', 'Try again')}</button></div>
+          ) : posts.length === 0 ? (
+            <div className="social-card social-empty"><PenLine size={27} /><p>{t('social.empty')}</p></div>
+          ) : (
+          <div className="social-main-stack">
             {posts.map((post) => {
               const detail = detailMap[post.id]
               const isMine = post.user_id === myUserId
               return (
-                <div key={post.id} className="bg-[var(--color-card)] border border-[var(--color-border)] rounded-lg p-4">
-                  {/* 作者行 */}
-                  <div className="flex items-center gap-3 mb-3">
-                    <Avatar username={post.author.username} avatar={post.author.avatar} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-[var(--color-text)]">{post.author.username}</p>
-                      <p className="text-[11px] text-[var(--color-text-tertiary)]">{formatTime(post.created_at)}</p>
+                <article key={post.id} className="social-card social-post">
+                  <div className="social-post-author">
+                    <SocialAvatar username={post.author.username} avatar={post.author.avatar} />
+                    <div>
+                      <strong>{post.author.username}</strong>
+                      <time>{formatTime(post.created_at)}</time>
                     </div>
                     {isMine && (
                       <button
                         onClick={() => setDeleteTarget(post)}
                         className="workspace-icon-button"
                         title={t('social.delete')}
+                        aria-label={t('social.delete')}
                       >
                         <Trash2 size={14} />
                       </button>
                     )}
                   </div>
 
-                  {/* 内容 */}
                   {post.review_status === 'rejected' && (
-                    <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg bg-[var(--color-danger-bg)] text-[var(--color-danger)] text-xs">
+                    <div className="social-review-alert">
                       <ShieldAlert size={13} />
                       {t('social.reviewRejected')}
                     </div>
                   )}
-                  <p className="text-sm text-[var(--color-text)] whitespace-pre-wrap leading-relaxed">{post.content}</p>
+                  <p className="social-post-copy">{post.content}</p>
 
-                  {/* 图片 */}
                   {post.images.length > 0 && (
-                    <div className={`grid gap-2 mt-3 ${post.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    <div className={`social-post-images${post.images.length === 1 ? ' is-single' : ''}`}>
                       {post.images.map((url, i) => (
-                        <img
-                          key={`${url}-${i}`}
-                          src={url}
-                          alt=""
-                          className="w-full rounded-lg object-cover max-h-72 border border-[var(--color-border)]"
-                        />
+                        <img key={`${url}-${i}`} src={url} alt="" loading="lazy" />
                       ))}
                     </div>
                   )}
 
-                  {/* 引用笔记 */}
                   {post.note_id && post.note_title && (
                     <button
                       onClick={() => navigate(`/notes/${post.note_id}`)}
-                      className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--color-accent-bg)] text-[var(--color-accent)] text-xs hover:opacity-80 transition-opacity w-full text-left"
+                      className="social-note-reference"
                     >
-                      <FileText size={13} />
-                      <span className="truncate">{post.note_title}</span>
+                      <span><FileText size={17} /></span>
+                      <span><strong>{post.note_title}</strong><small>{text('引用笔记', 'Quoted note')}</small></span>
+                      <ChevronRight size={16} />
                     </button>
                   )}
 
-                  {/* 操作行 */}
-                  <div className="flex items-center gap-1 mt-3 pt-3 border-t border-[var(--color-border-light)]">
+                  <div className="social-post-actions">
                     <button
                       onClick={() => handleToggleLike(post)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                        post.liked_by_me
-                          ? 'text-[var(--color-danger)] bg-[var(--color-danger-bg)]'
-                          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'
-                      }`}
+                      className={`social-post-action${post.liked_by_me ? ' is-active' : ''}`}
                     >
                       <Heart size={14} fill={post.liked_by_me ? 'currentColor' : 'none'} />
                       {post.like_count > 0 ? post.like_count : t('social.like')}
                     </button>
                     <button
                       onClick={() => toggleComments(post.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                        detail
-                          ? 'text-[var(--color-accent)] bg-[var(--color-accent-bg)]'
-                          : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'
-                      }`}
+                      className={`social-post-action${detail ? ' is-active' : ''}`}
                     >
                       <MessageCircle size={14} />
                       {post.comment_count > 0 ? post.comment_count : t('social.comment')}
                     </button>
                   </div>
 
-                  {/* 评论区 */}
                   {detail && (
-                    <div className="mt-3 pt-3 border-t border-[var(--color-border-light)] space-y-3">
+                    <div className="social-comments">
                       {detail.comments.length === 0 && (
-                        <p className="text-xs text-[var(--color-text-tertiary)] text-center py-2">{t('social.noComments')}</p>
+                        <p className="social-empty">{t('social.noComments')}</p>
                       )}
                       {detail.comments.map((c) => (
-                        <div key={c.id} className="flex items-start gap-2.5">
-                          <Avatar username={c.username} avatar={c.avatar} size={28} />
-                          <div className="flex-1 min-w-0 bg-[var(--color-bg-secondary)] rounded-lg px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-[var(--color-text)]">{c.username}</span>
-                              <span className="text-[10px] text-[var(--color-text-tertiary)]">{formatTime(c.created_at)}</span>
+                        <div key={c.id} className="social-comment">
+                          <SocialAvatar username={c.username} avatar={c.avatar} size={28} />
+                          <div className="social-comment-body">
+                            <div className="social-comment-meta">
+                              <strong>{c.username}</strong>
+                              <time>{formatTime(c.created_at)}</time>
                               {c.user_id === myUserId && (
-                                <button
-                                  onClick={() => handleDeleteComment(post.id, c.id)}
-                                  className="ml-auto text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)]"
-                                >
+                                <button onClick={() => handleDeleteComment(post.id, c.id)} aria-label={text('删除评论', 'Delete comment')}>
                                   <X size={12} />
                                 </button>
                               )}
                             </div>
-                            <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 whitespace-pre-wrap">{c.content}</p>
+                            <p>{c.content}</p>
                           </div>
                         </div>
                       ))}
-                      <div className="flex items-center gap-2">
+                      <div className="social-comment-compose">
                         <input
                           value={commentDrafts[post.id] ?? ''}
                           onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [post.id]: e.target.value }))}
                           onKeyDown={(e) => { if (e.key === 'Enter') handleSendComment(post.id) }}
                           placeholder={t('social.commentPlaceholder')}
-                          className="flex-1 px-3 py-2 text-xs rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] placeholder:text-[var(--color-text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
+                          className="social-comment-input"
                         />
                         <button
                           onClick={() => handleSendComment(post.id)}
                           disabled={commentingId === post.id || !(commentDrafts[post.id] ?? '').trim()}
-                          className="p-2 rounded-lg bg-[var(--color-accent)] text-[var(--color-accent-foreground)] disabled:opacity-40"
+                          className="social-comment-send"
+                          aria-label={text('发送评论', 'Send comment')}
                         >
                           {commentingId === post.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                         </button>
                       </div>
                     </div>
                   )}
-                </div>
+                </article>
               )
             })}
 
-            {/* 加载更多 */}
             {nextCursor && (
-              <div className="text-center pt-2">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  className="secondary-button"
-                >
-                  {loadingMore ? t('common.loading') : t('social.loadMore')}
-                </button>
-              </div>
+              <button onClick={handleLoadMore} disabled={loadingMore} className="social-load-more">{loadingMore ? t('common.loading') : t('social.loadMore')}</button>
             )}
           </div>
-        )}
+          )}
+        </main>
 
-        <ConfirmDialog
-          open={!!deleteTarget}
-          onOpenChange={() => !deleting && setDeleteTarget(null)}
-          title={t('social.deleteTitle')}
-          message={t('social.deleteConfirm')}
-          variant="danger"
-          confirmText={t('social.delete')}
-          onConfirm={handleConfirmDelete}
-        />
-      </FadeIn>
-    </div>
+        <aside className="social-rail">
+          <section className="social-card social-entry-card">
+            <h2>{text('社交入口', 'Social shortcuts')}</h2>
+            <div className="social-entry-list">
+              <Link className="social-entry-link" to="/friends"><span className="social-entry-icon violet"><Users size={18} /></span><strong>{t('friends.myFriends')}</strong><ChevronRight size={15} /></Link>
+              <Link className="social-entry-link" to="/notifications"><span className="social-entry-icon rose"><Bell size={18} /></span><strong>{t('notifications.title')}</strong><ChevronRight size={15} /></Link>
+            </div>
+          </section>
+          <section className="social-card social-tips-card">
+            <h2>{text('分享小提示', 'Sharing tips')}</h2>
+            <div className="social-tips-list">
+              <div className="social-tip"><span className="social-tip-icon mint"><PenLine size={17} /></span>{text('可以发布文字想法', 'Share written ideas')}</div>
+              <div className="social-tip"><span className="social-tip-icon blue"><ImagePlus size={17} /></span>{text('最多添加 9 张图片', 'Add up to 9 images')}</div>
+              <div className="social-tip"><span className="social-tip-icon amber"><FileText size={17} /></span>{text('可以引用自己的笔记', 'Quote one of your notes')}</div>
+            </div>
+          </section>
+          <SocialPetCard title={text('小卷陪你分享', 'Share with Xiao Juan')} message={text('把想法说出来，也许会遇见新的连接～', 'Share an idea and discover a new connection~')} />
+        </aside>
+      </div>
+
+      {quoteOpen && (
+        <>
+          <div className="social-modal-backdrop" onClick={() => setQuoteOpen(false)} />
+          <section className="social-modal" role="dialog" aria-modal="true" aria-label={t('social.quoteNote')}>
+            <h3>{t('social.quoteNote')}</h3>
+            <div className="social-modal-search">
+              <input value={quoteQuery} onChange={(e) => setQuoteQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleQuoteSearch() }} placeholder={t('social.searchNotePlaceholder')} />
+              <button onClick={handleQuoteSearch} disabled={quoteSearching} aria-label={t('friends.search')}>{quoteSearching ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}</button>
+            </div>
+            <div className="social-modal-results">
+              {quoteResults.map((note) => <button key={note.id} className="social-modal-result" onClick={() => { setQuoteNote(note); setQuoteOpen(false) }}><FileText size={14} /><span>{note.title}</span></button>)}
+              {quoteResults.length === 0 && !quoteSearching && <div className="social-empty"><Lightbulb size={22} /><p>{t('social.noNotes')}</p></div>}
+            </div>
+          </section>
+        </>
+      )}
+
+      <ConfirmDialog open={!!deleteTarget} onOpenChange={() => !deleting && setDeleteTarget(null)} title={t('social.deleteTitle')} message={t('social.deleteConfirm')} variant="danger" confirmText={t('social.delete')} onConfirm={handleConfirmDelete} />
+    </SocialLayout>
   )
 }
