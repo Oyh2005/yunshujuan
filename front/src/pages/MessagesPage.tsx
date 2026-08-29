@@ -1,12 +1,14 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, Loader2, MessageSquare, Send, Users } from 'lucide-react'
+import { toast } from 'sonner'
+import { ArrowLeft, Loader2, MessageSquare, Pin, Search, Send, Trash2, Users } from 'lucide-react'
 import { messagesApi, type ChatConversation, type ChatMessage, type ChatPeer } from '../api/messages'
 import { socialApi } from '../api/social'
 import { useChatSocket } from '../hooks/useChatSocket'
 import { useChatStore } from '../stores/useChatStore'
 import { useUserStore } from '../stores/useUserStore'
+import ConfirmDialog from '../components/common/ConfirmDialog'
 import SocialLayout, { SocialAvatar, SocialHeader } from '../components/social/SocialLayout'
 
 const HISTORY_PAGE = 30
@@ -84,6 +86,9 @@ export default function MessagesPage() {
   const [sending, setSending] = useState(false)
   const [input, setInput] = useState('')
   const [sendError, setSendError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<ChatConversation | null>(null)
+  const [settingBusy, setSettingBusy] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const selectedPeerRef = useRef<string | null>(null)
   useEffect(() => {
@@ -211,7 +216,7 @@ export default function MessagesPage() {
         ? { ...c, last_message: msg.content, last_message_at: msg.created_at, last_sender_id: msg.sender_id }
         : c)
       if (exists || !directPeer) return updated
-      return [{ conversation_id: msg.conversation_id, peer: directPeer, last_message: msg.content, last_sender_id: msg.sender_id, last_message_at: msg.created_at, unread: 0 }, ...updated]
+      return [{ conversation_id: msg.conversation_id, peer: directPeer, last_message: msg.content, last_sender_id: msg.sender_id, last_message_at: msg.created_at, unread: 0, is_pinned: false }, ...updated]
     })
   }, [directPeer])
 
@@ -271,6 +276,43 @@ export default function MessagesPage() {
     }
   }
 
+  /** 置顶/取消置顶（个人视角） */
+  const togglePin = async (conv: ChatConversation) => {
+    if (settingBusy) return
+    setSettingBusy(conv.peer.user_id)
+    try {
+      const res = await messagesApi.setSetting(conv.peer.user_id, { is_pinned: !conv.is_pinned })
+      setConversations((prev) => prev
+        .map((c) => c.peer.user_id === conv.peer.user_id ? { ...c, is_pinned: res?.is_pinned ?? !conv.is_pinned } : c)
+        .sort((a, b) => Number(b.is_pinned) - Number(a.is_pinned)))
+    } catch {
+      toast.error(text('操作失败，请重试', 'Failed. Please retry.'))
+    } finally {
+      setSettingBusy(null)
+    }
+  }
+
+  /** 删除会话（个人视角隐藏，对方不受影响） */
+  const handleDeleteConversation = async () => {
+    if (!deleteTarget) return
+    try {
+      await messagesApi.setSetting(deleteTarget.peer.user_id, { hidden: true })
+      setConversations((prev) => prev.filter((c) => c.peer.user_id !== deleteTarget.peer.user_id))
+      if (selectedPeerId === deleteTarget.peer.user_id) closeChat()
+      toast.success(text('会话已删除', 'Conversation deleted'))
+    } catch {
+      toast.error(text('删除失败，请重试', 'Failed to delete. Please retry.'))
+    }
+    setDeleteTarget(null)
+  }
+
+  /** 会话搜索过滤（好友名 / 最后消息内容） */
+  const filteredConversations = conversations.filter((c) => {
+    const q = searchQuery.trim().toLocaleLowerCase()
+    if (!q) return true
+    return c.peer.username.toLocaleLowerCase().includes(q) || c.last_message.toLocaleLowerCase().includes(q)
+  })
+
   const handleLoadEarlier = async () => {
     if (messages.length && hasMore) {
       await loadHistory(selectedPeerId!, messages[0].id)
@@ -305,30 +347,44 @@ export default function MessagesPage() {
               <Link className="secondary-button" to="/friends"><Users size={15} />{text('去好友页找朋友', 'Find friends')}</Link>
             </div>
           ) : (
-            <ul>
-              {conversations.map((conv) => (
-                <li key={conv.conversation_id}>
-                  <button
-                    className={`messages-conv${conv.peer.user_id === selectedPeerId ? ' is-active' : ''}`}
-                    onClick={() => {
-                      // 统一走 ?with= effect 打开（守卫防重复），避免 onClick 与 effect 双开
-                      if (conv.peer.user_id !== withId) {
-                        setSearchParams({ with: conv.peer.user_id }, { replace: true })
-                      }
-                    }}
-                  >
-                    <SocialAvatar username={conv.peer.username} avatar={conv.peer.avatar} size={42} />
-                    <span className="messages-conv-copy">
-                      <span className="messages-conv-top"><strong>{conv.peer.username}</strong><time>{formatTime(conv.last_message_at, english)}</time></span>
-                      <span className="messages-conv-bottom">
-                        <small>{conv.last_sender_id === userId ? `${text('我：', 'You: ')}${conv.last_message}` : conv.last_message}</small>
-                        {conv.unread > 0 && <b>{conv.unread > 99 ? '99+' : conv.unread}</b>}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <>
+              <label className="messages-search">
+                <Search size={14} />
+                <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={text('搜索会话…', 'Search conversations…')} aria-label={text('搜索会话', 'Search conversations')} />
+              </label>
+              {filteredConversations.length === 0 ? (
+                <div className="messages-empty"><MessageSquare size={22} /><p>{text('没有匹配的会话', 'No matching conversations')}</p></div>
+              ) : (
+                <ul>
+                  {filteredConversations.map((conv) => (
+                    <li key={conv.conversation_id} className="messages-conv-wrap">
+                      <button
+                        className={`messages-conv${conv.peer.user_id === selectedPeerId ? ' is-active' : ''}${conv.is_pinned ? ' is-pinned' : ''}`}
+                        onClick={() => {
+                          // 统一走 ?with= effect 打开（守卫防重复），避免 onClick 与 effect 双开
+                          if (conv.peer.user_id !== withId) {
+                            setSearchParams({ with: conv.peer.user_id }, { replace: true })
+                          }
+                        }}
+                      >
+                        <SocialAvatar username={conv.peer.username} avatar={conv.peer.avatar} size={42} />
+                        <span className="messages-conv-copy">
+                          <span className="messages-conv-top"><strong>{conv.peer.username}</strong><time>{formatTime(conv.last_message_at, english)}</time></span>
+                          <span className="messages-conv-bottom">
+                            <small>{conv.last_sender_id === userId ? `${text('我：', 'You: ')}${conv.last_message}` : conv.last_message}</small>
+                            {conv.unread > 0 && <b>{conv.unread > 99 ? '99+' : conv.unread}</b>}
+                          </span>
+                        </span>
+                      </button>
+                      <div className="messages-conv-actions">
+                        <button className={conv.is_pinned ? 'is-active' : ''} onClick={() => void togglePin(conv)} disabled={settingBusy === conv.peer.user_id} title={conv.is_pinned ? text('取消置顶', 'Unpin') : text('置顶', 'Pin')} aria-label={conv.is_pinned ? text('取消置顶', 'Unpin') : text('置顶', 'Pin')}><Pin size={13} /></button>
+                        <button onClick={() => setDeleteTarget(conv)} title={text('删除会话', 'Delete conversation')} aria-label={text('删除会话', 'Delete conversation')}><Trash2 size={13} /></button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </aside>
 
@@ -404,6 +460,15 @@ export default function MessagesPage() {
           )}
         </section>
       </div>
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+        title={text('删除会话', 'Delete conversation')}
+        message={deleteTarget ? text(`确定删除与「${deleteTarget.peer.username}」的会话吗？聊天记录将不再显示（对方不受影响）。`, `Delete the conversation with ${deleteTarget.peer.username}? Messages will be hidden for you (not affected for them).`) : ''}
+        variant="danger"
+        confirmText={text('删除', 'Delete')}
+        onConfirm={handleDeleteConversation}
+      />
     </SocialLayout>
   )
 }

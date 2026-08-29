@@ -221,9 +221,20 @@
 .messages-layout { display: grid; grid-template-columns: 285px minmax(0,1fr); height: calc(100dvh - 205px); min-height: 440px; border: 1px solid var(--color-border); border-radius: 17px; overflow: hidden; background: var(--color-card); }
 .messages-list { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--color-border-light); background: var(--color-bg-secondary); }
 .messages-list > ul { list-style: none; margin: 0; padding: 8px; overflow-y: auto; min-height: 0; flex: 1; }
+.messages-search { display: flex; align-items: center; gap: 7px; margin: 10px 10px 4px; padding: 8px 11px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-card); color: var(--color-text-tertiary); }
+.messages-search input { flex: 1; min-width: 0; background: transparent; color: var(--color-text); font-size: 11px; }
+.messages-search input::placeholder { color: var(--color-text-tertiary); }
+.messages-conv-wrap { position: relative; }
 .messages-conv { display: flex; align-items: center; gap: 11px; width: 100%; padding: 11px 10px; border-radius: 12px; text-align: left; transition: background .15s; }
 .messages-conv:hover { background: var(--color-accent-surface); }
 .messages-conv.is-active { background: var(--color-accent-bg); }
+.messages-conv.is-pinned { background: var(--color-accent-surface); }
+.messages-conv-actions { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; opacity: 0; transition: opacity .15s; background: var(--color-card); border: 1px solid var(--color-border); border-radius: 9px; padding: 2px; box-shadow: 0 4px 14px var(--color-shadow); }
+.messages-conv-wrap:hover .messages-conv-actions, .messages-conv-actions:focus-within { opacity: 1; }
+.messages-conv-actions button { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 7px; color: var(--color-text-tertiary); }
+.messages-conv-actions button:hover { color: var(--color-accent); background: var(--color-accent-bg); }
+.messages-conv-actions button:last-child:hover { color: var(--color-danger); background: var(--color-danger-bg); }
+.messages-conv-actions button.is-active { color: var(--color-accent); }
 .messages-conv-copy { flex: 1; min-width: 0; }
 .messages-conv-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .messages-conv-top strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

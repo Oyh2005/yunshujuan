@@ -25,6 +25,7 @@ from app.models.note import Note
 from app.models.review_record import ReviewRecord
 from app.models.social import (
     ChatConversation,
+    ChatConversationSetting,
     Follow,
     FriendRequest,
     Notification,
@@ -1062,7 +1063,11 @@ async def chat_conversations(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit(limit=60, window=60)),
 ):
-    """私聊会话列表：对方信息 + 最后消息预览 + 未读数，按最后消息时间倒序。"""
+    """私聊会话列表：对方信息 + 最后消息预览 + 未读数 + 个人置顶/隐藏。
+
+    - 排除个人已隐藏（删除）的会话
+    - 置顶会话优先（组内按最后消息时间倒序）
+    """
     convs = (await db.execute(
         select(ChatConversation)
         .where(or_(ChatConversation.user_a == user_id, ChatConversation.user_b == user_id))
@@ -1072,34 +1077,88 @@ async def chat_conversations(
     items = []
     if convs:
         conv_ids = [c.id for c in convs]
-        # 未读数（按会话聚合）
-        unread_rows = (await db.execute(
-            select(PrivateMessage.conversation_id, func.count(PrivateMessage.id))
-            .where(
-                PrivateMessage.conversation_id.in_(conv_ids),
-                PrivateMessage.sender_id != user_id,
-                PrivateMessage.read.is_(False),
+        # 个人视角设置（置顶/隐藏）
+        settings = (await db.execute(
+            select(ChatConversationSetting).where(
+                ChatConversationSetting.user_id == user_id,
+                ChatConversationSetting.conversation_id.in_(conv_ids),
             )
-            .group_by(PrivateMessage.conversation_id)
-        )).all()
-        unread_map = {row[0]: int(row[1]) for row in unread_rows}
+        )).scalars().all()
+        setting_map = {s.conversation_id: s for s in settings}
+        visible = [c for c in convs if not setting_map.get(c.id) or not setting_map[c.id].is_hidden]
 
-        # 对方用户信息（批量）
-        other_ids = [c.user_b if c.user_a == user_id else c.user_a for c in convs]
-        briefs = {b["user_id"]: b for b in await _get_user_briefs(db, other_ids)}
+        if visible:
+            # 未读数（按会话聚合）
+            unread_rows = (await db.execute(
+                select(PrivateMessage.conversation_id, func.count(PrivateMessage.id))
+                .where(
+                    PrivateMessage.conversation_id.in_([c.id for c in visible]),
+                    PrivateMessage.sender_id != user_id,
+                    PrivateMessage.read.is_(False),
+                )
+                .group_by(PrivateMessage.conversation_id)
+            )).all()
+            unread_map = {row[0]: int(row[1]) for row in unread_rows}
 
-        for conv in convs:
-            other_id = conv.user_b if conv.user_a == user_id else conv.user_a
-            items.append({
-                "conversation_id": conv.id,
-                "peer": briefs.get(other_id) or {"user_id": other_id, "username": "未知用户", "avatar": None},
-                "last_message": conv.last_message or "",
-                "last_sender_id": conv.last_sender_id,
-                "last_message_at": str(conv.last_message_at) if conv.last_message_at else None,
-                "unread": unread_map.get(conv.id, 0),
-            })
+            # 对方用户信息（批量）
+            other_ids = [c.user_b if c.user_a == user_id else c.user_a for c in visible]
+            briefs = {b["user_id"]: b for b in await _get_user_briefs(db, other_ids)}
+
+            for conv in visible:
+                other_id = conv.user_b if conv.user_a == user_id else conv.user_a
+                setting = setting_map.get(conv.id)
+                items.append({
+                    "conversation_id": conv.id,
+                    "peer": briefs.get(other_id) or {"user_id": other_id, "username": "未知用户", "avatar": None},
+                    "last_message": conv.last_message or "",
+                    "last_sender_id": conv.last_sender_id,
+                    "last_message_at": str(conv.last_message_at) if conv.last_message_at else None,
+                    "unread": unread_map.get(conv.id, 0),
+                    "is_pinned": bool(setting and setting.is_pinned),
+                })
+
+        # 置顶优先（稳定排序保持组内最后消息倒序）
+        items.sort(key=lambda i: 0 if i["is_pinned"] else 1)
 
     return success_response(data={"conversations": items})
+
+
+class ConversationSettingRequest(BaseModel):
+    """会话个人设置（微信式：置顶/删除会话按个人视角）"""
+    is_pinned: bool | None = None
+    hidden: bool | None = None
+
+
+@social_router.patch("/chat/conversations/{peer_id}")
+async def update_conversation_setting(
+    peer_id: str,
+    payload: ConversationSettingRequest,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit(limit=60, window=60)),
+):
+    """更新会话个人设置：置顶/隐藏（删除会话）。只更新显式传入字段。"""
+    conv = await _get_conversation(db, user_id, peer_id)
+    if not conv:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    if not payload.model_fields_set:
+        raise HTTPException(status_code=400, detail="没有需要更新的字段")
+
+    setting = (await db.execute(select(ChatConversationSetting).where(
+        ChatConversationSetting.user_id == user_id,
+        ChatConversationSetting.conversation_id == conv.id,
+    ))).scalar_one_or_none()
+    if not setting:
+        setting = ChatConversationSetting(id=str(uuid.uuid4()), user_id=user_id, conversation_id=conv.id)
+        db.add(setting)
+
+    if "is_pinned" in payload.model_fields_set:
+        setting.is_pinned = bool(payload.is_pinned)
+    if "hidden" in payload.model_fields_set:
+        setting.is_hidden = bool(payload.hidden)
+    await db.commit()
+
+    return success_response(data={"is_pinned": setting.is_pinned, "is_hidden": setting.is_hidden})
 
 
 @social_router.get("/chat/conversations/{target_id}/messages")

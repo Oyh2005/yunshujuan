@@ -15,6 +15,7 @@ export interface ChatConversation {
   last_sender_id: string | null
   last_message_at: string | null
   unread: number
+  is_pinned: boolean
 }
 
 export interface ChatMessage {
@@ -70,5 +71,11 @@ export const messagesApi = {
   unreadCount: async () => {
     const res = await client.get<ApiResponse<{ count: number }>>(endpoints.chatUnreadCount)
     return res.data.data?.count ?? 0
+  },
+
+  /** 会话个人设置（置顶/删除会话，个人视角） */
+  setSetting: async (peerId: string, setting: { is_pinned?: boolean; hidden?: boolean }) => {
+    const res = await client.patch<ApiResponse<{ is_pinned: boolean; is_hidden: boolean }>>(endpoints.chatConversations + `/${peerId}`, setting)
+    return res.data.data
   },
 }

@@ -122,3 +122,17 @@ class PrivateMessage(Base):
     content = Column(Text, nullable=False, comment="消息内容")
     read = Column(Boolean, default=False, nullable=False, index=True, comment="接收方是否已读")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, comment="发送时间")
+
+
+class ChatConversationSetting(Base):
+    """会话个人设置（微信式：置顶/隐藏按个人视角，双方互不影响）"""
+
+    __tablename__ = "chat_conversation_settings"
+    __table_args__ = (UniqueConstraint("user_id", "conversation_id", name="uq_chat_conv_setting"),)
+
+    id = Column(String(36), primary_key=True, comment="UUID")
+    user_id = Column(String(36), index=True, nullable=False, comment="用户ID")
+    conversation_id = Column(String(36), index=True, nullable=False, comment="会话ID")
+    is_pinned = Column(Boolean, default=False, nullable=False, comment="是否置顶（个人视角）")
+    is_hidden = Column(Boolean, default=False, nullable=False, comment="是否从列表隐藏（删除会话，个人视角）")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment="创建时间")
