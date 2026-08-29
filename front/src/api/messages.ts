@@ -24,6 +24,8 @@ export interface ChatMessage {
   content: string
   read: boolean
   created_at: string | null
+  /** 本地发送状态（仅前端乐观更新用，服务端无此字段） */
+  status?: 'sending' | 'failed'
 }
 
 interface ConversationListData {

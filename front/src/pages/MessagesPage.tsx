@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, Loader2, MessageSquare, Send, Users } from 'lucide-react'
@@ -29,11 +29,45 @@ function formatTime(value: string | null, english: boolean): string {
   return date.toLocaleDateString(english ? 'en-US' : 'zh-CN', { month: 'short', day: 'numeric' })
 }
 
+/** 时间分组标题：今天 / 昨天 / 具体日期 */
+function groupTitle(value: string | null, english: boolean): string {
+  const t = validTime(value)
+  if (!t) return ''
+  const date = new Date(t)
+  const now = new Date()
+  if (date.toDateString() === now.toDateString()) return english ? 'Today' : '今天'
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (date.toDateString() === yesterday.toDateString()) return english ? 'Yesterday' : '昨天'
+  return date.toLocaleDateString(english ? 'en-US' : 'zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+/** 相邻消息超过该分钟数则单独显示时间（微信约 5 分钟） */
+const TIME_SPLIT_MINUTES = 5
+
+interface MessageView {
+  msg: ChatMessage
+  showTime: boolean
+  groupKey: string
+}
+
+/** 为消息序列标注分组与是否显示时间 */
+function buildMessageView(messages: ChatMessage[], english: boolean): MessageView[] {
+  return messages.map((msg, index) => {
+    const prev = messages[index - 1]
+    const groupKey = groupTitle(msg.created_at, english)
+    const groupChanged = !prev || groupTitle(prev.created_at, english) !== groupKey
+    const timeGap = prev ? Math.abs(validTime(msg.created_at) - validTime(prev.created_at)) / 60000 : Infinity
+    return { msg, showTime: groupChanged || timeGap >= TIME_SPLIT_MINUTES, groupKey }
+  })
+}
+
 export default function MessagesPage() {
   const { i18n } = useTranslation()
   const english = i18n.resolvedLanguage?.startsWith('en') ?? false
   const text = useCallback((zh: string, en: string) => english ? en : zh, [english])
   const userId = useUserStore((s) => s.userInfo?.uuid || s.userInfo?.user_id || s.userInfo?.id || '')
+  const user = useUserStore((s) => s.userInfo)
   const setUnread = useChatStore((s) => s.setUnread)
   const [searchParams, setSearchParams] = useSearchParams()
   const withId = searchParams.get('with')
@@ -169,32 +203,71 @@ export default function MessagesPage() {
     },
   })
 
+  /** 会话列表同步：已有会话更新预览；首聊（无会话）插入新会话项 */
+  const syncConversationAfterSend = useCallback((peerId: string, msg: ChatMessage) => {
+    setConversations((prev) => {
+      const exists = prev.some((c) => c.peer.user_id === peerId)
+      const updated = prev.map((c) => c.peer.user_id === peerId
+        ? { ...c, last_message: msg.content, last_message_at: msg.created_at, last_sender_id: msg.sender_id }
+        : c)
+      if (exists || !directPeer) return updated
+      return [{ conversation_id: msg.conversation_id, peer: directPeer, last_message: msg.content, last_sender_id: msg.sender_id, last_message_at: msg.created_at, unread: 0 }, ...updated]
+    })
+  }, [directPeer])
+
+  /** 发送消息（乐观更新：先本地插入"发送中"，成功替换为服务端消息，失败标记可重发） */
+  const sendMessage = useCallback(async (peerId: string, content: string) => {
+    const tempId = -Date.now()
+    const tempMsg: ChatMessage = {
+      id: tempId,
+      conversation_id: '',
+      sender_id: userId,
+      content,
+      read: false,
+      created_at: new Date().toISOString(),
+      status: 'sending',
+    }
+    setMessages((prev) => [...prev, tempMsg])
+    try {
+      const msg = await messagesApi.send(peerId, content)
+      if (msg) {
+        setMessages((prev) => prev.map((m) => m.id === tempId ? { ...msg } : m))
+        syncConversationAfterSend(peerId, msg)
+      }
+      return true
+    } catch (err) {
+      setMessages((prev) => prev.map((m) => m.id === tempId ? { ...m, status: 'failed' } : m))
+      const status = (err as { response?: { status?: number } })?.response?.status
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setSendError(status === 403 ? text('仅好友之间可以私聊，先去添加好友吧', 'Only friends can chat. Add them as a friend first.') : detail || text('发送失败，请重试', 'Failed to send. Please retry.'))
+      return false
+    }
+  }, [setSendError, syncConversationAfterSend, text, userId])
+
   const handleSend = async () => {
     const content = input.trim()
     if (!content || !selectedPeerId || sending) return
     setSending(true)
     setSendError('')
+    setInput('')
     try {
-      const msg = await messagesApi.send(selectedPeerId, content)
-      if (msg) {
-        setMessages((prev) => [...prev, msg])
-        // 会话列表同步：已有会话更新预览；首聊（无会话）插入新会话项
-        setConversations((prev) => {
-          const exists = prev.some((c) => c.peer.user_id === selectedPeerId)
-          const updated = prev.map((c) => c.peer.user_id === selectedPeerId
-            ? { ...c, last_message: msg.content, last_message_at: msg.created_at, last_sender_id: msg.sender_id }
-            : c)
-          if (exists || !directPeer) return updated
-          return [{ conversation_id: msg.conversation_id, peer: directPeer, last_message: msg.content, last_sender_id: msg.sender_id, last_message_at: msg.created_at, unread: 0 }, ...updated]
-        })
-        setInput('')
-      }
-    } catch (err) {
-      const status = (err as { response?: { status?: number } })?.response?.status
-      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      setSendError(status === 403 ? text('仅好友之间可以私聊，先去添加好友吧', 'Only friends can chat. Add them as a friend first.') : detail || text('发送失败，请重试', 'Failed to send. Please retry.'))
+      await sendMessage(selectedPeerId, content)
     } finally {
       setSending(false)
+    }
+  }
+
+  /** 失败消息重发 */
+  const resendMessage = async (msg: ChatMessage) => {
+    if (!selectedPeerId) return
+    setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: 'sending' } : m))
+    setSendError('')
+    const ok = await sendMessage(selectedPeerId, msg.content)
+    if (ok) {
+      // 重发成功：移除旧的失败消息（sendMessage 已插入新临时消息）
+      setMessages((prev) => prev.filter((m) => m.id !== msg.id))
+    } else {
+      setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, status: 'failed' } : m))
     }
   }
 
@@ -281,13 +354,34 @@ export default function MessagesPage() {
                 {messages.length === 0 && !loadingHistory && (
                   <div className="messages-chat-welcome">{text('打个招呼，开启对话吧', 'Say hi and start the conversation')}</div>
                 )}
-                {messages.map((msg) => {
+                {buildMessageView(messages, english).map(({ msg, showTime, groupKey }) => {
                   const mine = msg.sender_id === userId
                   return (
-                    <div key={msg.id} className={`messages-bubble ${mine ? 'mine' : 'theirs'}`}>
-                      <p>{msg.content}</p>
-                      <time>{formatTime(msg.created_at, english)}{mine && (msg.read ? ` · ${text('已读', 'Read')}` : ` · ${text('未读', 'Unread')}`)}</time>
-                    </div>
+                    <Fragment key={msg.id}>
+                      {showTime && <div className="messages-group-title">{groupKey}</div>}
+                      <div className={`messages-bubble ${mine ? 'mine' : 'theirs'}`}>
+                        {!mine && <SocialAvatar username={selectedPeer.username} avatar={selectedPeer.avatar} size={30} />}
+                        <div className="messages-bubble-main">
+                          {showTime && <time className="messages-bubble-time">{formatTime(msg.created_at, english)}</time>}
+                          <div className="messages-bubble-content">
+                            {msg.status === 'failed' ? (
+                              <>
+                                <p className="messages-failed-text">{msg.content}</p>
+                                <button className="messages-resend" onClick={() => void resendMessage(msg)}>{text('发送失败，点击重发', 'Failed, tap to resend')}</button>
+                              </>
+                            ) : (
+                              <p>{msg.content}</p>
+                            )}
+                          </div>
+                          {mine && (
+                            <span className="messages-send-status">
+                              {msg.status === 'sending' ? <Loader2 size={11} className="animate-spin" /> : msg.status === 'failed' ? <span className="messages-status-failed">{text('未发送', 'Not sent')}</span> : msg.read ? text('已读', 'Read') : text('未读', 'Unread')}
+                            </span>
+                          )}
+                        </div>
+                        {mine && <SocialAvatar username={user?.username || ''} avatar={user?.avatar || null} size={30} />}
+                      </div>
+                    </Fragment>
                   )
                 })}
                 <div ref={messagesEndRef} />
