@@ -55,6 +55,14 @@ export default function MessagesPage() {
   useEffect(() => {
     selectedPeerRef.current = selectedPeerId
   }, [selectedPeerId])
+  // conversations 的最新快照（openConversation 读取用，避免把 conversations 放进
+  // useCallback 依赖 → 自身 setConversations 触发重建 → ?with= effect 重跑 → 循环闪烁）
+  const conversationsRef = useRef(conversations)
+  useEffect(() => {
+    conversationsRef.current = conversations
+  }, [conversations])
+  // 防重复打开同一 with 会话（配合上面的依赖稳定，双保险）
+  const openedWithRef = useRef<string | null>(null)
 
   const selectedPeer = conversations.find((c) => c.peer.user_id === selectedPeerId)?.peer ?? directPeer
 
@@ -90,7 +98,7 @@ export default function MessagesPage() {
     setMessages([])
     setHasMore(false)
     // 从未私聊过：会话列表里没有该好友 → 从好友列表取对方信息（聊天窗头部展示）
-    const known = conversations.find((c) => c.peer.user_id === peerId)?.peer
+    const known = conversationsRef.current.find((c) => c.peer.user_id === peerId)?.peer
     if (!known) {
       try {
         const res = await socialApi.friendsList()
@@ -105,9 +113,11 @@ export default function MessagesPage() {
     }
     await loadHistory(peerId)
     await messagesApi.markRead(peerId).then(setUnread).catch(() => {})
-    // 本地会话未读清零
-    setConversations((prev) => prev.map((c) => c.peer.user_id === peerId ? { ...c, unread: 0 } : c))
-  }, [conversations, loadHistory, setUnread, text])
+    // 本地会话未读清零（仅在确实有未读时更新引用，避免无谓重渲染）
+    setConversations((prev) => prev.some((c) => c.peer.user_id === peerId && c.unread > 0)
+      ? prev.map((c) => c.peer.user_id === peerId ? { ...c, unread: 0 } : c)
+      : prev)
+  }, [loadHistory, setUnread, text])
 
   // 初始加载
   useEffect(() => {
@@ -115,9 +125,13 @@ export default function MessagesPage() {
     return () => window.clearTimeout(timer)
   }, [loadConversations])
 
-  // ?with= 直达会话
+  // ?with= 直达会话（openedWithRef 防重复打开：openConversation 内部
+  // setConversations 会重建自身引用，若无守卫 effect 会无限重跑导致
+  // 消息清空/历史重载循环闪烁）
   useEffect(() => {
     if (!withId) return
+    if (openedWithRef.current === withId) return
+    openedWithRef.current = withId
     const timer = window.setTimeout(() => void openConversation(withId), 0)
     return () => window.clearTimeout(timer)
   }, [withId, openConversation])
