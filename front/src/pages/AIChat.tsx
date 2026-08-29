@@ -26,6 +26,7 @@ import { sessionsApi } from '../api/sessions'
 import { useThemeStore } from '../stores/useThemeStore'
 import { usePetStore } from '../stores/usePetStore'
 import { useUserStore } from '../stores/useUserStore'
+import { swrCache } from '../stores/useSwrCacheStore'
 import type { ChatSession } from '../types/api'
 import ErrorBoundary from '../components/common/ErrorBoundary'
 import { AiCompanionCard, AiTopbar } from '../components/ai/AiWorkspace'
@@ -84,7 +85,7 @@ export default function AIChat() {
   const [showThinking, setShowThinking] = useState(true)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [visibleStart, setVisibleStart] = useState(0)
-  const [recentSessions, setRecentSessions] = useState<ChatSession[]>([])
+  const [recentSessions, setRecentSessions] = useState<ChatSession[]>(() => swrCache.get<ChatSession[]>(`recent-sessions:${userId}`) ?? [])
   const [sessionsFailed, setSessionsFailed] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef('')
@@ -137,6 +138,8 @@ export default function AIChat() {
           })
           .slice(0, 6),
       )
+      // SWR 本地缓存：刷新页面秒开侧栏会话列表
+      if (userId) swrCache.set(`recent-sessions:${userId}`, list)
       setSessionsFailed(false)
     } catch {
       setSessionsFailed(true)

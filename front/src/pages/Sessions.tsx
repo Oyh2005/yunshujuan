@@ -21,6 +21,7 @@ import {
 import { sessionsApi } from '../api/sessions'
 import { useSessionStore } from '../stores/useSessionStore'
 import { useUserStore } from '../stores/useUserStore'
+import { swrCache } from '../stores/useSwrCacheStore'
 import type { ChatSession } from '../types/api'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import PromptDialog from '../components/common/PromptDialog'
@@ -73,11 +74,19 @@ export default function Sessions() {
       setLoading(false)
       return
     }
+    // SWR 预填：store 为空且有本地缓存时先展示（刷新页面秒开），请求到达后替换
+    if (useSessionStore.getState().sessions.length === 0) {
+      const cached = swrCache.get<ChatSession[]>(`sessions:${userId}`)
+      if (cached?.length) setSessions(cached)
+    }
     setLoading(true)
     try {
       const response = await sessionsApi.list(String(userId))
       const data = response.data as { sessions?: ChatSession[] } | undefined
-      setSessions(Array.isArray(data?.sessions) ? data.sessions : [])
+      const list = Array.isArray(data?.sessions) ? data.sessions : []
+      setSessions(list)
+      // 写入 SWR 本地缓存
+      swrCache.set(`sessions:${userId}`, list)
       setFailed(false)
     } catch {
       setFailed(true)

@@ -1,9 +1,9 @@
 # 客户端缓存方案：把请求压力分摊到用户电脑
 
 > 日期：2026-08-29
-> 状态：✅ **方案 1 已实施（08-29）**；方案 2/3 待做
+> 状态：✅ **方案 1（HTTP 缓存头 + ETag）与方案 2（前端 SWR）均已实施**；方案 3（PWA）待做
 > 背景：用户高频刷新笔记页时，请求仍会到达服务器（Redis 缓存只减少"查库"），本方案把"请求"本身挡在用户浏览器本地
-> 关联：`plan/2026-08-27-scale-up-plan.md`（方向 D 高并发路线）、`plan/2026-08-27-HANDOFF-NEXT-AGENT.md` 待办「PWA 化 / 静态资源 gzip」
+> 关联：`plan/2026-08-27-scale-up-plan.md`（方向 D 高并发路线）、`plan/2026-08-27-HANDOFF-NEXT-AGENT.md` 待办「PWA 化 / 静态资源 gzip」、`plan/2026-08-29-next-steps-plan.md`（下一步规划）
 
 ## 实施记录（方案 1：HTTP 缓存头 + ETag 版本化 ✅）
 
@@ -20,6 +20,23 @@
 **实测验证（08-29）**：首次 200 + ETag → If-None-Match 匹配 304 空响应 → 写操作后旧 ETag 失效（200 + 新版本）→ 新 ETag 304 ✓；闲聊"你好/介绍一下你自己"跳过 RAG（20.5s→2.8s，无 retrieval/hyde/reorder 阶段），知识问题"总结我的知识库"仍走 RAG ✓；会话列表同上 ✓；笔记缓存回归 ✓
 
 **未做（后续）**：方案 2（前端 SWR）/方案 3（PWA）。
+
+---
+
+## 实施记录（方案 2：前端 SWR 缓存 ✅）
+
+**已落地改动**：
+- `front/src/stores/useSwrCacheStore.ts`（新增）：内存 Map + localStorage 持久化；key 约定必须含 `:{userId}:` 片段（用户隔离 + `clearUser` 按用户清空）；存储不可用降级为内存
+- 接入三个展示型页面（刷新秒开：先渲染本地缓存 → 后台静默请求 → 新数据替换）：
+  - `NoteList`：首页（无筛选/搜索）预填 + 成功写缓存；`loadNotes` reset 分支**保留旧数据直到新数据到达**（SWR 语义，加载瞬间不闪）
+  - `AIChat` 侧栏「最近对话」：预填 + 写缓存
+  - `Sessions` 页列表：store 为空且缓存命中时预填 + 写缓存
+- **刻意不做**：`NoteEditor`（编辑器场景，stale 内容可能覆盖用户输入——一致性优先，且详情已有 304 缓存）
+- **失效策略**：靠后台刷新自愈（HTTP 层 ETag 保证刷新拿最新），不做事后清理——容忍 1~2 秒陈旧，避免复杂化
+
+**实测验证（08-29）**：tsc 0 错误 / eslint 0 问题；浏览器刷新 NoteList / AI 页 / Sessions 页时数据立即出现（Network 面板可见后台刷新请求），无骨架屏闪烁
+
+**未做（后续）**：方案 3（PWA / Service Worker，已列入 `next-steps-plan.md`）。
 
 ---
 

@@ -6,7 +6,8 @@
 > - `plan/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
 > - `plan/2026-08-29-ai-chat-latency-interview-qa.md` —— 同上项目的面试问答素材（数据怎么测的、预判追问应对）
 > - `plan/2026-08-29-ai-chat-flash-fix.md` —— 新会话首问闪屏排查全记录（MainLayout key 重挂载根因 + 双层修复）
-> - `plan/2026-08-29-client-cache-plan.md` —— 客户端缓存方案（HTTP 缓存头 + ETag 版本化 / 前端 SWR / PWA，含接口级配置清单，未实施）
+> - `plan/2026-08-29-client-cache-plan.md` —— 客户端缓存方案（HTTP 缓存头 + ETag 已实施 / 前端 SWR 已实施 / PWA 待做，含接口级配置清单）
+> - `plan/2026-08-29-next-steps-plan.md` —— 下一步规划（小程序/PWA/年度报告/体验打磨/稳定性/线上化，按触发条件分类）
 > - `plan/2026-08-26-feature-expansion-plan.md` —— 六方向企划
 > - `plan/2026-08-27-scale-up-plan.md` —— 高并发升级路线（方向 D 阶段二/三）
 > - `plan/2026-08-27-wechat-mini-program-plan.md` —— 微信小程序版规划（未开工）

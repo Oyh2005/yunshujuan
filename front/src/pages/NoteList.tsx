@@ -13,6 +13,8 @@ import NoteCard from '../components/note/NoteCard'
 import { predefinedCategories, sortNotes, type NoteSort, type NoteView } from '../components/note/notePresentation'
 import { useDebounce } from '../hooks/useDebounce'
 import { KnowledgeTopbar } from '../components/knowledge/KnowledgeLayout'
+import { useUserStore } from '../stores/useUserStore'
+import { swrCache } from '../stores/useSwrCacheStore'
 
 const PAGE_SIZE = 20
 const VIEW_KEY = 'note_list_view'
@@ -38,14 +40,19 @@ function orderedCategories(custom: string[]): string[] {
 export default function NoteList() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const [notes, setNotes] = useState<Note[]>([])
-  const [total, setTotal] = useState(0)
+  const userId = useUserStore((state) => state.userInfo?.uuid || state.userInfo?.user_id || state.userInfo?.id || '')
   const [category, setCategory] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const query = useDebounce(searchQuery.trim(), 300)
   const [sortBy, setSortBy] = useState<NoteSort>('updated_at')
   const [view, setView] = useState<NoteView>(initialView)
-  const [loading, setLoading] = useState(true)
+  // SWR 预填：挂载时先展示本地缓存（秒开），后台请求到达后替换；无缓存才显示骨架
+  const [initialCached] = useState(() => swrCache.get<{ notes: Note[]; total: number }>(
+    `note-list:${userId}:${''}:${'updated_at'}`,
+  ))
+  const [notes, setNotes] = useState<Note[]>(() => initialCached?.notes ?? [])
+  const [total, setTotal] = useState(() => initialCached?.total ?? 0)
+  const [loading, setLoading] = useState(() => !initialCached)
   const [hasMore, setHasMore] = useState(false)
   const [loadError, setLoadError] = useState<boolean | 'rate'>(false)
   const pageRef = useRef(0)
@@ -82,8 +89,8 @@ export default function NoteList() {
     setLoading(true)
     setLoadError(false)
     if (reset) {
-      setNotes([])
-      setTotal(0)
+      // SWR 语义：保留现有数据直到新数据到达（预填/旧数据先展示，后台刷新替换），
+      // 避免加载瞬间清空导致闪烁
       setSelectedIds(new Set())
       setSelectMode(false)
       setHasMore(false)
@@ -106,6 +113,10 @@ export default function NoteList() {
       setTotal(count)
       setHasMore(!query && pageNum * PAGE_SIZE < count)
       pageRef.current = pageNum
+      // 写入 SWR 本地缓存：仅首页、非搜索场景（刷新页面秒开）
+      if (reset && !query && userId) {
+        swrCache.set(`note-list:${userId}:${category}:${sortBy}`, { notes: items, total: count })
+      }
       return true
     } catch (err) {
       if (request === requestRef.current) {
@@ -118,7 +129,7 @@ export default function NoteList() {
         inFlight.current = false
       }
     }
-  }, [category, query, sortBy])
+  }, [category, query, sortBy, userId])
 
   const refreshCategories = useCallback(async () => {
     const request = ++statsRequest.current
