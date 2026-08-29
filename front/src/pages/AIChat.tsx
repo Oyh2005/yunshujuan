@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -7,17 +7,20 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  History,
   Loader2,
   MessageSquare,
   Paperclip,
+  Pin,
   Plus,
   Send,
   Sparkles,
   User,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
+import rehypeRaw from 'rehype-raw'
+import DOMPurify from 'dompurify'
 import { useSSE } from '../hooks/useSSE'
 import { sessionsApi } from '../api/sessions'
 import { useThemeStore } from '../stores/useThemeStore'
@@ -31,6 +34,31 @@ import '../styles/ai-pages.css'
 interface Message {
   role: 'user' | 'assistant'
   content: string
+}
+
+// AI 消息安全渲染：先 DOMPurify 清洗（允许 details/summary 折叠等常用标签），
+// 再经 rehype-raw 渲染原始 HTML —— 复习题答案的 <details> 折叠因此可用且无 XSS 风险
+function AssistantMarkdown({ content }: { content: string }) {
+  const safeContent = useMemo(() => DOMPurify.sanitize(content, {
+    ALLOWED_TAGS: [
+      'details', 'summary', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr',
+      'strong', 'em', 'del', 'code', 'pre', 'blockquote',
+      'ul', 'ol', 'li', 'a', 'img', 'span', 'div', 'input',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    ],
+    ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'src', 'alt', 'checked', 'type', 'class'],
+    ALLOW_DATA_ATTR: false,
+    ALLOW_ARIA_ATTR: false,
+  }), [content])
+
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeRaw, rehypeHighlight]}
+    >
+      {safeContent}
+    </ReactMarkdown>
+  )
 }
 
 const RENDER_WINDOW = 50
@@ -62,6 +90,13 @@ export default function AIChat() {
   const contentRef = useRef('')
   const rafRef = useRef<number | null>(null)
   const prevLenRef = useRef(0)
+  // 当前内存中消息所属的会话 id + 消息快照：用于避免「新会话首个问题回答完
+  // 自动跳转 /chat/:id 后 effect 重新拉历史」导致的闪屏（消息清空→加载→重绘）
+  const activeSessionRef = useRef<string | null>(null)
+  const messagesRef = useRef<Message[]>([])
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   const quickQuestions = [
     text('总结我的知识库', 'Summarize my knowledge base'),
@@ -93,7 +128,15 @@ export default function AIChat() {
       const response = await sessionsApi.list(String(userId))
       const data = response.data as { sessions?: ChatSession[] } | undefined
       const list = Array.isArray(data?.sessions) ? data.sessions : []
-      setRecentSessions([...list].sort((a, b) => validTime(b.updated_at || b.created_at) - validTime(a.updated_at || a.created_at)).slice(0, 6))
+      // 置顶优先（后端已按置顶排序返回，这里保持稳定：置顶组在前，其余按更新时间降序）
+      setRecentSessions(
+        [...list]
+          .sort((a, b) => {
+            if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1
+            return validTime(b.updated_at || b.created_at) - validTime(a.updated_at || a.created_at)
+          })
+          .slice(0, 6),
+      )
       setSessionsFailed(false)
     } catch {
       setSessionsFailed(true)
@@ -131,6 +174,11 @@ export default function AIChat() {
 
   useEffect(() => {
     if (!sessionId) return
+    // 刚在当前页面聊完这个会话（回答完成自动跳转而来），消息已在内存中，
+    // 跳过重新加载历史，避免闪屏。注意：activeSessionRef 只在「加载成功 /
+    // 提问 / 回答完成」时更新，保证内存消息确实属于该会话，否则误判会导致
+    // 切换到其他会话再切回时历史不加载
+    if (activeSessionRef.current === sessionId && messagesRef.current.length > 0) return
     let cancelled = false
     const timer = window.setTimeout(() => {
       setLoadingHistory(true)
@@ -147,9 +195,14 @@ export default function AIChat() {
             { role: 'user' as const, content: query },
             { role: 'assistant' as const, content: answer },
           ]))
+          // 加载成功：内存消息现在确实属于该会话
+          activeSessionRef.current = sessionId
         })
         .catch(() => {
-          if (!cancelled) setMessages([{ role: 'assistant', content: text('这段会话暂时无法加载，请稍后重试。', 'This conversation could not be loaded. Please try again.') }])
+          if (cancelled) return
+          // 加载失败：禁止守卫命中，下次进入该会话重新加载
+          activeSessionRef.current = null
+          setMessages([{ role: 'assistant', content: text('这段会话暂时无法加载，请稍后重试。', 'This conversation could not be loaded. Please try again.') }])
         })
         .finally(() => { if (!cancelled) setLoadingHistory(false) })
     }, 0)
@@ -169,6 +222,7 @@ export default function AIChat() {
 
   const newConversation = () => {
     abort()
+    activeSessionRef.current = null
     sessionStorage.removeItem('lastSessionId')
     contentRef.current = ''
     setMessages([])
@@ -183,6 +237,8 @@ export default function AIChat() {
     const trimmed = query.trim()
     if (!trimmed || loading) return
 
+    // 继续当前会话：标记内存中的消息属于该会话
+    activeSessionRef.current = sessionId || null
     setMessages((previous) => [...previous, { role: 'user', content: trimmed }])
     setInput('')
     setCurrentThinking('')
@@ -220,7 +276,11 @@ export default function AIChat() {
         }
         flushContent()
         usePetStore.getState().trigger('ai_done')
-        if (nextSessionId) sessionStorage.setItem('lastSessionId', nextSessionId)
+        if (nextSessionId) {
+          // 标记消息归属，跳转后 effect 跳过重载（防闪屏）
+          activeSessionRef.current = nextSessionId
+          sessionStorage.setItem('lastSessionId', nextSessionId)
+        }
         if (nextSessionId && nextSessionId !== sessionId) navigate(`/chat/${nextSessionId}`, { replace: true })
         window.setTimeout(loadRecentSessions, 250)
       },
@@ -248,17 +308,6 @@ export default function AIChat() {
   return (
     <section className="ai-page ai-chat-page">
       <AiTopbar />
-      <header className="ai-page-header">
-        <div>
-          <h1>{text('AI 助手', 'AI Assistant')}</h1>
-          <p>{text('把散落的知识，聊成清晰的答案', 'Turn scattered knowledge into clear answers')}</p>
-        </div>
-        <div className="ai-header-actions">
-          <Link className="secondary-button" to="/sessions"><History size={17} />{text('会话管理', 'Sessions')}</Link>
-          <button className="primary-button" onClick={newConversation}><Plus size={18} />{text('新建对话', 'New conversation')}</button>
-        </div>
-      </header>
-
       <div className="ai-chat-layout">
         <aside className="ai-recent-panel" aria-label={text('最近对话', 'Recent conversations')}>
           <div className="ai-panel-heading">
@@ -274,7 +323,7 @@ export default function AIChat() {
                 onClick={() => navigate(`/chat/${session.id}`)}
               >
                 <MessageSquare size={16} />
-                <span><strong>{session.title || text('新的对话', 'New conversation')}</strong><small>{formatSessionDate(session.updated_at || session.created_at)}</small></span>
+                <span><strong>{session.title || text('新的对话', 'New conversation')}{session.is_pinned && <Pin size={11} className="ai-recent-pin" />}</strong><small>{formatSessionDate(session.updated_at || session.created_at)}</small></span>
               </button>
             )) : !sessionsFailed && <div className="ai-recent-empty">{text('还没有历史对话', 'No conversations yet')}</div>}
           </div>
@@ -321,7 +370,7 @@ export default function AIChat() {
                         )}
                         {message.role === 'user' ? <p>{message.content}</p> : (
                           <div className={`markdown-body prose prose-sm max-w-none${theme === 'dark' ? ' prose-invert' : ''}`}>
-                            <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{message.content}</ReactMarkdown>
+                            <AssistantMarkdown content={message.content} />
                           </div>
                         )}
                         {hasStreamingAssistant && isLatestAssistant && <StreamingDots />}

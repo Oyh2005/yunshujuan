@@ -71,7 +71,7 @@ async def search_notes_tool(query: str, top_k: int = 5) -> str:
             logger.error(f"搜索笔记失败: {e}")
             return f"搜索笔记时出错: {str(e)}"
 
-@tool(description="获取用户的笔记统计信息，包括笔记总数、各分类（工作/学习/生活/项目）的笔记数量。")
+@tool(description="获取用户的笔记统计信息（笔记总数、各分类数量）以及知识库文档总数。注意：笔记与知识库文档是两个独立的数据源，本工具返回的知识库文档数来自知识库模块。")
 async def get_note_stats_tool() -> str:
     """笔记统计工具"""
     user_id = get_current_user_id_from_context()
@@ -88,6 +88,15 @@ async def get_note_stats_tool() -> str:
                 lines.append(f"  {emoji} {cat['category']}: {cat['count']} 篇")
             if stats['uncategorized'] > 0:
                 lines.append(f"  📄 未分类: {stats['uncategorized']} 篇")
+
+            # 附带知识库文档数（与笔记独立的另一数据源）
+            try:
+                from app.router.knowledge_service import KnowledgeService
+                docs = await KnowledgeService().handle_get_user_knowledge(user_id)
+                lines.append(f"\n📚 知识库文档数: {len(docs)} 份（上传的资料，与笔记不同源）")
+            except Exception as e:
+                logger.warning(f"获取知识库文档数失败: {e}")
+
             return "\n".join(lines)
         except Exception as e:
             logger.error(f"获取笔记统计失败: {e}")
@@ -172,3 +181,63 @@ async def get_related_notes_tool(note_id: str, top_k: int = 3) -> str:
         except Exception as e:
             logger.error(f"获取关联推荐失败: {e}")
             return f"获取关联推荐时出错: {str(e)}"
+
+@tool(description=(
+    "获取用户知识库（上传的资料文档）的文档列表。返回每个文档的文件名、切片数量和内容预览，"
+    "用于了解知识库全貌。当用户要求「总结知识库」「知识库里有什么」「查看我的资料」时，"
+    "必须先调用本工具获取文档列表，再对每个文档调用 get_knowledge_content_tool 获取内容进行总结。"
+    "注意：知识库文档（上传的资料）与笔记（用户手写的笔记）是两个不同的数据源，总结时要分别覆盖。"
+))
+async def get_knowledge_docs_tool() -> str:
+    """知识库文档列表工具"""
+    user_id = get_current_user_id_from_context()
+    if not user_id:
+        return "错误: 无法确定用户身份"
+    try:
+        from app.router.knowledge_service import KnowledgeService
+        documents = await KnowledgeService().handle_get_user_knowledge(user_id)
+        if not documents:
+            return "知识库中没有文档，暂无上传的资料。"
+        lines = [f"📚 知识库文档列表（共 {len(documents)} 份）\n"]
+        for i, doc in enumerate(documents, 1):
+            lines.append(f"{i}. **{doc.get('filename', '未知')}**")
+            lines.append(f"   切片数: {doc.get('chunk_count', 0)}")
+            preview = doc.get('preview', '')
+            if preview:
+                lines.append(f"   内容预览: {preview[:100]}...")
+            lines.append("")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"获取知识库文档列表失败: {e}")
+        return f"获取知识库文档列表时出错: {str(e)}"
+
+@tool(description=(
+    "获取知识库中某份文档的具体内容（按切片返回）。参数 filename 为文档文件名"
+    "（来自 get_knowledge_docs_tool 的列表），max_chunks 为返回的最大切片数（默认5，"
+    "每片约200字）。如果文档切片数超过返回数量，会提示剩余切片数。"
+    "用于总结某份知识库文档的内容、回答关于该文档的问题。"
+))
+async def get_knowledge_content_tool(filename: str, max_chunks: int = 5) -> str:
+    """知识库文档内容工具"""
+    user_id = get_current_user_id_from_context()
+    if not user_id:
+        return "错误: 无法确定用户身份"
+    try:
+        from app.router.knowledge_service import KnowledgeService
+        result = await KnowledgeService().handle_get_document_chunks(user_id, filename)
+        chunks = result.get('chunks', [])
+        total = result.get('total_chunks', len(chunks))
+        if not chunks:
+            return f"文档《{filename}》不存在或没有内容。"
+        lines = [f"📄 文档《{filename}》内容（共 {total} 个切片，返回前 {min(max_chunks, len(chunks))} 个）\n"]
+        for chunk in chunks[:max_chunks]:
+            content = (chunk.get('content') or '').strip()
+            if content:
+                lines.append(f"[切片 {chunk.get('index', 0)}]\n{content}\n")
+        remaining = total - min(max_chunks, len(chunks))
+        if remaining > 0:
+            lines.append(f"（还有 {remaining} 个切片未返回，如需更多内容可再次调用并增大 max_chunks）")
+        return "\n".join(lines)
+    except Exception as e:
+        logger.error(f"获取知识库文档内容失败: {e}")
+        return f"获取文档《{filename}》内容时出错: {str(e)}"

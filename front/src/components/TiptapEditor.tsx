@@ -14,6 +14,7 @@ import Underline from '@tiptap/extension-underline'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { common, createLowlight } from 'lowlight'
 import rehypeHighlight from 'rehype-highlight'
+import remarkGfm from 'remark-gfm'
 import { marked } from 'marked'
 import TurndownService from 'turndown'
 import ReactMarkdown from 'react-markdown'
@@ -558,7 +559,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(({ value,
     return (
       <div className="tiptap-wrapper h-full overflow-auto">
         <div className="max-w-3xl mx-auto px-10 py-10 prose prose-sm dark:prose-invert">
-          <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
             {value.replace(/\[\[([^[\]]+)\]\]/g, '`[[$1]]`')}
           </ReactMarkdown>
         </div>
