@@ -1,8 +1,8 @@
 # 云舒卷（RAG Notebook）开发交接文档（给下一个 Agent）
 
-> 更新：2026-08-30（最新一轮：体验流畅度优化——页面切换专项/字体本地化/页面标题/SWR 缓存补全/滚动记忆/列表 memo；上几轮：分享页独立改版、账户页 AccountLayout 改版、通知删除/清空、在线状态全局化、AI 写作助手移除、私聊微信化五阶段 + 气泡布局修复）
+> 更新：2026-08-30（最新一轮：**语言持久化格式冲突修复**（useLanguageStore Zustand JSON vs i18n 读取，RangeError → 渲染异常，见踩坑 61）+ 体验流畅度二轮——P0-3 AI 双路并行检索 / P0-4 思考占位文案轮播 / P1-4 图片渐进加载 / P1-5 乐观更新补全 / P1-6 移动端滚动优化；上一轮：页面切换专项、字体本地化、页面标题、SWR 缓存补全、滚动记忆、列表 memo、账户页 AccountLayout 改版、分享页独立改版、通知删除/清空、在线状态全局化、AI 写作助手移除、私聊微信化五阶段 + 气泡布局修复）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
-> - `plan/roadmap/2026-08-30-ux-polish-plan.md` —— **体验流畅度优化计划与进度**（页面切换专项已完成；P0-3/P0-4/P1-4/5/6 待做，新窗口优先看这个）
+> - `plan/roadmap/2026-08-30-ux-polish-plan.md` —— **体验流畅度优化计划与进度**（P0/P1 全部完成，含二轮实施说明与验证；P2 立项待做，新窗口优先看这个）
 > - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
 > - `plan/records/2026-08-29-wechat-chat-delivery.md` —— 私聊微信化五阶段交付（视觉/图片/引用撤回/会话管理/实时状态，含验证）
 > - `plan/records/2026-08-29-social-chat-delivery.md` —— 社交私聊 P0 交付（好友私聊 + WebSocket 实时，含验证）
@@ -49,7 +49,7 @@
 | 稳定性三件套 | **备份脚本**（MySQL dump + media + data 打包，`deploy/backup.ps1`）；**前端错误监控**（`POST /telemetry/error` 匿名可上报 + ErrorBoundary/全局 error 监听，30s 节流）；**日志巡检**（`deploy/check-logs.ps1`，ERROR/慢查询统计 + 计划任务告警） | `models/error_report.py`、`router/telemetry_router.py`、`api/telemetry.ts` |
 | PWA | vite-plugin-pwa：Service Worker + manifest（离线壳/可安装）；SW 只缓存构建产物与 /media，**API 一律不缓存**（与 ETag/304 协同） | `vite.config.ts`（⚠️ 需本机 `npm run build` 验证，沙箱跑不了） |
 | 全局 | 主题、i18n 中英、错误边界、⌘K 命令面板、Ctrl+N、侧边栏分组折叠动画、底部账号菜单、**页面标题随路由**（MainLayout 全路由 + 登录/注册 + 分享页笔记标题）、**字体本地化**（无远程字体，系统栈） | `Sidebar.tsx`、`CommandPalette.tsx`、`MainLayout.tsx` |
-| 体验性能 | **页面切换专项（08-30）**：路由预加载（`router/pages.ts` 共用 import，hover/空闲 2s 预取高频页）、AnimatePresence 120ms 淡出/淡入过渡、切页回顶部、全高卡片骨架、`MotionConfig reducedMotion="user"`；**SWR 缓存**：NoteList/AIChat 最近对话/Sessions/好友页/通知页；**滚动记忆**（笔记列表 sessionStorage）；**NoteCard memo 化**（回调 useCallback 稳定） | `router/pages.ts`、`MainLayout.tsx`、`LoadingSkeleton.tsx`、`App.tsx`、`useSwrCacheStore.ts` |
+| 体验性能 | **页面切换专项（08-30）**：路由预加载（`router/pages.ts` 共用 import，hover/空闲 2s 预取高频页）、AnimatePresence 120ms 淡出/淡入过渡、切页回顶部、全高卡片骨架、`MotionConfig reducedMotion="user"`；**SWR 缓存**：NoteList/AIChat 最近对话/Sessions/好友页/通知页；**滚动记忆**（笔记列表 sessionStorage）；**NoteCard memo 化**（回调 useCallback 稳定）；**P0-3 双路并行检索**（HyDE 生成 ∥ 直接检索 + 合并去重 + 2.5s 等待上限）；**P0-4 思考占位文案轮播**（`useRotatingPlaceholder`，首事件前/空档期）；**P1-4 图片渐进加载**（`ProgressiveImage` 占位微光 + 淡入）；**P1-5 乐观更新**（点赞/关注/通知全部已读 + 回滚）；**P1-6 移动端滚动优化**（overscroll-behavior + 移动端去 backdrop-filter） | `router/pages.ts`、`MainLayout.tsx`、`LoadingSkeleton.tsx`、`App.tsx`、`useSwrCacheStore.ts`、`rag_service.py`、`AIChat.tsx`、`useRotatingPlaceholder.ts`、`ProgressiveImage.tsx` |
 
 **页面布局体系**（2026-08-28/29 建立，08-30 扩展）：`knowledge-pages.css`（知识库/广场/统计/图谱）+ `ai-pages.css`（AI 对话/会话）+ `learning-pages.css`（回顾/习惯/番茄钟）+ `dashboard.css`（首页）+ `social-pages.css`（社交三页/私信/通知）+ `note-authoring.css`（笔记撰写）+ `account-pages.css`（个人中心三页 + about，`is-account`）+ `share-page.css`（分享页独立沉浸，**不进 MainLayout**），对应 `KnowledgeLayout`/`AiWorkspace`/`LearningLayout`/`SocialLayout`/`AccountLayout` 布局组件（含统一顶栏/搜索/页宠开关）。
 
@@ -135,6 +135,14 @@
 57. **NoteCard memo 化后回调必须稳定**：列表侧传给卡片的所有回调（onOpen/onSelect/onPin/onTogglePublic）改为**带参签名**（如 `onOpen(id)`），列表侧用 `useCallback` 包裹——若传内联箭头，memo 失效等于没做。busy/pinPending 防重入逻辑内聚进 useCallback（deps 含 busy 等）
 57b. **列表滚动记忆**：笔记列表 `sessionStorage('note-list-scroll')` 在打开详情前记录 `window.scrollY`，返回时**数据到达后**（loading=false 的 effect 里 setTimeout 0）恢复——必须晚于 MainLayout 的切页回顶 effect（子组件 effect 先于父组件执行，直接恢复会被父级回顶覆盖）
 
+### 体验二轮踩坑（08-30 下午，P0-3/P0-4/P1-4/5/6）
+58. **asyncio 任务取消要消费异常**：`asyncio.create_task` 的任务被 `cancel()` 后，若无人取 `task.exception()` 会打印 "Task exception was never retrieved"（CancelledError 是 BaseException，`except Exception` 捕不到，`generate_hypothetical_document` 的内部兜底无效）。统一写法：`task.cancel(); task.add_done_callback(lambda t: t.cancelled() or t.exception())`。**P0-3 双路并行**：HyDE 生成（DeepSeek）与直接检索并行，`asyncio.wait({task}, timeout=_HYDE_WAIT_CAP)`——超时即取消慢调用用直接结果（延迟有界 2.5s），直接检索无结果（知识库空）则不等 HyDE 直接返回；两路结果**按内容去重合并**（笔记在前）。改 rag_service 时保留此结构
+59. **渲染期禁 Date.now() 的替代**（P0-4）：判断"思考空档期"（多久无 thinking/response 事件）不用时间戳——`useRotatingPlaceholder` 返回递增 `tick`，onThinking/onResponse 时 `setActivityTick(t=>t+1)`，`stall = tick - activityTick >= 2`（≈3.2s 无事件）即轮播「正在思考中…」；首个事件前轮播「正在分析问题…」四连文案。新增等待反馈照此模式（勿引入 Date.now）
+60. **乐观更新与单飞守卫**（P1-5）：点赞乐观翻转后，成功以服务端校准（`serverLiked !== optimisticLiked` 才调计数，防重复增减）、失败回滚；**必须加在途守卫**（`likingRef: Set<id>`，请求期间忽略重复点击）——否则两次快速点击的乐观态与服务端响应互相覆盖，计数错乱。关注/通知全部已读同模式（通知已读回滚用 items 快照）。私信 markRead 属后台同步语义，无需乐观
+
+### ⚠️ 语言持久化格式冲突踩坑（08-30 晚，用户定位根因）
+61. **⚠️ 知识广场/知识库"渲染过程中发生异常"根因：`useLanguageStore`（Zustand persist）把语言存为 JSON `{"state":{"lang":"zh-CN"},"version":0}`，而 `i18n/index.ts` 旧代码 `localStorage.getItem('language')` 直接拿整段 JSON 当语言码** → `i18n.language` 变成非法值 → PlazaPage/KnowledgeBase 把 `i18n.language` 传给 `toLocaleDateString()` → `RangeError: Incorrect locale information provided` → ErrorBoundary 兜底页。**F5/重启前端无效**（坏值持久化在 localStorage）。**修复**：① `i18n/index.ts` 加 `getInitialLanguage()`——兼容 Zustand JSON 与旧裸字符串两种格式，白名单校验（仅 zh-CN/en-US），解析失败回退 zh-CN（老用户无需清 localStorage，刷新即恢复，已实测 7 用例全过）；② `PlazaPage.tsx`/`KnowledgeBase.tsx` 的 `toLocaleDateString(i18n.language, ...)` 改为白名单 `const locale = i18n.resolvedLanguage === 'en-US' ? 'en-US' : 'zh-CN'`。**约定：新增日期格式化一律用白名单 locale 或 `undefined`（系统默认），勿直接传 `i18n.language`**。注意区别：`i18n.language` 是请求值（非法时原样保留）、`i18n.resolvedLanguage` 是解析后值（非法时回退 fallbackLng，相对安全）——NoteCard 用 resolvedLanguage 所以没崩
+
 ### 注册/bcrypt 踩坑（08-29 晚）
 45. **⚠️ 注册接口曾 500（DetachedInstanceError）**：`user.date_joined` 是 **server_default 列**，INSERT 后 ORM 不知道其值；`register` 在 `async with` 块内 commit 后、块外 `_user_to_response` 访问该属性 → 懒加载 → session 已关闭 → 500。**修复：commit 后 `await session.refresh(user)`**（在 with 块内）。同类问题：任何 server_default/DB 生成列，commit 后需 refresh 再在 session 外访问
 46. **⚠️ passlib 1.7.4 + bcrypt>=4.1 不兼容**：bcrypt 移除了 `__about__`，passlib 每次 hash/verify 打印 "trapped error reading bcrypt version"（仅噪音，功能正常）。**已加猴子补丁**（`auth_utils.py` 顶部给 bcrypt 补 `__about__.__version__`，用 importlib.metadata 取版本），新环境不需要降级 bcrypt
@@ -145,10 +153,12 @@
 ### ⚠️ 立即事项
 - **✅ 已与 origin/main 同步**（08-30 核对 64=64，无待推送；以 git status 实测为准）
 - **用户待办（08-30，开新窗口时确认是否已完成）**：
-  ① **重启后端 8000**（08-30 改动：`share_router.py` 分享页作者信息 + `social_router.py` 通知删除/清空接口——若之前未重启则不生效；`--reload` 模式下已自动重载可忽略）
+  ① **重启后端 8000**（08-30 改动：`rag_service.py` 双路并行检索（P0-3）+ `share_router.py` 分享页作者信息 + `social_router.py` 通知删除/清空接口——若之前未重启则不生效；`--reload` 模式下已自动重载可忽略）
   ② **双账号（admin/admin2）实测本轮体验优化**：页面切换过渡/预加载（hover 导航项后点击应无骨架）、好友页/私信页在线绿点（任意页面登录即在线）、通知删除/清空、私聊撤回后重新编辑、引用图片缩略图跳转、分享页作者信息卡
-  ③ **本机 `cd front && npm run build` 验证 PWA**（08-29 遗留，沙箱跑不了 vite build——检查 `dist/sw.js`、manifest、SW 注册与离线缓存）
-  ④ 可选：备份/巡检脚本挂计划任务（`deploy/backup.ps1` 与 `deploy/check-logs.ps1` 头部有注册示例）
+  ③ **实测体验二轮**：AI 对话提问后应见「正在分析你的问题…」占位轮播与真实阶段切换、Agent 空档期「正在思考中…」轮播；聊天/动态图片加载时有占位底色+微光；点赞/关注/通知全部已读即时翻转；移动端（≤767px）滚动到底无回弹、弹层无毛玻璃
+  ④ **本机 `cd front && npm run build` 验证 PWA**（08-29 遗留，沙箱跑不了 vite build——检查 `dist/sw.js`、manifest、SW 注册与离线缓存）
+  ⑤ **本机跑新增单测**：`backend\.venv\Scripts\python.exe -m pytest tests/rag/test_rag_service.py`（沙箱已实测 19 全过；pytest 全量 382 过，4 失败为环境/历史遗留：vision 307 errors 因 VISION_ENABLED=false、限流 3 失败因 FakeRedis 与模块差异、agent 工具数断言过期于 08-29 加工具时）
+  ⑥ 可选：备份/巡检脚本挂计划任务（`deploy/backup.ps1` 与 `deploy/check-logs.ps1` 头部有注册示例）
 
 ### ✅ 全部里程碑已完成（M2/M3/M4、方向 A/B/C1/C2/C3、数据上云、D 阶段一、备选精选、UI 改版、lint 清零、风格统一）
 
@@ -236,10 +246,12 @@
 
 **⑮ 体验流畅度优化（08-30，详见 `plan/roadmap/2026-08-30-ux-polish-plan.md`）**：页面切换专项（预加载/AnimatePresence 过渡/回顶/骨架升级）、字体本地化、页面标题、SWR 补全（好友/通知）、笔记列表滚动记忆、NoteCard memo 化——全部 tsc/eslint 0 问题，待本机手测
 
+**⑯ 体验二轮（08-30 下午，全部完成，见 UX 计划「二轮实施说明」）**：P0-3 `rag_service.py` 双路并行检索（HyDE ∥ 直接检索 + 合并去重 + 2.5s 上限兜底，探针 `.probe_ux_p03.py` 实测 PASS：直接检索 0.16s 于 HyDE 2.36s 期间完成）；P0-4 思考占位文案轮播（`useRotatingPlaceholder`，首事件前 + 空档期两处）；P1-4 `ProgressiveImage` 图片渐进加载（聊天/动态/引用/转发预览）；P1-5 乐观更新（点赞/关注/通知全部已读，含回滚与单飞守卫）；P1-6 移动端滚动优化（overscroll-behavior + 移动端 backdrop-filter 全清）——tsc/eslint 0 问题、CSS 编译通过、新增 3 个 rag_service 单测（合并去重/慢 HyDE 兜底/空结果跳过，pytest 待本机跑）
+
 ### 🔜 待办（按触发条件）
 | 项 | 触发条件 | 参考 |
 | --- | --- | --- |
-| **UX 优化剩余项**：P0-3 AI 首答提速（HyDE 生成与直接检索并行，需实测 rag_service，Agent 首轮依赖 rag_context 无法直接并行）、P0-4 思考等待占位文案、P1-4 图片渐进加载、P1-5 乐观更新核对、P1-6 移动端滚动优化、P2（列表虚拟化/上传压缩/下拉刷新/PWA 引导/性能监控） | 新窗口优先 | `plan/roadmap/2026-08-30-ux-polish-plan.md` |
+| **UX 优化剩余项**：~~P0-3 AI 首答提速（双路并行已实施 08-30）~~、~~P0-4 思考占位文案~~、~~P1-4 图片渐进加载~~、~~P1-5 乐观更新核对~~、~~P1-6 移动端滚动优化~~（**全部已完成 08-30**）；P2（列表虚拟化/上传压缩/下拉刷新/PWA 引导/性能监控） | 新窗口优先 | `plan/roadmap/2026-08-30-ux-polish-plan.md` |
 | 方向 D 阶段二：模型服务拆分（embedding/reranker 独立 + 任务队列） | 活跃用户接近 1000 | `plan/roadmap/2026-08-27-scale-up-plan.md` |
 | 方向 D 阶段三：大规模架构 | 几千用户 | `plan/roadmap/2026-08-27-scale-up-plan.md` |
 | 路由判断偶发 2~3.8s 待定位（Chroma/Ollama 侧） | 有空 | 交接文档 §4 ② |
