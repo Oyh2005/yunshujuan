@@ -83,7 +83,8 @@ export default function PlazaPage() {
     return () => { mounted.current = false; notesBusy.current = false; notesVersion.current++; ranksVersion.current++; window.clearTimeout(timer) }
   }, [loadNotes, loadRanks])
 
-  const formatTime = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' }) : ''
+  const locale = i18n.resolvedLanguage === 'en-US' ? 'en-US' : 'zh-CN'
+  const formatTime = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleDateString(locale, { month: 'short', day: 'numeric' }) : ''
   const rankStatus = rankError ? <div className="knowledge-alert" role="alert"><span>{rankError === 'rate' ? t('common.rateLimited') : t('knowledgeUI.rankError')}</span><button className="knowledge-text-link" onClick={() => void loadRanks()}>{t('common.retry')}</button></div> : rankLoading ? <p className="knowledge-footnote" role="status">{t('common.loading')}</p> : null
   return <KnowledgeLayout>
     <KnowledgeHeader title={t('plaza.title')} subtitle={t('knowledgeUI.plazaSubtitle')} hero actions={<Link to="/notes/new" className="primary-button"><Plus size={17} />{t('note.newNote')}</Link>} />

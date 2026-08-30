@@ -157,9 +157,12 @@ export default function KnowledgeBase() {
       if (mounted.current) setExporting(false)
     }
   }
+  // 白名单映射：勿直接传 i18n.language 给 toLocaleDateString——
+  // 持久化格式异常时 i18n.language 可能是非法值（RangeError，见踩坑 61）
+  const locale = i18n.resolvedLanguage === 'en-US' ? 'en-US' : 'zh-CN'
   const formatDate = (value?: string | null) => {
     if (!value || !Number.isFinite(Date.parse(value))) return '—'
-    return new Date(value).toLocaleDateString(i18n.language, { month: 'short', day: 'numeric' })
+    return new Date(value).toLocaleDateString(locale, { month: 'short', day: 'numeric' })
   }
   const latest = docs.reduce<string | null>((latest, doc) => doc.created_at && Number.isFinite(Date.parse(doc.created_at)) && (!latest || Date.parse(doc.created_at) > Date.parse(latest)) ? doc.created_at : latest, null)
   const filtered = docs.filter((doc) => doc.filename.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) && (type === 'all' || (type === 'document' ? ['docx', 'pptx', 'txt'].includes(extension(doc.filename)) : extension(doc.filename) === type)))
