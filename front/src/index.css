@@ -1,6 +1,7 @@
 /* Tailwind CSS v4：CSS-first 配置 */
 @import "tailwindcss";
 @import "./styles/workspace.css";
+@import "./styles/auth-pages.css";
 @plugin "@tailwindcss/typography";
 
 /* 暗色模式：跟随 .dark class（与 useThemeStore 一致） */

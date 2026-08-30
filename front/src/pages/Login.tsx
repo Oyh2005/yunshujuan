@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Eye, EyeOff, LogIn } from 'lucide-react'
+import { Eye, EyeOff, LockKeyhole, LogIn, UserRound } from 'lucide-react'
 import { authApi } from '../api/auth'
 import { useUserStore } from '../stores/useUserStore'
 import { useLanguageStore } from '../stores/useLanguageStore'
@@ -49,43 +49,37 @@ export default function Login() {
   }
 
   return (
-    <FadeIn y={18} className="space-y-8">
-      <div className="text-center">
-        <h1 className="font-heading text-2xl font-bold">
-          <span className="text-gradient">{t('app.name')}</span>
-        </h1>
-        <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{t('auth.login')}</p>
-      </div>
+    <FadeIn y={12} className="auth-form-page auth-form-page--login">
+      <header className="auth-form-header">
+        <span className="auth-form-kicker">{t('auth.loginKicker')}</span>
+        <h2>{t('auth.welcomeBack')}</h2>
+        <p>{t('auth.loginSubtitle')}</p>
+      </header>
 
-      <form onSubmit={handleLogin} className="space-y-5">
+      <form onSubmit={handleLogin} className="auth-form">
         {error && (
-          <div className="px-4 py-3 rounded-md text-sm bg-[var(--color-danger-bg)] text-[var(--color-danger)]">
+          <div className="auth-alert auth-alert--danger" role="alert">
             {error}
           </div>
         )}
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-[var(--color-text)]">{t('auth.username')}</label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition-colors"
-            placeholder={t('auth.username')}
-          />
+        <div className="auth-field">
+          <label htmlFor="login-username">{t('auth.username')}</label>
+          <div className="auth-input-wrap">
+            <UserRound size={17} />
+            <input id="login-username" type="text" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} placeholder={t('auth.usernamePlaceholder')} />
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-[var(--color-text)]">{t('auth.password')}</label>
-          <div className="relative">
-            <input
-              type={showPwd ? 'text' : 'password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 pr-10 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition-colors"
-              placeholder={t('auth.password')}
-            />
-            <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)]">
+        <div className="auth-field">
+          <div className="auth-label-row">
+            <label htmlFor="login-password">{t('auth.password')}</label>
+            <Link to="/forgot-password" state={{ authDirection: -1 }}>{t('auth.forgotPassword')}</Link>
+          </div>
+          <div className="auth-input-wrap">
+            <LockKeyhole size={17} />
+            <input id="login-password" type={showPwd ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t('auth.passwordPlaceholder')} />
+            <button type="button" onClick={() => setShowPwd(!showPwd)} className="auth-input-action" aria-label={t(showPwd ? 'auth.hidePassword' : 'auth.showPassword')}>
               {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
@@ -94,10 +88,10 @@ export default function Login() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-[var(--color-accent)] text-[var(--color-accent-foreground)] text-sm font-medium hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
+          className="auth-primary-button"
         >
           {loading ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span className="auth-spinner" />
           ) : (
             <LogIn size={16} />
           )}
@@ -105,15 +99,15 @@ export default function Login() {
         </button>
       </form>
 
-      <div className="flex flex-col items-center gap-3">
-        <button onClick={fillTestAccount} className="text-xs text-[var(--color-text-tertiary)] hover:text-[var(--color-accent)] transition-colors">
+      <footer className="auth-form-footer">
+        <button onClick={fillTestAccount} className="auth-quiet-action">
           {t('auth.testAccount')}
         </button>
-        <p className="text-sm text-[var(--color-text-secondary)]">
+        <p>
           {t('auth.noAccount')}{' '}
-          <Link to="/register" className="text-[var(--color-accent)] hover:underline">{t('auth.register')}</Link>
+          <Link to="/register" state={{ authDirection: 1 }}>{t('auth.createAccount')}</Link>
         </p>
-      </div>
+      </footer>
     </FadeIn>
   )
 }

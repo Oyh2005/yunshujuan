@@ -5,7 +5,7 @@ import MainLayout from '../layouts/MainLayout'
 import AuthLayout from '../layouts/AuthLayout'
 import LoadingSkeleton from '../components/common/LoadingSkeleton'
 import {
-  Login, Register, Dashboard, NoteList, NoteEditor, AIChat, Sessions,
+  Login, Register, ForgotPassword, Dashboard, NoteList, NoteEditor, AIChat, Sessions,
   KnowledgeBase, PetPage, HabitPage, StatsPage, GraphPage, PublicSharePage,
   SocialFeed, FriendsPage, NotificationsPage, MessagesPage, PlazaPage,
   UserProfilePage, PomodoroPage, DailyReview, Profile, Settings, AboutUs,
@@ -17,14 +17,12 @@ const LazyLoad = ({ children }: { children: React.ReactNode }) => (
 
 const routes: RouteObject[] = [
   {
-    path: '/login',
     element: <AuthLayout />,
-    children: [{ index: true, element: <LazyLoad><Login /></LazyLoad> }],
-  },
-  {
-    path: '/register',
-    element: <AuthLayout />,
-    children: [{ index: true, element: <LazyLoad><Register /></LazyLoad> }],
+    children: [
+      { path: 'login', element: <LazyLoad><Login /></LazyLoad> },
+      { path: 'register', element: <LazyLoad><Register /></LazyLoad> },
+      { path: 'forgot-password', element: <LazyLoad><ForgotPassword /></LazyLoad> },
+    ],
   },
   {
     path: '/share/:id',

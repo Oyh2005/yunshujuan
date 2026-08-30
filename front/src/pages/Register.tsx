@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { UserPlus } from 'lucide-react'
+import { Eye, EyeOff, LockKeyhole, Mail, Phone, UserPlus, UserRound } from 'lucide-react'
 import { authApi } from '../api/auth'
 import { useUserStore } from '../stores/useUserStore'
 import { FadeIn } from '../components/common/motion'
@@ -11,6 +11,7 @@ export default function Register() {
   const navigate = useNavigate()
   const login = useUserStore((s) => s.login)
   const [form, setForm] = useState({ username: '', email: '', phone: '', password: '', confirmPassword: '' })
+  const [showPassword, setShowPassword] = useState({ password: false, confirmPassword: false })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -48,49 +49,50 @@ export default function Register() {
   }
 
   const fields = [
-    { key: 'username', label: t('auth.username'), required: true },
-    { key: 'email', label: t('auth.email'), type: 'email', required: true },
-    { key: 'phone', label: t('auth.phone'), type: 'tel' },
-    { key: 'password', label: t('auth.password'), type: 'password', required: true },
-    { key: 'confirmPassword', label: t('auth.confirmPassword'), type: 'password', required: true },
+    { key: 'username', label: t('auth.username'), placeholder: t('auth.registerUsernamePlaceholder'), required: true, icon: UserRound, autoComplete: 'username' },
+    { key: 'email', label: t('auth.email'), placeholder: t('auth.emailPlaceholder'), type: 'email', required: true, icon: Mail, autoComplete: 'email' },
+    { key: 'phone', label: t('auth.phone'), placeholder: t('auth.optional'), type: 'tel', icon: Phone, autoComplete: 'tel' },
+    { key: 'password', label: t('auth.password'), placeholder: t('auth.registerPasswordPlaceholder'), type: 'password', required: true, icon: LockKeyhole, autoComplete: 'new-password' },
+    { key: 'confirmPassword', label: t('auth.confirmPassword'), placeholder: t('auth.confirmPasswordPlaceholder'), type: 'password', required: true, icon: LockKeyhole, autoComplete: 'new-password' },
   ]
 
   return (
-    <FadeIn y={18} className="space-y-8">
-      <div className="text-center">
-        <h1 className="font-heading text-2xl font-bold">
-          <span className="text-gradient">{t('auth.register')}</span>
-        </h1>
-        <p className="mt-2 text-sm text-[var(--color-text-secondary)]">{t('auth.register')}</p>
-      </div>
+    <FadeIn y={12} className="auth-form-page auth-form-page--register">
+      <header className="auth-form-header">
+        <span className="auth-form-kicker">{t('auth.registerKicker')}</span>
+        <h2>{t('auth.registerTitle')}</h2>
+        <p>{t('auth.registerSubtitle')}</p>
+      </header>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="auth-form auth-form--compact">
         {error && (
-          <div className="px-4 py-3 rounded-md text-sm bg-[var(--color-danger-bg)] text-[var(--color-danger)]">{error}</div>
+          <div className="auth-alert auth-alert--danger" role="alert">{error}</div>
         )}
 
-        {fields.map(({ key, label, type = 'text', required }) => (
-          <div key={key} className="space-y-2">
-            <label className="block text-sm font-medium text-[var(--color-text)]">
+        {fields.map(({ key, label, placeholder, type = 'text', required, icon: Icon, autoComplete }) => {
+          const passwordKey = key === 'password' || key === 'confirmPassword' ? key : null
+          const visible = passwordKey ? showPassword[passwordKey] : false
+          return <div key={key} className="auth-field">
+            <label htmlFor={`register-${key}`}>
               {label}{required && <span className="text-[var(--color-danger)] ml-0.5">*</span>}
             </label>
-            <input
-              type={type}
-              value={form[key as keyof typeof form]}
-              onChange={(e) => handleChange(key, e.target.value)}
-              className="w-full px-4 py-2.5 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-placeholder)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:border-transparent transition-colors"
-              placeholder={label}
-            />
+            <div className="auth-input-wrap">
+              <Icon size={16} />
+              <input id={`register-${key}`} type={passwordKey ? (visible ? 'text' : 'password') : type} autoComplete={autoComplete} value={form[key as keyof typeof form]} onChange={(e) => handleChange(key, e.target.value)} placeholder={placeholder} />
+              {passwordKey && <button type="button" className="auth-input-action" onClick={() => setShowPassword((current) => ({ ...current, [passwordKey]: !current[passwordKey] }))} aria-label={t(visible ? 'auth.hidePassword' : 'auth.showPassword')}>
+                {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>}
+            </div>
           </div>
-        ))}
+        })}
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-[var(--color-accent)] text-[var(--color-accent-foreground)] text-sm font-medium hover:bg-[var(--color-accent-hover)] disabled:opacity-50 transition-colors"
+          className="auth-primary-button"
         >
           {loading ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            <span className="auth-spinner" />
           ) : (
             <UserPlus size={16} />
           )}
@@ -98,9 +100,9 @@ export default function Register() {
         </button>
       </form>
 
-      <p className="text-center text-sm text-[var(--color-text-secondary)]">
+      <p className="auth-switch-link">
         {t('auth.hasAccount')}{' '}
-        <Link to="/login" className="text-[var(--color-accent)] hover:underline">{t('auth.login')}</Link>
+        <Link to="/login" state={{ authDirection: -1 }}>{t('auth.goLogin')}</Link>
       </p>
     </FadeIn>
   )

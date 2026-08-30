@@ -7,6 +7,7 @@ import { lazy } from 'react'
 export const loadPage = {
   login: () => import('../pages/Login'),
   register: () => import('../pages/Register'),
+  forgotPassword: () => import('../pages/ForgotPassword'),
   dashboard: () => import('../pages/Dashboard'),
   noteList: () => import('../pages/NoteList'),
   noteEditor: () => import('../pages/NoteEditor'),
@@ -63,6 +64,7 @@ export const PREFETCH_IDLE = [
 
 export const Login = lazy(loadPage.login)
 export const Register = lazy(loadPage.register)
+export const ForgotPassword = lazy(loadPage.forgotPassword)
 export const Dashboard = lazy(loadPage.dashboard)
 export const NoteList = lazy(loadPage.noteList)
 export const NoteEditor = lazy(loadPage.noteEditor)
