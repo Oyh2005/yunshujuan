@@ -1,7 +1,8 @@
 # 云舒卷（RAG Notebook）开发交接文档（给下一个 Agent）
 
-> 更新：2026-08-29（最新一轮：私聊微信化五阶段 + 气泡布局修复；上几轮：社交私聊 P0、稳定性三件套 + PWA、体验打磨四项、AI 对话延迟优化 + 会话功能 + 知识库工具 + HTTP/SWR 客户端缓存 + 路由启发式 + 闪屏/断线修复 + 代码卫生 + plan 文档分类 + Git 同步）
+> 更新：2026-08-30（最新一轮：体验流畅度优化——页面切换专项/字体本地化/页面标题/SWR 缓存补全/滚动记忆/列表 memo；上几轮：分享页独立改版、账户页 AccountLayout 改版、通知删除/清空、在线状态全局化、AI 写作助手移除、私聊微信化五阶段 + 气泡布局修复）
 > 用途：新窗口继续开发前，**必读本文件**，然后按需读：
+> - `plan/roadmap/2026-08-30-ux-polish-plan.md` —— **体验流畅度优化计划与进度**（页面切换专项已完成；P0-3/P0-4/P1-4/5/6 待做，新窗口优先看这个）
 > - `plan/handoff/2026-08-27-COMPLETED-OPTIMIZATIONS.md` —— 全部功能/优化的交付物、验证、踩坑总汇总
 > - `plan/records/2026-08-29-wechat-chat-delivery.md` —— 私聊微信化五阶段交付（视觉/图片/引用撤回/会话管理/实时状态，含验证）
 > - `plan/records/2026-08-29-social-chat-delivery.md` —— 社交私聊 P0 交付（好友私聊 + WebSocket 实时，含验证）
@@ -9,7 +10,7 @@
 > - `plan/records/2026-08-29-experience-polish-delivery.md` —— 体验打磨交付（导出增强/AI 对话细节/首页周报月报/移动端抽屉，含验证）
 > - `plan/records/2026-08-29-ai-chat-latency-optimization.md` —— AI 对话延迟优化专题（发现→分析→解决全记录，含简历素材）
 > - `plan/records/2026-08-29-ai-chat-latency-interview-qa.md` —— 同上项目的面试问答素材（数据怎么测的、预判追问应对）
-> - `plan/fixes/2026-08-29-ai-chat-flash-fix.md` —— 新会话首问闪屏排查全记录（MainLayout key 重挂载根因 + 双层修复）
+> - `plan/fixes/2026-08-29-ai-chat-flash-fix.md` —— 新会话首问闪屏排查全记录（MainLayout key 重挂载根因 + 双层修复；**注意：2026-08-30 页面切换已改 AnimatePresence，但 chat key 归一化逻辑保留，见踩坑 53**）
 > - `plan/records/2026-08-29-client-cache-plan.md` —— 客户端缓存方案（HTTP 缓存头 + ETag 已实施 / 前端 SWR 已实施 / PWA 待做，含接口级配置清单）
 > - `plan/roadmap/2026-08-29-next-steps-plan.md` —— 下一步规划（小程序/PWA/年度报告/体验打磨/稳定性/线上化，按触发条件分类）
 > - `plan/roadmap/2026-08-26-feature-expansion-plan.md` —— 六方向企划
@@ -26,7 +27,7 @@
 - 后端：FastAPI + LangChain + ChromaDB + MySQL + Redis（`backend/`）
 - 前端：React 19 + TypeScript + Vite 8 + **Tailwind CSS 4**（CSS-first）+ **React Router 7** + Zustand + framer-motion + **vite-plugin-pwa**（Service Worker/manifest，`front/`）
 - **✅ 已是 git 仓库**（2026-08-28 初始化）：远程 `origin → https://github.com/Oyh2005/yunshujuan.git`（分支 `main`）
-- **⚠️ 本地领先 origin/main 16 个提交待推送**（08-29 晚：私聊微信化 6 个 + 布局修复 + 文档同步等；最早的一批尚未推送）——开新会话**第一件事提醒用户 `git push`**（凭据/PAT 由用户本机操作，沙箱无凭据）；此前体验打磨 5 个提交用户已确认推送
+- **✅ 已与 origin/main 同步**（2026-08-30 核对：64=64，无待推送；最近三提交：体验流畅度优化 fbf35bb / 账户+通知+在线 47fd1c7 / 分享页改版 5d75046）——以后仍以 `git status` 实测为准
 - 用户会手动改代码，开工前先 `git status` 核对最近改动
 
 ## 2. 当前已完成功能总览（勿重复开发）
@@ -34,21 +35,23 @@
 | 模块 | 说明 | 位置 |
 | --- | --- | --- |
 | 首页 Dashboard | 登录后进入 `/`：欢迎横幅/快捷操作/最近记录/图谱预览/页宠成长卡，部分失败可重试；**周报/月报卡片 + 订阅提醒**（`/stats/period`） | `pages/Dashboard.tsx`、`styles/dashboard.css` |
-| 笔记 | Tiptap 编辑器、双链 `[[标题]]`、标签/分类/置顶、语义搜索、批量操作、导出 zip/HTML、打印 PDF、知识卡片图、公开分享 | `pages/NoteEditor.tsx`、`components/note/NoteCard.tsx` |
+| 笔记 | Tiptap 编辑器、双链 `[[标题]]`、标签/分类/置顶、语义搜索、批量操作、导出 zip/HTML、打印 PDF、知识卡片图、公开分享。**⚠️ AI 写作助手已移除（08-30）**：幽灵续写/Tab 补全/写作助手卡片全删，`notesApi.autocomplete` 与后端接口保留（恢复时重接）；**Tab = 文本缩进**（列表项嵌套/提升、段落与代码块 4 空格） | `pages/NoteEditor.tsx`、`components/note/NoteCard.tsx`、`components/TiptapEditor.tsx` |
 | 笔记列表 | **网格/列表双视图**（localStorage 记忆）、长按多选、排序、无限滚动、分类管理 | `pages/NoteList.tsx`、`notePresentation.ts` |
 | 知识库 | 多格式上传（SSE）、切片详情、网页剪藏（防 SSRF）、多模态 PDF、**整库导出 zip**（切片重建 + README 清单） | `pages/KnowledgeBase.tsx` |
 | AI 对话 | Agent + RAG + SSE 流式（思考步骤/引用来源）；**知识库工具**（`get_knowledge_docs_tool`/`get_knowledge_content_tool`，总结知识库可读文档列表与内容）；**侧栏会话乐观更新**（onDone 即时插入 + 800ms 校准）；思考面板折叠动画/进行中状态 | `pages/AIChat.tsx`、`components/ai/AiWorkspace.tsx`、`agent_tools.py` |
 | 会话管理 | 列表/历史/删除（**历史截断 60 条子查询倒序取 id 再正序，勿改回**）；**自定义名称 + 置顶**（`PATCH /chat/session/{id}`，custom_title 优先于自动标题，置顶排序 pinned_at 降序） | `pages/Sessions.tsx`、`api/sessions.ts`、`components/common/PromptDialog.tsx` |
 | 回顾/打卡/番茄钟 | 艾宾浩斯 + LLM 出题；streak + 每日任务；25+5 番茄钟（页宠联动） | `DailyReview/HabitPage/PomodoroPage.tsx`、`components/learning/LearningLayout.tsx` |
 | 仪表盘/图谱 | 热力图/趋势/环形图（自绘 SVG）+ 排行榜；d3-force 知识图谱（语义关联按需加载） | `StatsPage/GraphPage.tsx` |
-| 社交 | 好友/关注、动态流（图文/点赞评论）、通知红点、知识广场、个人主页成就墙；**微信式私聊**（仅好友 403、气泡头像/时间分组/发送状态、emoji/图片消息、复制/引用回复/2 分钟撤回、置顶/删除/搜索、在线绿点/正在输入、WS 实时 `/ws/chat`） | `pages/SocialFeed/FriendsPage/NotificationsPage/PlazaPage/UserProfilePage/MessagesPage.tsx`、`backend/app/router/social_router.py`、`ws_router.py`、`core/ws_manager.py` |
-| 分享 | 免登录分享页 `/share/:id` + 浏览计数 | `PublicSharePage.tsx`、`share_router.py`（含 `/public` API） |
+| 社交 | 好友/关注、动态流（图文/点赞评论）、通知红点、知识广场、个人主页成就墙；**通知删除/清空**（hover ✕ 单条删除 + 清空全部二次确认，`DELETE /social/notifications[/{id}]`，仅本人 404 不泄露）；**微信式私聊**（仅好友 403、气泡头像/时间分组/发送状态、emoji/图片消息、复制/引用回复/2 分钟撤回+重新编辑/引用条撤回联动与图片缩略图/右键菜单与转发、置顶/删除/搜索、**在线状态全局化：登录任意页面即在线（WS 单例，好友页/私信页绿点）**、正在输入、WS 实时 `/ws/chat`） | `pages/SocialFeed/FriendsPage/NotificationsPage/PlazaPage/UserProfilePage/MessagesPage.tsx`、`backend/app/router/social_router.py`、`ws_router.py`、`core/ws_manager.py` |
+| 分享 | **独立沉浸式分享页** `/share/:id`（不进 MainLayout：品牌顶栏/复制链接/免费开始 CTA、rAF 阅读进度条、作者信息卡、隐私提示）+ 浏览计数；后端 `/public` API 返回作者展示字段（username/avatar/bio/public_note_count，不含敏感信息） | `PublicSharePage.tsx`、`share-page.css`、`share_router.py` |
+| 个人中心 | `/profile` `/settings` `/pet` `/about` 统一 `AccountLayout` 体系（`is-account` 变体 + `account-pages.css`）：顶栏（面包屑/全局搜索/页宠显隐/通知/头像）+ 页头；Profile 含注册时间/性别展示；PetPage 含成长指南；AboutUs 含技术栈/功能特性 | `components/account/AccountLayout.tsx`、`styles/account-pages.css`、`pages/Profile/Settings/PetPage/AboutUs.tsx` |
 | 页宠「小卷」 | 9 情绪、拖拽、好感度等级、形象切换、**养成数据云端同步** | `components/pet/`、`stores/usePetStore.ts`、`hooks/useSettingsSync.ts` |
 | 稳定性三件套 | **备份脚本**（MySQL dump + media + data 打包，`deploy/backup.ps1`）；**前端错误监控**（`POST /telemetry/error` 匿名可上报 + ErrorBoundary/全局 error 监听，30s 节流）；**日志巡检**（`deploy/check-logs.ps1`，ERROR/慢查询统计 + 计划任务告警） | `models/error_report.py`、`router/telemetry_router.py`、`api/telemetry.ts` |
 | PWA | vite-plugin-pwa：Service Worker + manifest（离线壳/可安装）；SW 只缓存构建产物与 /media，**API 一律不缓存**（与 ETag/304 协同） | `vite.config.ts`（⚠️ 需本机 `npm run build` 验证，沙箱跑不了） |
-| 全局 | 主题、i18n 中英、错误边界、⌘K 命令面板、Ctrl+N、侧边栏分组折叠动画、底部账号菜单 | `Sidebar.tsx`、`CommandPalette.tsx` |
+| 全局 | 主题、i18n 中英、错误边界、⌘K 命令面板、Ctrl+N、侧边栏分组折叠动画、底部账号菜单、**页面标题随路由**（MainLayout 全路由 + 登录/注册 + 分享页笔记标题）、**字体本地化**（无远程字体，系统栈） | `Sidebar.tsx`、`CommandPalette.tsx`、`MainLayout.tsx` |
+| 体验性能 | **页面切换专项（08-30）**：路由预加载（`router/pages.ts` 共用 import，hover/空闲 2s 预取高频页）、AnimatePresence 120ms 淡出/淡入过渡、切页回顶部、全高卡片骨架、`MotionConfig reducedMotion="user"`；**SWR 缓存**：NoteList/AIChat 最近对话/Sessions/好友页/通知页；**滚动记忆**（笔记列表 sessionStorage）；**NoteCard memo 化**（回调 useCallback 稳定） | `router/pages.ts`、`MainLayout.tsx`、`LoadingSkeleton.tsx`、`App.tsx`、`useSwrCacheStore.ts` |
 
-**页面布局体系**（2026-08-28/29 建立）：`knowledge-pages.css`（知识库/广场/统计/图谱）+ `ai-pages.css`（AI 对话/会话）+ `learning-pages.css`（回顾/习惯/番茄钟）+ `dashboard.css`（首页），对应 `KnowledgeLayout`/`AiWorkspace`/`LearningLayout` 布局组件（含统一顶栏/搜索/页宠开关）。
+**页面布局体系**（2026-08-28/29 建立，08-30 扩展）：`knowledge-pages.css`（知识库/广场/统计/图谱）+ `ai-pages.css`（AI 对话/会话）+ `learning-pages.css`（回顾/习惯/番茄钟）+ `dashboard.css`（首页）+ `social-pages.css`（社交三页/私信/通知）+ `note-authoring.css`（笔记撰写）+ `account-pages.css`（个人中心三页 + about，`is-account`）+ `share-page.css`（分享页独立沉浸，**不进 MainLayout**），对应 `KnowledgeLayout`/`AiWorkspace`/`LearningLayout`/`SocialLayout`/`AccountLayout` 布局组件（含统一顶栏/搜索/页宠开关）。
 
 ## 3. 环境与重要注意事项（踩坑记录）
 
@@ -118,7 +121,19 @@
 48. **WS 广播会推给自己**：connect 后 broadcast online 会把新连接自己也广播到 → `broadcast(payload, exclude_user_id=...)` 排除自己；offline 时该用户已断开无需排除但参数一致更稳
 49. **渲染期禁 `Date.now()`**（eslint purity）：撤回按钮的 2 分钟窗口不能用 Date.now() 判断 → 用挂载时快照 `referenceNow` 近似，后端撤回接口仍严格校验（"发送超过 2 分钟，不能撤回"）兜底
 50. **`private_messages` 已扩展 4 列**（message_type/reply_to_id/reply_content/recalled，自动 ALTER）——写历史查询/WS 消息结构时注意新字段；图片消息 content 为 `/media/chat/...` URL（会话预览判断 `startsWith('/media/')` 显示 [图片]）
-51. **引用摘要冗余存**：`reply_content` 在发送时从被引用消息复制（图片消息引用显示 [图片]），原消息撤回/删除不影响引用展示
+51. **引用摘要冗余存**：`reply_content` 在发送时从被引用消息复制（图片消息引用显示 [图片]），原消息撤回/删除不影响引用展示。**08-30 联动增强**：前端渲染引用条时检查 `msgById.get(reply_to_id)?.recalled` → 显示「消息已撤回」灰化；被引用消息是图片 → 显示**缩略图**（左键查看大图 / 右键跳转原消息 `data-message-id` 锚点 + 闪烁高亮）
+
+### 通知删除/清空踩坑（08-30）
+51b. **通知删除接口隐私红线**：`DELETE /social/notifications/{id}` 与 `/notifications`（清空）都只按 `user_id` 过滤，他人/不存在一律 404；清空返回 `result.rowcount` 条数。前端删除按钮因行本身是 `<button>`（整行可点）不能嵌套 → 外层包 `.social-notification-row-wrap` + 绝对定位删除按钮（hover 显示、箭头让位）
+
+### 全局在线 / WS 单例踩坑（08-30）
+52. **WS 连接必须全局唯一**：`useChatSocket` 已重构为**模块级单例**（`hooks/useChatSocket.ts`）——`shared` 连接 + 订阅者 Set + 引用计数；**MainLayout 挂载全局实例**（`enabled={isLogin}`，登录任意页面保持在线），私信页/其他页以订阅者身份复用同一连接（各自只处理注册的事件）。**登出 = 全部订阅者卸载 → stopConnection → 后端广播 offline**。勿改回"每页面独立建连"（那样离开私信页就掉线，好友看不到在线）。后端 `ws_manager` 本就支持多连接且**完全下线才广播 offline**（多标签页不误报）
+53. **⚠️ 页面过渡与 chat 防闪屏守卫**：08-30 切页动画从 CSS `.page-enter` 改为 `AnimatePresence mode="wait"`（120ms 淡出→淡入），但 **chat key 归一化必须保留**：`pageKey = pathname.startsWith('/chat') ? '/chat' : pathname`——`/chat` ↔ `/chat/:id` 不换 key → 不触发过渡、不重挂载，AIChat 的 activeSessionRef/messagesRef 防闪屏守卫才有效。**改 MainLayout 的 key/过渡逻辑时先读 `plan/fixes/2026-08-29-ai-chat-flash-fix.md`**；`App.tsx` 已包 `MotionConfig reducedMotion="user"`（系统减弱动态效果时 transform 动画降级）
+54. **路由预加载与 lazy 共用 import**：`router/pages.ts` 导出 `loadPage.*`（页面 chunk 加载器）+ `PREFETCH_BY_PATH`（侧边栏 hover/聚焦预取）+ `PREFETCH_IDLE`（MainLayout 空闲 2s 兜底高频页）；lazy 组件由 `lazy(loadPage.xxx)` 派生。**新增页面：先在 pages.ts 注册加载器再在 router/index.tsx 引用**（否则预取映射缺页）
+55. **⚠️ 字体不再依赖 Google Fonts**：`index.css` 原 `@import` Google Fonts 已删（国内网络超时阻塞首屏）——`--font-body` 系统栈优先（-apple-system/苹方/微软雅黑），`--font-heading` 宋体系（Songti/STSong/SimSun），`--font-mono` JetBrains→Cascadia→SF Mono→Consolas；Noto/JetBrains 仅作本地候选。**勿加回远程字体**；`@theme` 与 `:root` 两处定义需同步改
+56. **SWR 缓存补全约定**（08-30 新增好友页 `social-friends:{userId}`、通知页 `notifications:{userId}`）：本地修改数据的操作（删除/清空/已读）后必须**同步写缓存**（commitItems 模式）；请求失败时用 `hadData` ref 判断——已有数据（缓存或首次成功）则静默保留旧数据，只有从未成功才显示错误。key 必须含 `:{userId}:` 隔离（登出 clearUser 依赖）
+57. **NoteCard memo 化后回调必须稳定**：列表侧传给卡片的所有回调（onOpen/onSelect/onPin/onTogglePublic）改为**带参签名**（如 `onOpen(id)`），列表侧用 `useCallback` 包裹——若传内联箭头，memo 失效等于没做。busy/pinPending 防重入逻辑内聚进 useCallback（deps 含 busy 等）
+57b. **列表滚动记忆**：笔记列表 `sessionStorage('note-list-scroll')` 在打开详情前记录 `window.scrollY`，返回时**数据到达后**（loading=false 的 effect 里 setTimeout 0）恢复——必须晚于 MainLayout 的切页回顶 effect（子组件 effect 先于父组件执行，直接恢复会被父级回顶覆盖）
 
 ### 注册/bcrypt 踩坑（08-29 晚）
 45. **⚠️ 注册接口曾 500（DetachedInstanceError）**：`user.date_joined` 是 **server_default 列**，INSERT 后 ORM 不知道其值；`register` 在 `async with` 块内 commit 后、块外 `_user_to_response` 访问该属性 → 懒加载 → session 已关闭 → 500。**修复：commit 后 `await session.refresh(user)`**（在 with 块内）。同类问题：任何 server_default/DB 生成列，commit 后需 refresh 再在 session 外访问
@@ -128,11 +143,11 @@
 ## 4. 剩余任务（按优先级）
 
 ### ⚠️ 立即事项
-- **本地 16 个提交未推送 `origin/main`**（私聊微信化五阶段 + 气泡布局修复 + 各项 docs）——开新会话第一件事提醒用户 `git push`（凭据/PAT 由用户本机操作）
-- **用户待办（08-29 晚，开新窗口时确认是否已完成）**：
-  ① **重启后端 8000**（`private_messages` 自动加 4 列：message_type/reply_to_id/reply_content/recalled + `chat_conversation_settings` 新表 + 图片上传/撤回/会话设置接口 + WS 在线/typing 协议）
-  ② **本机 `cd front && npm run build` 验证 PWA**（沙箱跑不了 vite build——检查 `dist/sw.js`、manifest、SW 注册与离线缓存）
-  ③ **双账号（admin/admin2）实测私聊全功能**：气泡左右分区/头像/时间分组/发送状态、emoji/图片互发+预览、引用回复、2 分钟内撤回、置顶/删除/搜索、在线绿点、"正在输入"
+- **✅ 已与 origin/main 同步**（08-30 核对 64=64，无待推送；以 git status 实测为准）
+- **用户待办（08-30，开新窗口时确认是否已完成）**：
+  ① **重启后端 8000**（08-30 改动：`share_router.py` 分享页作者信息 + `social_router.py` 通知删除/清空接口——若之前未重启则不生效；`--reload` 模式下已自动重载可忽略）
+  ② **双账号（admin/admin2）实测本轮体验优化**：页面切换过渡/预加载（hover 导航项后点击应无骨架）、好友页/私信页在线绿点（任意页面登录即在线）、通知删除/清空、私聊撤回后重新编辑、引用图片缩略图跳转、分享页作者信息卡
+  ③ **本机 `cd front && npm run build` 验证 PWA**（08-29 遗留，沙箱跑不了 vite build——检查 `dist/sw.js`、manifest、SW 注册与离线缓存）
   ④ 可选：备份/巡检脚本挂计划任务（`deploy/backup.ps1` 与 `deploy/check-logs.ps1` 头部有注册示例）
 
 ### ✅ 全部里程碑已完成（M2/M3/M4、方向 A/B/C1/C2/C3、数据上云、D 阶段一、备选精选、UI 改版、lint 清零、风格统一）
@@ -206,9 +221,25 @@
 - **验证**：四组探针 ALL PASS（图片 6 项/撤回 7 项/会话设置 8 项/WS 状态 4 项）+ tsc/eslint 全绿；⚠️ 双账号全功能实测需本机验证
 - **布局修复（`68cfec9`）**：气泡左右分区曾失效——`.messages-chat-body` 缺 `display:flex; flex-direction:column`，`align-self:flex-end`（自己消息靠右）不生效，全部消息挤左侧+右侧留白；已修复 + 消息间距 16px
 
+**⑫ 私聊体验升级（08-30，全部验证）**：
+- **时间分组微信化**：今天→「下午2:30」、昨天→「昨天 下午3:20」、一周内→「星期三 上午10:00」、同年→「8月27日 上午10:00」、跨年→「2022年8月27日 下午4:00」（`groupTitle`/`formatClock`）；会话列表同步（`formatTime`）
+- **消息右键/长按菜单**（替换 hover 按钮）：复制（仅文本）/引用/转发/撤回（2 分钟窗口在打开瞬间计算）；菜单越界自动回移；点击外部/Esc/滚动关闭；移动端长按 450ms 呼出（长按后抑制 click 防误开预览）
+- **转发弹窗**：好友多选 + 搜索，文本/图片均可转发（图片复用 /media URL）；部分失败提示
+- **撤回后「重新编辑」**：2 分钟内显示高亮按钮，点击把原文放回输入框（图片不支持）；`nowTick` 30s 定时刷新判断窗口（渲染期禁 Date.now()）
+- **引用条联动**：被引用消息撤回 → 「消息已撤回」灰化；引用图片 → 缩略图（左键看大图/右键跳原消息+闪烁）
+- **输入栏对齐修复**：`.messages-chat-input` 曾重复定义（display:flex 覆盖致 sendError/引用条横排）——合并为 flex-column + gap；左右 padding 与消息区统一 16px；工具按钮与输入框同高
+- **聊天字体大小**：设置页滑块 12~20px + 实时预览（`useChatFontStore` 持久化），气泡/引用/输入框跟随 `--chat-font-size`
+
+**⑬ 笔记公开管理（08-30）**：列表卡片「公开」徽标 + ⋯菜单设公开/关闭公开（同编辑页分享弹窗同一接口）；编辑页分享按钮 hover 显示当前状态；**修复**：好友动态引用笔记跳转（好友笔记→`/share/:id`，自己的→`/notes/:id`）+ NoteEditor 加载失败兜底错误页（不再白屏）
+
+**⑭ 账户页/分享页改版（08-30，用户完成主体，按设计稿落地）**：个人中心三页 + about 接入 `AccountLayout`（`components/account/AccountLayout.tsx`，`is-account` 变体，`account-pages.css`）；Dashboard 页宠卡片统一渲染（云/猫/自定义，custom 无图回退 cloud）；分享页独立沉浸式（`share-page.css`，品牌顶栏/阅读进度条/作者信息/注册 CTA/隐私提示），后端 `/public` 返回作者展示字段。设计稿：`artifacts/ui-concepts/{account-pages-v1,share-page-v1}`
+
+**⑮ 体验流畅度优化（08-30，详见 `plan/roadmap/2026-08-30-ux-polish-plan.md`）**：页面切换专项（预加载/AnimatePresence 过渡/回顶/骨架升级）、字体本地化、页面标题、SWR 补全（好友/通知）、笔记列表滚动记忆、NoteCard memo 化——全部 tsc/eslint 0 问题，待本机手测
+
 ### 🔜 待办（按触发条件）
 | 项 | 触发条件 | 参考 |
 | --- | --- | --- |
+| **UX 优化剩余项**：P0-3 AI 首答提速（HyDE 生成与直接检索并行，需实测 rag_service，Agent 首轮依赖 rag_context 无法直接并行）、P0-4 思考等待占位文案、P1-4 图片渐进加载、P1-5 乐观更新核对、P1-6 移动端滚动优化、P2（列表虚拟化/上传压缩/下拉刷新/PWA 引导/性能监控） | 新窗口优先 | `plan/roadmap/2026-08-30-ux-polish-plan.md` |
 | 方向 D 阶段二：模型服务拆分（embedding/reranker 独立 + 任务队列） | 活跃用户接近 1000 | `plan/roadmap/2026-08-27-scale-up-plan.md` |
 | 方向 D 阶段三：大规模架构 | 几千用户 | `plan/roadmap/2026-08-27-scale-up-plan.md` |
 | 路由判断偶发 2~3.8s 待定位（Chroma/Ollama 侧） | 有空 | 交接文档 §4 ② |
@@ -220,6 +251,7 @@
 | ~~稳定性三项（备份/错误监控/日志巡检）~~（**已完成 08-29**，备份与巡检脚本在 `deploy/`，建议挂计划任务） | — | `plan/records/2026-08-29-stability-pwa-delivery.md` |
 | ~~PWA 化~~（**已完成 08-29**，⚠️ 待本机 `npm run build` 验证 SW） | — | `plan/records/2026-08-29-stability-pwa-delivery.md` |
 | ~~社交私聊 P0~~（**已完成 08-29**，⚠️ 双账号实时互聊待本机验证） | — | `plan/records/2026-08-29-social-chat-delivery.md` |
+| ~~私聊微信化五阶段 / 私聊体验升级（右键菜单/转发/重新编辑/引用缩略图/全局在线）/ 账户页与分享页改版 / 体验流畅度优化~~（**已完成 08-30**） | — | 交接文档 §4 ⑫⑬⑭⑮、`plan/roadmap/2026-08-30-ux-polish-plan.md` |
 | 社交 P1：动态收藏/@提及/图片查看器/动态编辑 | 有空（约 1 天） | `plan/roadmap/2026-08-29-social-messaging-plan.md` |
 | 社交 P2：好友备注名/拉黑/已读回执完善 | 按需 | `plan/roadmap/2026-08-29-social-messaging-plan.md` |
 | 社交 P3：群聊/图片语音消息/消息搜索 | 远期 | `plan/roadmap/2026-08-29-social-messaging-plan.md` |
@@ -227,7 +259,8 @@
 ## 5. 设计约定（新体系）
 
 - **样式体系**：`styles/workspace.css` 提供全站类——按钮用 `primary-button`（紫色渐变主按钮）/`secondary-button`（描边次按钮）/`workspace-icon-button`（32px 图标按钮）、下拉菜单 `workspace-menu*`、页面容器 `app-shell/app-workspace`、侧边栏 `app-sidebar/sidebar-*`；笔记页用 `notes-page` 系列。**新 UI 一律用这些类，勿回退旧式内联类**
-- **页面布局**：知识页（知识库/广场/统计/图谱）用 `KnowledgeLayout` + `knowledge-pages.css`；AI 页（对话/会话）用 `AiWorkspace` + `ai-pages.css`；学习页（回顾/习惯/番茄钟）用 `LearningLayout` + `learning-pages.css`；首页 `dashboard.css`。**新页面按所属域接入对应布局，不新起一套**
+- **页面布局**：知识页（知识库/广场/统计/图谱）用 `KnowledgeLayout` + `knowledge-pages.css`；AI 页（对话/会话）用 `AiWorkspace` + `ai-pages.css`；学习页（回顾/习惯/番茄钟）用 `LearningLayout` + `learning-pages.css`；社交页（动态/好友/通知/私信）用 `SocialLayout` + `social-pages.css`；个人中心（/profile /settings /pet /about）用 `AccountLayout` + `account-pages.css`（`is-account`）；首页 `dashboard.css`；**分享页 `/share/:id` 独立沉浸式**（不进 MainLayout，`share-page.css`）。**新页面按所属域接入对应布局，不新起一套**
+- **字体**：全部系统字体栈（无远程字体，见踩坑 55），`--font-heading/--font-body/--font-mono` 在 `index.css` `@theme` 与 `:root` 两处同步改
 - 颜色全部走 CSS 变量（`var(--color-*)` / `var(--category-*-bg|text)` / `--gradient-brand`），明暗主题在 `index.css` `:root`/`.dark`
 - 侧边栏层次：组标题 15px 半粗靠左，子项 14px 缩进 26px（阶梯），折叠时子项居中覆盖
 - 新功能文案必须中英双语（`i18n/locales/zh-CN.ts` + `en-US.ts` 结构一致，改后跑 tsc）；笔记相关文案放 `note.ui.*`
