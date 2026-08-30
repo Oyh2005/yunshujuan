@@ -290,7 +290,7 @@
 .messages-chat-menu { z-index: 120; min-width: 150px; }
 .messages-chat-back { display: none; place-items: center; width: 30px; height: 30px; border-radius: 9px; color: var(--color-text-secondary); }
 .messages-chat-back:hover { background: var(--color-bg-secondary); color: var(--color-text); }
-.messages-chat-body { display: flex; min-height: 0; flex: 1; flex-direction: column; padding: 18px 20px; overflow-y: auto; background: linear-gradient(180deg,var(--color-bg-secondary),var(--color-bg)); }
+.messages-chat-body { display: flex; min-height: 0; flex: 1; flex-direction: column; padding: 18px 20px; overflow-y: auto; overscroll-behavior: contain; background: linear-gradient(180deg,var(--color-bg-secondary),var(--color-bg)); }
 .messages-load-earlier { display: inline-flex; align-items: center; gap: 6px; margin: 0 auto 10px; padding: 6px 12px; border-radius: 9px; background: var(--color-bg-secondary); color: var(--color-text-secondary); font-size: 10px; }
 .messages-chat-welcome { text-align: center; padding: 30px 0; color: var(--color-text-tertiary); font-size: 12px; }
 .messages-group-title { width: fit-content; margin: 16px auto 13px; padding: 3px 10px; border-radius: 8px; color: var(--color-text-tertiary); background: color-mix(in srgb,var(--color-card) 76%,transparent); font-size: 10px; text-align: center; }
@@ -431,6 +431,8 @@ img.messages-forward-preview { max-height: 140px; padding: 0; object-fit: cover;
 @media (max-width: 767px) {
   .is-social > .app-sidebar,.is-social > .app-sidebar.is-collapsed { width: 56px; }
   .is-social .sidebar-link { padding: 11px 0; }
+  /* P1-6 低端机优化：移动端弹层遮罩去掉 backdrop-filter（暗色底已足够，省 GPU 合成） */
+  .social-modal-backdrop,.messages-forward-modal,.messages-image-preview { backdrop-filter: none; }
 }
 
 @media (max-width: 600px) {

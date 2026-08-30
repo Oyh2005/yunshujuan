@@ -95,6 +95,8 @@
 
 /* Existing dialogs keep their behavior; only their surface is normalized. */
 .note-authoring-backdrop { background: rgba(26,20,35,.48); backdrop-filter: blur(3px); }
+/* P1-6 低端机优化：移动端弹层遮罩去掉毛玻璃 */
+@media (max-width: 767px) { .note-authoring-backdrop { backdrop-filter: none; } }
 .note-authoring-dialog { overflow: hidden; border-radius: 17px; box-shadow: 0 24px 70px rgba(30,18,50,.2); }
 .note-template-manager { border: 1px solid var(--color-border); border-radius: 17px; box-shadow: 0 24px 70px rgba(30,18,50,.2); }
 

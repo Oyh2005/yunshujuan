@@ -70,27 +70,56 @@ export default function UserProfilePage() {
   }, [userId])
 
   const handleToggleFollow = async () => {
-    if (!profile || !userId) return
+    if (!profile || !userId || followingBusy) return
+    const optimisticFollowing = !profile.follow.is_following
+    // P1-5 乐观更新：立即翻转关注态与粉丝数，失败回滚，成功以服务端为准校准
+    setProfile((prev) =>
+      prev
+        ? {
+            ...prev,
+            follow: {
+              ...prev.follow,
+              is_following: optimisticFollowing,
+              follower_count: Math.max(0, prev.follow.follower_count + (optimisticFollowing ? 1 : -1)),
+            },
+          }
+        : prev
+    )
     setFollowingBusy(true)
     try {
-      const res = profile.follow.is_following
-        ? await socialApi.unfollow(userId)
-        : await socialApi.follow(userId)
-      const isFollowing = res.data?.is_following ?? false
+      const res = optimisticFollowing
+        ? await socialApi.follow(userId)
+        : await socialApi.unfollow(userId)
+      const isFollowing = res.data?.is_following ?? optimisticFollowing
+      if (isFollowing !== optimisticFollowing) {
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                follow: {
+                  ...prev.follow,
+                  is_following: isFollowing,
+                  follower_count: Math.max(0, prev.follow.follower_count + (isFollowing ? 1 : -1)),
+                },
+              }
+            : prev
+        )
+      }
+      toast.success(isFollowing ? t('userpage.followed') : t('userpage.unfollowed'))
+    } catch (err) {
+      // 回滚到点击前状态
       setProfile((prev) =>
         prev
           ? {
               ...prev,
               follow: {
                 ...prev.follow,
-                is_following: isFollowing,
-                follower_count: Math.max(0, prev.follow.follower_count + (isFollowing ? 1 : -1)),
+                is_following: !optimisticFollowing,
+                follower_count: Math.max(0, prev.follow.follower_count + (optimisticFollowing ? -1 : 1)),
               },
             }
           : prev
       )
-      toast.success(isFollowing ? t('userpage.followed') : t('userpage.unfollowed'))
-    } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
       toast.error(detail || t('common.error'))
     } finally {
@@ -155,7 +184,7 @@ export default function UserProfilePage() {
                               : 'bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:opacity-90'
                           }`}
                         >
-                          {followingBusy ? t('common.loading') : profile.follow.is_following ? t('userpage.followingBtn') : t('userpage.follow')}
+                          {profile.follow.is_following ? t('userpage.followingBtn') : t('userpage.follow')}
                         </button>
                         {profile.follow.is_friend && (
                           <button

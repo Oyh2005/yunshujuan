@@ -1,4 +1,6 @@
 """rag_service.py — RagService 测试（全 fake：向量库 / 笔记库 / 重排序 / ChatModel）。"""
+import asyncio
+
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnableLambda
 
@@ -95,6 +97,19 @@ class TestGenerateHypotheticalDocument:
         assert await service.generate_hypothetical_document("原始查询") == "原始查询"
 
 
+class QueryAwareRetriever:
+    """按查询文本返回不同文档的检索器替身（模拟直接检索 vs HyDE 增强检索结果差异）。"""
+
+    def __init__(self, mapping: dict):
+        self.mapping = mapping  # {查询片段: [Document, ...]}
+
+    async def ainvoke(self, query, **kwargs):
+        for fragment, docs in self.mapping.items():
+            if fragment in query:
+                return list(docs)
+        return []
+
+
 class TestRetrieveDocument:
     async def test_no_user_id_returns_empty(self, monkeypatch):
         service, _ = _build(monkeypatch, user_id=None)
@@ -112,6 +127,57 @@ class TestRetrieveDocument:
         assert result[0].metadata["source_type"] == "note"
         assert result[1].page_content == "知识库内容"
         assert result[1].metadata["source_type"] == "knowledge_base"
+
+    async def test_parallel_merge_dedupes_overlapping_docs(self, monkeypatch):
+        """P0-3：双路检索结果合并，重叠文档（同一内容同时被直接/增强检索命中）只保留一份"""
+        kb_a = _kb_doc("知识库内容A")
+        kb_b = _kb_doc("知识库内容B")
+        note1 = _note_doc("笔记内容")
+        service, _ = _build(monkeypatch, note_documents=[note1])
+        # 直接检索 → [A]；HyDE 增强检索 → [A, B]（A 重叠）
+        service.retriever = QueryAwareRetriever({
+            "问题": [kb_a],
+            "这是假模型的预设回答。": [kb_a, kb_b],
+        })
+
+        result = await service.retrieve_document("问题")
+        assert [d.page_content for d in result] == ["笔记内容", "知识库内容A", "知识库内容B"]
+        assert all(d.metadata["source_type"] == "note" for d in result[:1])
+        assert all(d.metadata["source_type"] == "knowledge_base" for d in result[1:])
+
+    async def test_hyde_slow_falls_back_to_direct_results(self, monkeypatch):
+        """P0-3：HyDE 生成超过等待上限 → 直接返回直接检索结果，不阻塞管线"""
+        kb_a = _kb_doc("知识库内容A")
+        note1 = _note_doc("笔记内容")
+        service, _ = _build(monkeypatch, note_documents=[note1])
+        service.retriever = QueryAwareRetriever({"问题": [kb_a]})
+
+        async def slow_hyde(self, query):
+            await asyncio.sleep(10)
+            return "很慢的假设性文档"
+
+        monkeypatch.setattr(rag_module.RagService, "generate_hypothetical_document", slow_hyde)
+        started = asyncio.get_event_loop().time()
+        result = await service.retrieve_document("问题")
+        elapsed = asyncio.get_event_loop().time() - started
+        # 等待上限 2.5s + 余量；不应等到 10s 的慢 HyDE
+        assert elapsed < 4.0
+        assert [d.page_content for d in result] == ["笔记内容", "知识库内容A"]
+
+    async def test_empty_direct_skips_hyde_wait(self, monkeypatch):
+        """P0-3：直接检索无结果（如知识库为空）时不等待 HyDE，立即返回空"""
+        service, _ = _build(monkeypatch, km_documents=[], note_documents=[])
+
+        async def slow_hyde(self, query):
+            await asyncio.sleep(10)
+            return "很慢的假设性文档"
+
+        monkeypatch.setattr(rag_module.RagService, "generate_hypothetical_document", slow_hyde)
+        started = asyncio.get_event_loop().time()
+        result = await service.retrieve_document("问题")
+        elapsed = asyncio.get_event_loop().time() - started
+        assert result == []
+        assert elapsed < 2.0
 
     async def test_initialize_retriever_sets_retriever(self, monkeypatch):
         service, _ = _build(monkeypatch, km_documents=[_kb_doc("x")])

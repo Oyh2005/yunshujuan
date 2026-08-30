@@ -12,6 +12,7 @@ import { useChatStore } from '../stores/useChatStore'
 import { useChatFontStore } from '../stores/useChatFontStore'
 import { useUserStore } from '../stores/useUserStore'
 import ConfirmDialog from '../components/common/ConfirmDialog'
+import ProgressiveImage from '../components/common/ProgressiveImage'
 import SocialLayout, { SocialAvatar, SocialHeader } from '../components/social/SocialLayout'
 
 const HISTORY_PAGE = 30
@@ -786,12 +787,12 @@ export default function MessagesPage() {
                             ) : msg.status === 'failed' ? (
                               <>
                                 {msg.message_type === 'image'
-                                  ? <img className="messages-image failed" src={msg.content} alt="" onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
+                                  ? <ProgressiveImage className="messages-image failed" src={msg.content} alt="" onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
                                   : <p className="messages-failed-text">{msg.content}</p>}
                                 <button className="messages-resend" onClick={() => void resendMessage(msg)}>{text('发送失败，点击重发', 'Failed, tap to resend')}</button>
                               </>
                             ) : msg.message_type === 'image' ? (
-                              <img className="messages-image" src={msg.content} alt={text('聊天图片', 'Chat image')} loading="lazy" onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
+                              <ProgressiveImage className="messages-image" src={msg.content} alt={text('聊天图片', 'Chat image')} loading="lazy" onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
                             ) : (
                               <div className="messages-text-bubble">
                                 {msg.reply_content && (
@@ -802,7 +803,7 @@ export default function MessagesPage() {
                                       if (ref?.message_type === 'image' && ref.content) {
                                         // 被引用的是图片：显示缩略图，左键查看大图，右键跳转到原消息位置
                                         return (
-                                          <img
+                                          <ProgressiveImage
                                             className="messages-quote-image"
                                             src={ref.content}
                                             alt={text('[图片]', '[Image]')}
@@ -921,7 +922,7 @@ export default function MessagesPage() {
             </div>
             <div className="messages-forward-body">
               {forwardMsg.message_type === 'image'
-                ? <img className="messages-forward-preview" src={forwardMsg.content} alt="" />
+                ? <ProgressiveImage className="messages-forward-preview" src={forwardMsg.content} alt="" />
                 : <p className="messages-forward-preview">{forwardMsg.content}</p>}
               <label className="messages-forward-search">
                 <Search size={13} />

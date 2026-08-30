@@ -41,6 +41,8 @@
 .dashboard-hero-art { position: absolute; width: 51%; height: 100%; right: -2%; bottom: -8px; }
 .dashboard-hero-art > img { position: absolute; width: 116%; height: 116%; max-width: none; bottom: -7%; right: -10%; object-fit: contain; filter: drop-shadow(0 15px 12px #7757b318); }
 .dashboard-art-caption { position: absolute; bottom: 22px; left: 18%; display: flex; align-items: center; gap: 7px; border: 1px solid #fff9; background: #fffc; backdrop-filter: blur(8px); border-radius: 20px; padding: 6px 12px; font-size: 10px; color: #716080; }
+/* P1-6 低端机优化：移动端去掉装饰性毛玻璃 */
+@media (max-width: 767px) { .dashboard-art-caption { backdrop-filter: none; } }
 .dashboard-art-caption > span { width: 5px; height: 5px; background: #67BCA2; border-radius: 50%; }
 .dashboard-orbit { position: absolute; border: 1px solid #fff8; border-radius: 50%; width: 240px; height: 240px; top: 7%; right: 12%; }
 .orbit-two { width: 310px; height: 310px; top: -3%; right: 1%; }

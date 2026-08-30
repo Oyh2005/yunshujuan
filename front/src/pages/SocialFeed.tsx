@@ -25,6 +25,7 @@ import { notesApi } from '../api/notes'
 import client from '../api/client'
 import type { Note, Post, PostDetail } from '../types/api'
 import ConfirmDialog from '../components/common/ConfirmDialog'
+import ProgressiveImage from '../components/common/ProgressiveImage'
 import SocialLayout, { SocialAvatar, SocialHeader, SocialPetCard } from '../components/social/SocialLayout'
 import { usePetStore } from '../stores/usePetStore'
 import { useUserStore } from '../stores/useUserStore'
@@ -175,19 +176,45 @@ export default function SocialFeed() {
   }
 
   // ── 点赞 / 评论 / 删除 ──
+  // 点赞单飞守卫：同一动态在途请求期间忽略重复点击，避免乐观更新与服务端响应互相覆盖
+  const likingRef = useRef(new Set<number>())
   const handleToggleLike = async (post: Post) => {
+    if (likingRef.current.has(post.id)) return
+    likingRef.current.add(post.id)
+    const optimisticLiked = !post.liked_by_me
+    // P1-5 乐观更新：立即翻转点赞态与计数，失败回滚，成功以服务端为准校准
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === post.id
+          ? { ...p, liked_by_me: optimisticLiked, like_count: Math.max(0, p.like_count + (optimisticLiked ? 1 : -1)) }
+          : p
+      )
+    )
     try {
       const res = await socialApi.toggleLike(post.id)
-      const liked = res.data?.liked
+      const serverLiked = res.data?.liked
+      // 服务端状态与乐观值不一致才校准（避免重复增减计数）
+      if (serverLiked !== undefined && serverLiked !== optimisticLiked) {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === post.id
+              ? { ...p, liked_by_me: serverLiked, like_count: Math.max(0, p.like_count + (serverLiked ? 1 : -1)) }
+              : p
+          )
+        )
+      }
+    } catch {
+      // 回滚到点击前状态
       setPosts((prev) =>
         prev.map((p) =>
           p.id === post.id
-            ? { ...p, liked_by_me: liked, like_count: p.like_count + (liked ? 1 : -1) }
+            ? { ...p, liked_by_me: !optimisticLiked, like_count: Math.max(0, p.like_count + (optimisticLiked ? -1 : 1)) }
             : p
         )
       )
-    } catch {
       toast.error(t('common.error'))
+    } finally {
+      likingRef.current.delete(post.id)
     }
   }
 
@@ -420,7 +447,7 @@ export default function SocialFeed() {
                   {post.images.length > 0 && (
                     <div className={`social-post-images${post.images.length === 1 ? ' is-single' : ''}`}>
                       {post.images.map((url, i) => (
-                        <img key={`${url}-${i}`} src={url} alt="" loading="lazy" />
+                        <ProgressiveImage key={`${url}-${i}`} src={url} alt="" loading="lazy" />
                       ))}
                     </div>
                   )}

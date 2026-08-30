@@ -8,6 +8,11 @@ from app.core.logger_handler import logger
 from app.rag.vector_store import VectorStoreService
 from app.utils.prompt_loader import load_prompt
 
+# HyDE 生成等待上限（秒）：HyDE 生成是 DeepSeek 云端调用（限长后 ~1.7s，偶发 5s+）。
+# 超过上限仍未返回时直接用「直接检索」结果返回，保证 RAG 前置管线延迟有界
+# （P0-3 双路并行：HyDE 生成期间已并行完成直接检索）。
+_HYDE_WAIT_CAP = 2.5
+
 
 class RagService:
     def __init__(self, user_id: str = None, thinking_callback=None):
@@ -79,69 +84,112 @@ class RagService:
             return query
 
     async def retrieve_document(self, query: str) -> list:
-        """使用HyDE技术 从向量数据库里检索文档"""
+        """使用HyDE技术 从向量数据库里检索文档（P0-3 双路并行）
+
+        并行策略：HyDE 生成（DeepSeek，限长后 ~1.7s，偶发慢）期间，
+        先用原始查询并行完成「直接检索」（本地向量库，快）；HyDE 在等待上限
+        （_HYDE_WAIT_CAP）内返回则再做一次增强检索并与直接结果合并去重
+        （召回更全、重排序候选更多），超过上限则直接用直接检索结果（延迟有界）。
+        """
         if not self.user_id:
             logger.warning("【HyDE】user_id为空，不进行任何检索")
             return []
 
         try:
-            # 确保检索器已初始化，传递query参数
+            # 确保检索器已初始化，传递query参数（两条检索路径共用同一检索器）
             if self.retriever is None:
                 await self.initialize_retriever(query)
 
-            # 使用HyDE技术生成假设性文档
-            logger.info(f"【HyDE】开始处理查询: {query}")
-
             if self.thinking_callback:
                 await self.thinking_callback({
                     "type": "thinking",
                     "stage": "hyde",
-                    "content": f"正在基于查询「{query}」生成假设性文档..."
+                    "content": f"正在并行执行双路检索：生成假设性文档 + 直接检索「{query}」..."
                 })
 
-            hypothetical_doc = await self.generate_hypothetical_document(query)
+            async def _search(text: str) -> tuple[list, list]:
+                """单路检索：知识库混合检索 + 笔记库检索（来源标记由合并函数统一处理）"""
+                kb_docs = await self.retriever.ainvoke(text)
+                note_docs = []
+                try:
+                    note_docs = await asyncio.to_thread(
+                        self.note_service.notes_store.similarity_search,
+                        text, k=3,
+                        filter={"user_id": self.user_id}
+                    )
+                except Exception as e:
+                    logger.error(f"【RAG】检索笔记失败: {e}")
+                return kb_docs, note_docs
 
-            if self.thinking_callback:
-                await self.thinking_callback({
-                    "type": "thinking",
-                    "stage": "hyde",
-                    "content": "假设性文档生成完成",
-                    "details": {
-                        "hypothetical_doc_preview": hypothetical_doc[:200] + "..." if len(hypothetical_doc) > 200 else hypothetical_doc
-                    }
-                })
+            def _merge(direct: tuple[list, list], enhanced: tuple[list, list] | None) -> list:
+                """合并两路结果：笔记在前、知识库在后，各自按内容去重，标记来源"""
+                note_docs = list(direct[1])
+                kb_docs = list(direct[0])
+                if enhanced is not None:
+                    seen_notes = {d.page_content for d in note_docs}
+                    for doc in enhanced[1]:
+                        if doc.page_content not in seen_notes:
+                            note_docs.append(doc)
+                            seen_notes.add(doc.page_content)
+                    seen_kb = {d.page_content for d in kb_docs}
+                    for doc in enhanced[0]:
+                        if doc.page_content not in seen_kb:
+                            kb_docs.append(doc)
+                            seen_kb.add(doc.page_content)
+                for doc in kb_docs:
+                    doc.metadata["source_type"] = "knowledge_base"
+                for doc in note_docs:
+                    doc.metadata["source_type"] = "note"
+                return note_docs + kb_docs
 
-            # 使用假设性文档进行检索
-            logger.info("【HyDE】使用假设性文档进行检索")
+            # ── 并行：HyDE 生成（后台任务）与直接检索（立即执行，不等待 LLM）──
+            logger.info(f"【HyDE】开始处理查询: {query}（双路并行）")
+            hyde_task = asyncio.create_task(self.generate_hypothetical_document(query))
+            kb_direct, note_direct = await _search(query)
 
             if self.thinking_callback:
                 await self.thinking_callback({
                     "type": "thinking",
                     "stage": "retrieval",
-                    "content": "正在向量数据库中检索相关文档..."
+                    "content": f"直接检索完成，找到 {len(kb_direct)} 篇知识库文档, {len(note_direct)} 篇笔记"
                 })
 
-            documents = await self.retriever.ainvoke(hypothetical_doc)
+            # 直接检索无任何结果（如知识库为空）：增强检索同样无结果，无需等待 HyDE
+            if not kb_direct and not note_direct:
+                hyde_task.cancel()
+                # 消费取消，避免 asyncio 打印 "Task exception was never retrieved"
+                hyde_task.add_done_callback(lambda t: t.cancelled() or t.exception())
+                return []
 
-            # 同时检索笔记库
-            note_docs = []
-            try:
-                note_docs = await asyncio.to_thread(
-                    self.note_service.notes_store.similarity_search,
-                    hypothetical_doc, k=3,
-                    filter={"user_id": self.user_id}
+            # 等待 HyDE 生成（有上限：慢调用不拖住管线，超过上限直接返回）
+            done, _ = await asyncio.wait({hyde_task}, timeout=_HYDE_WAIT_CAP)
+            if hyde_task in done:
+                hypothetical_doc = hyde_task.result()
+                if self.thinking_callback:
+                    await self.thinking_callback({
+                        "type": "thinking",
+                        "stage": "hyde",
+                        "content": "假设性文档生成完成，正在执行增强检索...",
+                        "details": {
+                            "hypothetical_doc_preview": hypothetical_doc[:200] + "..." if len(hypothetical_doc) > 200 else hypothetical_doc
+                        }
+                    })
+
+                # 使用假设性文档进行增强检索
+                logger.info("【HyDE】使用假设性文档进行增强检索")
+                kb_hyde, note_hyde = await _search(hypothetical_doc)
+                all_documents = _merge((kb_direct, note_direct), (kb_hyde, note_hyde))
+                logger.info(
+                    f"【HyDE】双路检索合并完成：直接 {len(kb_direct)}+{len(note_direct)}，"
+                    f"增强 {len(kb_hyde)}+{len(note_hyde)}，去重后共 {len(all_documents)} 篇"
                 )
-            except Exception as e:
-                logger.error(f"【RAG】检索笔记失败: {e}")
-
-            # 标记来源并合并（笔记在前，知识库在后）
-            for doc in documents:
-                doc.metadata["source_type"] = "knowledge_base"
-            for doc in note_docs:
-                doc.metadata["source_type"] = "note"
-            all_documents = note_docs + documents
-
-            logger.info(f"【HyDE】检索到 {len(documents)} 个知识库文档, {len(note_docs)} 个笔记文档")
+            else:
+                # HyDE 生成超过等待上限：直接使用直接检索结果（取消慢调用，释放资源）
+                all_documents = _merge((kb_direct, note_direct), None)
+                hyde_task.cancel()
+                # 消费取消/异常，避免 asyncio 打印 "Task exception was never retrieved"
+                hyde_task.add_done_callback(lambda t: t.cancelled() or t.exception())
+                logger.warning(f"【HyDE】生成超过 {_HYDE_WAIT_CAP}s 等待上限，使用直接检索结果（共 {len(all_documents)} 篇）")
 
             if self.thinking_callback:
                 doc_previews = []
@@ -156,10 +204,12 @@ class RagService:
                         "preview": preview,
                         "source": source,
                     })
+                note_count = sum(1 for d in all_documents if d.metadata.get("source_type") == "note")
+                kb_count = len(all_documents) - note_count
                 await self.thinking_callback({
                     "type": "thinking",
                     "stage": "retrieval",
-                    "content": f"检索到 {len(note_docs)} 篇相关笔记, {len(documents)} 篇知识库文档",
+                    "content": f"检索到 {note_count} 篇相关笔记, {kb_count} 篇知识库文档",
                     "details": {
                         "documents": doc_previews
                     }

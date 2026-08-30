@@ -18,14 +18,14 @@
   background: var(--color-card);
   box-shadow: 0 4px 24px var(--color-shadow);
 }
-.app-workspace { position: relative; flex: 1; min-width: 0; overflow-y: auto; }
+.app-workspace { position: relative; flex: 1; min-width: 0; overflow-y: auto; overscroll-behavior: none; }
 .app-sidebar { display: flex; flex-direction: column; flex-shrink: 0; width: var(--workspace-sidebar-width); transition: width .2s ease; }
 .app-sidebar.is-collapsed { width: var(--workspace-sidebar-collapsed-width); }
 .sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 24px 18px 20px; min-height: 84px; }
 .sidebar-logo { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--color-accent); }
 .sidebar-logo span { white-space: nowrap; color: var(--color-text); font-size: 21px; font-weight: 750; letter-spacing: .02em; }
 .sidebar-toggle { margin-left: auto; }
-.sidebar-navigation { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 16px; scrollbar-width: thin; }
+.sidebar-navigation { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 16px; scrollbar-width: thin; overscroll-behavior: contain; }
 .sidebar-section { margin-bottom: 12px; }
 .sidebar-group-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 12px 8px; font-size: 15px; font-weight: 600; color: var(--color-text-secondary); transition: color .15s; }
 .sidebar-group-toggle:hover { color: var(--color-text); }
@@ -154,7 +154,8 @@
      ⚠️ 高特异性覆盖各域（.is-ai/.is-knowledge/.is-note-authoring）对 > .app-sidebar 的宽度强制 */
   .sidebar-mobile-menu { margin-left: auto; }
   .app-shell > .app-sidebar.is-mobile-open { position: fixed; z-index: 70; inset-block: 8px; left: 8px; width: 212px; }
-  .sidebar-mobile-backdrop { position: fixed; z-index: 65; inset: 0; background: rgba(22, 16, 38, .42); backdrop-filter: blur(2px); animation: sidebar-fade .18s ease; }
+  /* P1-6 低端机优化：移动端遮罩去掉 backdrop-filter（暗色底已足够，省 GPU 合成） */
+  .sidebar-mobile-backdrop { position: fixed; z-index: 65; inset: 0; background: rgba(22, 16, 38, .42); animation: sidebar-fade .18s ease; }
   @keyframes sidebar-fade { from { opacity: 0; } }
 }
 @media (max-width: 640px) {

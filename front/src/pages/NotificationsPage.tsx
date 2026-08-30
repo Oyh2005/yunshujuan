@@ -67,11 +67,14 @@ export default function NotificationsPage() {
 
   const handleMarkAllRead = async () => {
     setMarking(true)
+    // P1-5 乐观更新：立即全部置为已读（含 SWR 缓存），失败回滚
+    const snapshot = items
+    commitItems((prev) => prev.map((n) => ({ ...n, read: true })))
     try {
       await socialApi.markAllRead()
-      commitItems((prev) => prev.map((n) => ({ ...n, read: true })))
       toast.success(t('notifications.allRead'))
     } catch {
+      commitItems(() => snapshot)
       toast.error(t('common.error'))
     } finally {
       setMarking(false)

@@ -22,6 +22,7 @@ import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
 import DOMPurify from 'dompurify'
 import { useSSE } from '../hooks/useSSE'
+import { useRotatingPlaceholder } from '../hooks/useRotatingPlaceholder'
 import { sessionsApi } from '../api/sessions'
 import { useThemeStore } from '../stores/useThemeStore'
 import { usePetStore } from '../stores/usePetStore'
@@ -64,6 +65,13 @@ function AssistantMarkdown({ content }: { content: string }) {
 
 const RENDER_WINDOW = 50
 
+// P0-4 思考等待占位文案：首个 thinking 事件到达前（路由判断/管线启动）轮播
+const PRE_STAGE_PLACEHOLDERS = ['正在分析你的问题…', '正在检索相关知识…', '正在思考如何回答…', '正在组织语言…']
+const PRE_STAGE_PLACEHOLDERS_EN = ['Analyzing your question…', 'Searching related knowledge…', 'Thinking about the answer…', 'Composing the reply…']
+// 阶段事件到达后长时间无新事件（Agent 首轮模型调用）时轮播
+const STALL_PLACEHOLDERS = ['正在思考中…', '正在调用模型…', '马上就好…']
+const STALL_PLACEHOLDERS_EN = ['Still thinking…', 'Calling the model…', 'Almost there…']
+
 function validTime(value?: string) {
   const time = value ? Date.parse(value) : Number.NaN
   return Number.isFinite(time) ? time : 0
@@ -83,6 +91,8 @@ export default function AIChat() {
   const [currentThinking, setCurrentThinking] = useState('')
   const [currentSteps, setCurrentSteps] = useState<string[]>([])
   const [showThinking, setShowThinking] = useState(true)
+  // 最近一次 thinking/response 事件的轮播 tick（用于判断"等待无新事件"的空档）
+  const [activityTick, setActivityTick] = useState(0)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [visibleStart, setVisibleStart] = useState(0)
   const [recentSessions, setRecentSessions] = useState<ChatSession[]>(() => swrCache.get<ChatSession[]>(`recent-sessions:${userId}`) ?? [])
@@ -232,6 +242,7 @@ export default function AIChat() {
     setInput('')
     setCurrentThinking('')
     setCurrentSteps([])
+    setActivityTick(0)
     setVisibleStart(0)
     navigate('/chat')
   }
@@ -246,6 +257,7 @@ export default function AIChat() {
     setInput('')
     setCurrentThinking('')
     setCurrentSteps([])
+    setActivityTick(0)
     setShowThinking(true)
     contentRef.current = ''
     const steps: string[] = []
@@ -256,6 +268,7 @@ export default function AIChat() {
         if (stage && !steps.includes(stage)) steps.push(stage)
         setCurrentSteps([...steps])
         setCurrentThinking((previous) => previous ? `${previous}\n${content || ''}` : (content || ''))
+        setActivityTick((tick) => tick + 1)
         usePetStore.getState().trigger('ai_thinking')
       },
       onResponse: (content, nextSessionId) => {
@@ -263,6 +276,7 @@ export default function AIChat() {
           hasResponseStarted = true
           setShowThinking(false)
         }
+        setActivityTick((tick) => tick + 1)
         if (nextSessionId) sessionStorage.setItem('lastSessionId', nextSessionId)
         contentRef.current += content
         if (rafRef.current === null) {
@@ -325,6 +339,12 @@ export default function AIChat() {
   const isLoading = loadingHistory || loading
   const hasStreamingAssistant = loading && messages.at(-1)?.role === 'assistant'
   const completedStages = currentSteps.map(stageLabel)
+  // P0-4 思考等待反馈：真实阶段事件未到达/长时间无新事件时，轮播占位文案
+  const waiting = loading && !hasStreamingAssistant
+  const preStagePlaceholder = useRotatingPlaceholder(english ? PRE_STAGE_PLACEHOLDERS_EN : PRE_STAGE_PLACEHOLDERS, waiting && currentSteps.length === 0)
+  const stallPlaceholder = useRotatingPlaceholder(english ? STALL_PLACEHOLDERS_EN : STALL_PLACEHOLDERS, waiting)
+  // 空档判定：开始等待后始终无事件，或距最近事件已过 2 个轮播周期（≈3.2s）
+  const stalled = waiting && (activityTick === 0 || stallPlaceholder.tick - activityTick >= 2)
 
   return (
     <section className="ai-page ai-chat-page">
@@ -388,6 +408,7 @@ export default function AIChat() {
                             label={text('思考过程', 'Thinking process')}
                             completeLabel={loading ? text('正在进行', 'In progress') : text('已完成', 'Complete')}
                             busy={loading}
+                            liveText={stalled ? stallPlaceholder.text : null}
                           />
                         )}
                         {message.role === 'user' ? <p>{message.content}</p> : (
@@ -415,7 +436,14 @@ export default function AIChat() {
                         label={text('思考过程', 'Thinking process')}
                         completeLabel={text('正在进行', 'In progress')}
                         busy={loading}
+                        liveText={stalled ? stallPlaceholder.text : null}
                       />
+                    )}
+                    {currentSteps.length === 0 && (
+                      <div className="ai-thinking-placeholder" role="status">
+                        <Loader2 size={13} className="animate-spin" />
+                        <span>{preStagePlaceholder.text}</span>
+                      </div>
                     )}
                     <StreamingDots />
                   </div>
@@ -457,7 +485,7 @@ export default function AIChat() {
   )
 }
 
-function ThinkingPanel({ expanded, onToggle, steps, detail, label, completeLabel, busy }: { expanded: boolean; onToggle: () => void; steps: string[]; detail: string; label: string; completeLabel: string; busy?: boolean }) {
+function ThinkingPanel({ expanded, onToggle, steps, detail, label, completeLabel, busy, liveText }: { expanded: boolean; onToggle: () => void; steps: string[]; detail: string; label: string; completeLabel: string; busy?: boolean; liveText?: string | null }) {
   return (
     <div className={`ai-thinking-panel${expanded ? ' is-expanded' : ''}`}>
       <button onClick={onToggle} aria-expanded={expanded}>
@@ -474,6 +502,7 @@ function ThinkingPanel({ expanded, onToggle, steps, detail, label, completeLabel
             </span>
           ))}</div>
           {detail && <p>{detail}</p>}
+          {liveText && <p className="ai-thinking-live" role="status"><Loader2 size={10} className="animate-spin" />{liveText}</p>}
         </div>
       </div>
     </div>

@@ -3,6 +3,8 @@
 
 /* ── 吸顶顶栏 + 阅读进度 ── */
 .share-topbar { position: sticky; top: 0; z-index: 20; height: 64px; display: flex; align-items: center; gap: 16px; padding: 0 28px; background: rgba(255, 255, 255, .82); backdrop-filter: blur(10px); border-bottom: 1px solid var(--color-border-light); }
+/* P1-6 低端机优化：移动端吸顶栏去掉毛玻璃（半透明白底已足够） */
+@media (max-width: 767px) { .share-topbar { backdrop-filter: none; } }
 .dark .share-topbar { background: rgba(36, 32, 46, .82); }
 .share-brand { display: flex; align-items: center; gap: 9px; color: var(--color-accent); font-size: 16px; font-weight: 750; letter-spacing: .02em; text-decoration: none; }
 .share-brand span { color: var(--color-text); }
