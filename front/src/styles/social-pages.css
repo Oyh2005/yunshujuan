@@ -19,6 +19,10 @@
 .social-top-actions { display: flex; flex: 1; align-items: center; justify-content: flex-end; gap: 12px; }
 .social-avatar { display: grid; place-items: center; flex-shrink: 0; overflow: hidden; border-radius: 50%; color: #fff; background: linear-gradient(135deg,#A88BFF,#7041EE); font-weight: 650; }
 .social-avatar img { width: 100%; height: 100%; object-fit: cover; }
+/* 可点击头像（私信气泡/聊天头部跳转个人主页） */
+.social-avatar.is-clickable { cursor: pointer; transition: filter .15s ease, transform .15s ease; }
+.social-avatar.is-clickable:hover { filter: brightness(1.08); transform: scale(1.05); }
+.social-avatar.is-clickable:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 .social-avatar--profile { width: 36px; height: 36px; font-size: 12px; }
 
 .social-page-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 6px 2px 20px; }

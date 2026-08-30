@@ -57,9 +57,17 @@ export function SocialHeader({ title, subtitle, badge, actions }: { title: strin
   )
 }
 
-export function SocialAvatar({ username, avatar, size = 42 }: { username: string; avatar: string | null; size?: number }) {
+export function SocialAvatar({ username, avatar, size = 42, onClick, className = '', title }: { username: string; avatar: string | null; size?: number; onClick?: () => void; className?: string; title?: string }) {
   return (
-    <span className="social-avatar" style={{ width: size, height: size, fontSize: size * 0.38 }}>
+    <span
+      className={`social-avatar${onClick ? ' is-clickable' : ''} ${className}`}
+      style={{ width: size, height: size, fontSize: size * 0.38 }}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      title={title}
+      onClick={onClick}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
+    >
       {avatar ? <AuthImage src={avatar} alt={username} /> : username.slice(0, 1).toUpperCase()}
     </span>
   )

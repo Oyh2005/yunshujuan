@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -105,7 +105,11 @@ export default function MessagesPage() {
   const { i18n } = useTranslation()
   const english = i18n.resolvedLanguage?.startsWith('en') ?? false
   const text = useCallback((zh: string, en: string) => english ? en : zh, [english])
+  const navigate = useNavigate()
   const userId = useUserStore((s) => s.userInfo?.uuid || s.userInfo?.user_id || s.userInfo?.id || '')
+  // 自己的头像/昵称（气泡旁显示 + 点击跳个人主页）
+  const myAvatar = useUserStore((s) => s.userInfo?.avatar ?? null)
+  const myUsername = useUserStore((s) => s.userInfo?.username ?? '')
   const setUnread = useChatStore((s) => s.setUnread)
   // 在线好友集合：MainLayout 的全局 WS 维护（登录即在线，任意页面实时更新）
   const onlineUsers = useChatStore((s) => s.onlineUsers)
@@ -147,6 +151,29 @@ export default function MessagesPage() {
   const typingTimerRef = useRef<number | null>(null)
   const lastTypingAtRef = useRef(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  /** 消息区滚动容器（scrollTo 精确滚动到底，替代 scrollIntoView——图片懒加载撑高时
+      scrollIntoView 会停在"最新消息上面一点"，见下方图片 onLoad 校正） */
+  const chatBodyRef = useRef<HTMLDivElement>(null)
+
+  // ── 滚动定位（切会话/新消息/图片加载后精确到底部）──
+  const scrollChatToBottom = useCallback((smooth: boolean) => {
+    const el = chatBodyRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+  }, [])
+  // 切换会话：立即定位到底部（不带动画，避免加载过程中半途停下；历史加载完成后由
+  // openConversation 再滚一次，图片懒加载撑高由 handleChatImageLoad 推底兜底）
+  useEffect(() => {
+    scrollChatToBottom(false)
+  }, [selectedPeerId, scrollChatToBottom])
+  // 图片懒加载完成后高度撑开 → 若用户位于底部附近则推底，避免"停在最新消息上面一点"
+  const handleChatImageLoad = useCallback(() => {
+    const el = chatBodyRef.current
+    if (!el) return
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'auto' })
+    }
+  }, [])
   const menuRef = useRef<HTMLDivElement>(null)
   /** 移动端长按计时器（450ms 后弹出菜单） */
   const longPressTimerRef = useRef<number | null>(null)
@@ -224,12 +251,14 @@ export default function MessagesPage() {
       setDirectPeer(null)
     }
     await loadHistory(peerId)
+    // 历史加载完成：立即定位到底部（auto，图片撑高由 handleChatImageLoad 推底兜底）
+    scrollChatToBottom(false)
     await messagesApi.markRead(peerId).then(setUnread).catch(() => {})
     // 本地会话未读清零（仅在确实有未读时更新引用，避免无谓重渲染）
     setConversations((prev) => prev.some((c) => c.peer.user_id === peerId && c.unread > 0)
       ? prev.map((c) => c.peer.user_id === peerId ? { ...c, unread: 0 } : c)
       : prev)
-  }, [loadHistory, setUnread, text])
+  }, [loadHistory, scrollChatToBottom, setUnread, text])
 
   // 初始加载
   useEffect(() => {
@@ -249,11 +278,6 @@ export default function MessagesPage() {
     }, 0)
     return () => window.clearTimeout(timer)
   }, [withId, openConversation])
-
-  // 滚动到底部（新消息/切换会话）
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }, [messages.length, selectedPeerId])
 
   // 卸载时清理长按计时器
   useEffect(() => () => {
@@ -300,6 +324,7 @@ export default function MessagesPage() {
     onMessage: (msg) => {
       if (msg.sender_id === selectedPeerRef.current) {
         setMessages((prev) => [...prev, msg])
+        scrollChatToBottom(true)
         // 当前会话收到消息立即标记已读
         void messagesApi.markRead(msg.sender_id).then(setUnread).catch(() => {})
         setConversations((prev) => prev.map((c) => c.peer.user_id === msg.sender_id ? { ...c, unread: 0, last_message: msg.content, last_message_at: msg.created_at, last_sender_id: msg.sender_id } : c))
@@ -369,6 +394,7 @@ export default function MessagesPage() {
       status: 'sending',
     }
     setMessages((prev) => [...prev, tempMsg])
+    scrollChatToBottom(true)
     try {
       const msg = await messagesApi.send(peerId, content, messageType, replyToId)
       if (msg) {
@@ -383,7 +409,7 @@ export default function MessagesPage() {
       setSendError(status === 403 ? text('仅好友之间可以私聊，先去添加好友吧', 'Only friends can chat. Add them as a friend first.') : detail || text('发送失败，请重试', 'Failed to send. Please retry.'))
       return false
     }
-  }, [replyTo, setSendError, syncConversationAfterSend, text, userId])
+  }, [replyTo, scrollChatToBottom, setSendError, syncConversationAfterSend, text, userId])
 
   const handleSend = async () => {
     const content = input.trim()
@@ -604,10 +630,17 @@ export default function MessagesPage() {
     return c.peer.username.toLocaleLowerCase().includes(q) || c.last_message.toLocaleLowerCase().includes(q)
   })
 
+  /** 加载更早消息：插入顶部后补偿滚动位置，保持用户所在位置（不滚底） */
   const handleLoadEarlier = async () => {
-    if (messages.length && hasMore) {
-      await loadHistory(selectedPeerId!, messages[0].id)
-    }
+    if (!messages.length || !hasMore) return
+    const el = chatBodyRef.current
+    const prevHeight = el?.scrollHeight ?? 0
+    await loadHistory(selectedPeerId!, messages[0].id)
+    // 等新消息渲染完成后，把滚动位置补偿新增内容高度
+    window.setTimeout(() => {
+      const el2 = chatBodyRef.current
+      if (el2) el2.scrollTop = Math.max(0, el2.scrollHeight - prevHeight)
+    }, 0)
   }
 
   const closeChat = () => {
@@ -712,7 +745,7 @@ export default function MessagesPage() {
               <header className="messages-chat-head">
                 <button className="messages-chat-back" onClick={closeChat} aria-label={text('返回会话列表', 'Back')}><ArrowLeft size={17} /></button>
                 <span className="messages-peer-avatar messages-chat-avatar">
-                  <SocialAvatar username={selectedPeer.username} avatar={selectedPeer.avatar} size={38} />
+                  <SocialAvatar username={selectedPeer.username} avatar={selectedPeer.avatar} size={38} onClick={() => navigate(`/user/${selectedPeer.user_id}`)} title={text('查看个人主页', 'View profile')} />
                   {onlineUsers.has(selectedPeer.user_id) && <i className="messages-online-dot" title={text('在线', 'Online')} />}
                 </span>
                 <span className="messages-chat-peer">
@@ -751,7 +784,7 @@ export default function MessagesPage() {
                   </div>
                 )}
               </header>
-              <div className="messages-chat-body">
+              <div className="messages-chat-body" ref={chatBodyRef}>
                 {hasMore && (
                   <button className="messages-load-earlier" disabled={loadingHistory} onClick={() => void handleLoadEarlier()}>
                     {loadingHistory ? <Loader2 size={13} className="animate-spin" /> : null}{text('加载更早的消息', 'Load earlier messages')}
@@ -774,7 +807,7 @@ export default function MessagesPage() {
                         onTouchEnd={cancelBubbleLongPress}
                         onTouchCancel={cancelBubbleLongPress}
                       >
-                        {!mine && <SocialAvatar username={selectedPeer.username} avatar={selectedPeer.avatar} size={30} />}
+                        {!mine && <SocialAvatar username={selectedPeer.username} avatar={selectedPeer.avatar} size={30} onClick={() => navigate(`/user/${selectedPeer.user_id}`)} title={text('查看个人主页', 'View profile')} />}
                         <div className="messages-bubble-main">
                           <div className="messages-bubble-content">
                             {msg.recalled ? (
@@ -787,12 +820,12 @@ export default function MessagesPage() {
                             ) : msg.status === 'failed' ? (
                               <>
                                 {msg.message_type === 'image'
-                                  ? <ProgressiveImage className="messages-image failed" src={msg.content} alt="" onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
+                                  ? <ProgressiveImage className="messages-image failed" src={msg.content} alt="" onLoad={handleChatImageLoad} onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
                                   : <p className="messages-failed-text">{msg.content}</p>}
                                 <button className="messages-resend" onClick={() => void resendMessage(msg)}>{text('发送失败，点击重发', 'Failed, tap to resend')}</button>
                               </>
                             ) : msg.message_type === 'image' ? (
-                              <ProgressiveImage className="messages-image" src={msg.content} alt={text('聊天图片', 'Chat image')} loading="lazy" onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
+                              <ProgressiveImage className="messages-image" src={msg.content} alt={text('聊天图片', 'Chat image')} loading="lazy" onLoad={handleChatImageLoad} onClick={() => { if (suppressClickRef.current) return; setPreviewImage(msg.content) }} />
                             ) : (
                               <div className="messages-text-bubble">
                                 {msg.reply_content && (
@@ -809,6 +842,7 @@ export default function MessagesPage() {
                                             alt={text('[图片]', '[Image]')}
                                             title={text('点击查看大图，右键跳转到原消息', 'Click to view full image, right-click to jump to the original message')}
                                             loading="lazy"
+                                            onLoad={handleChatImageLoad}
                                             onClick={(e) => { e.stopPropagation(); setPreviewImage(ref.content) }}
                                             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); jumpToMessage(ref.id) }}
                                           />
@@ -828,6 +862,8 @@ export default function MessagesPage() {
                             </span>
                           )}
                         </div>
+                        {/* 自己的消息也显示头像（微信式右侧），点击进个人主页 */}
+                        {mine && <SocialAvatar username={myUsername} avatar={myAvatar} size={30} onClick={() => navigate('/profile')} title={text('查看个人主页', 'View profile')} />}
                       </div>
                     </Fragment>
                   )
